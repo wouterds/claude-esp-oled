@@ -32,6 +32,9 @@ constexpr int16_t BATTERY_X = 199;
 
 constexpr int16_t ADDRESS_Y = 310;
 constexpr int16_t BOTTOM_SCALE = 2;
+// How long the countdown takes to come up, which is what the bars take to go
+// down - it is the same handover seen from the other end.
+constexpr uint32_t FADE_MS = 350;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
@@ -87,6 +90,8 @@ uint32_t typedAt = 0;
 // Half the width of what was last put down there, so a shorter line still takes
 // the longer one it replaces off the glass.
 int16_t wiped = 0;
+// When the countdown started, since it comes up rather than appearing.
+uint32_t tickingFrom = 0;
 
 // Framebuffer rows run the other way to screen rows.
 inline int16_t bandFrom(int16_t screenTo) { return (int16_t)(SCREEN_H - 1 - screenTo); }
@@ -98,17 +103,20 @@ bool overlaps(int16_t aFrom, int16_t aTo, int16_t bFrom, int16_t bTo) {
 
 float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
+uint16_t fade(uint16_t colour, float by) {
+  uint16_t r = (uint16_t)(((colour >> 11) & 0x1F) * by);
+  uint16_t g = (uint16_t)(((colour >> 5) & 0x3F) * by);
+  uint16_t b = (uint16_t)((colour & 0x1F) * by);
+  return (uint16_t)((r << 11) | (g << 5) | b);
+}
+
 // Coverage rather than a hard edge, the same way the face is drawn. At this size
 // a jagged corner is most of what you see of an icon.
 void plot(uint16_t *fb, int16_t x, int16_t y, float coverage, uint16_t colour) {
   if (coverage <= 0.02f || x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) {
     return;
   }
-  coverage = clamp01(coverage);
-  uint16_t r = (uint16_t)(((colour >> 11) & 0x1F) * coverage);
-  uint16_t g = (uint16_t)(((colour >> 5) & 0x3F) * coverage);
-  uint16_t b = (uint16_t)((colour & 0x1F) * coverage);
-  boardRow(fb, y)[boardX(x)] = boardColour((uint16_t)((r << 11) | (g << 5) | b));
+  boardRow(fb, y)[boardX(x)] = boardColour(fade(colour, clamp01(coverage)));
 }
 
 // Only as wide as what is being redrawn. The bars run down both edges of the
@@ -273,13 +281,18 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // that is counted down - the week only takes it over once the week is the
   // one that has run out.
   char clock[16] = {0};
-  if (gaugeFiguresShown()) {
+  if (gaugeFiguresSettled()) {
     uint32_t left = usageWeekly() >= SPENT ? usageWeeklyResetsIn() : usageSessionResetsIn();
     if (left > 0) {
       clockOf(clock, sizeof(clock), left);
     }
   }
   bool ticking = clock[0] != '\0';
+  if (!ticking) {
+    tickingFrom = 0;
+  } else if (tickingFrom == 0) {
+    tickingFrom = millis();
+  }
 
   const char *want = ticking ? clock : (address ? address : "");
   // An address going away is a change like any other, and the only one where
@@ -343,8 +356,14 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       // Centred on where the whole line will be, so it does not slide left as
       // it arrives.
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
+      float up = 1.0f;
+      if (ticking) {
+        uint32_t since = millis() - tickingFrom;
+        up = since >= FADE_MS ? 1.0f : (float)since / (float)FADE_MS;
+        up = up * up * (3.0f - 2.0f * up);
+      }
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, BOTTOM_SCALE,
-               boardColour(WHITE));
+               boardColour(fade(WHITE, up)));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }
