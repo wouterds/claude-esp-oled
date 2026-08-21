@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_system.h>
+#include <string.h>
 
 #include "battery.h"
 #include "board.h"
@@ -8,12 +9,18 @@
 #include "wifi.h"
 #include "face.h"
 #include "gauge.h"
+#include "info.h"
 #include "portal.h"
 #include "usage.h"
 
 static constexpr uint32_t FRAME_MS = 16;
 
 static uint32_t lastFrame = 0;
+
+// Two of them, a swipe apart. Only one is ever on the glass, and neither knows
+// the other exists - what turns the page is here.
+enum class Page : uint8_t { Main, Info };
+static Page page = Page::Main;
 
 // Neither button is wired to anything here. PWR switches the power path and the
 // chip cannot see it; BOOT can be read, but it is the strapping pin that traps
@@ -36,6 +43,25 @@ static const char *why(esp_reset_reason_t reason) {
     default:
       return "other";
   }
+}
+
+// Every page owns the whole panel, so the one being left has to be taken off it
+// before the one arriving is drawn - and both of them go on with one full flush
+// rather than by the bands they would normally send.
+static void turnTo(Page to) {
+  uint16_t *fb = boardFramebuffer();
+  page = to;
+  memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
+  if (to == Page::Info) {
+    infoForget();
+    infoStep(fb);
+    return;
+  }
+  // The bars are a blit of pixels already worked out, and status redraws both
+  // its bands when it is told the whole panel was painted over - which it was.
+  gaugeDraw(fb);
+  statusDraw(fb, 0, SCREEN_H - 1);
+  boardFlush();
 }
 
 void setup() {
@@ -66,6 +92,23 @@ void loop() {
   lastFrame = now;
   if (dt > 0.05f) {
     dt = 0.05f;
+  }
+
+  touchStep();
+  Swipe swipe = touchSwiped();
+  if (swipe == Swipe::Right && page == Page::Main) {
+    turnTo(Page::Info);
+  } else if (swipe == Swipe::Left && page == Page::Info) {
+    turnTo(Page::Main);
+  }
+
+  if (page == Page::Info) {
+    infoStep(boardFramebuffer());
+    uint32_t idle = millis() - now;
+    if (idle < FRAME_MS) {
+      delay(FRAME_MS - idle);
+    }
+    return;
   }
 
   uint32_t t0 = micros();
