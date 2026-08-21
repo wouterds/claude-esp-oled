@@ -21,6 +21,11 @@ void gaugeFigures();
 // are one handover rather than a swap with a delay in it.
 float gaugeReach();
 
+// What a window this far through is worth, on the ramp the arcs are painted
+// with - teal while there is room, amber near the ceiling, rose at it. Shared
+// so that a percentage is the same colour wherever it is being shown.
+uint16_t gaugeColour(uint8_t percent);
+
 // Rolls one of them onto a new value when its turn comes round, and puts that
 // bar on the panel itself.
 void gaugeStep(uint16_t *fb, uint32_t now);
