@@ -2,6 +2,7 @@
 #include <esp_system.h>
 #include <string.h>
 
+#include "audio.h"
 #include "battery.h"
 #include "board.h"
 #include "status.h"
@@ -74,6 +75,7 @@ void setup() {
   }
   batteryBegin();
   touchBegin();
+  audioBegin();
   wifiBegin();
   portalBegin();
   usageBegin();
@@ -83,6 +85,7 @@ void setup() {
   // first read comes back, but an empty track says that better than nothing at
   // all does.
   gaugeReveal();
+  audioHello();
   lastFrame = millis();
 }
 
@@ -93,6 +96,15 @@ void loop() {
   if (dt > 0.05f) {
     dt = 0.05f;
   }
+
+  // The cable landing is worth a sound: it is the one thing that happens to
+  // this board without anybody touching it.
+  static bool wasCharging = batteryRead().charging;
+  bool charging = batteryRead().charging;
+  if (charging && !wasCharging) {
+    audioPlugged();
+  }
+  wasCharging = charging;
 
   touchStep();
   Swipe swipe = touchSwiped();
