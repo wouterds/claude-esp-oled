@@ -67,11 +67,11 @@ void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t
           if (at < 0 || at >= SCREEN_H) {
             continue;
           }
-          uint16_t *line = fb + (int32_t)at * SCREEN_W;
+          uint16_t *line = boardRow(fb, at);
           for (int16_t dx = 0; dx < scale; dx++) {
             int16_t ax = px + dx;
             if (ax >= 0 && ax < SCREEN_W) {
-              line[ax] = colour;
+              line[boardX(ax)] = colour;
             }
           }
         }

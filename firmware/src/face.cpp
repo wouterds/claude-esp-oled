@@ -16,19 +16,33 @@ namespace {
 
 constexpr float PI_F = 3.14159265f;
 constexpr float GLOW_RADIUS = 13.0f;
+constexpr float GLOW_INV = 1.0f / GLOW_RADIUS;
 constexpr float GLOW_GAIN = 0.5f;
 
-// How far from the middle the eyes may drift. Their own reach is about 106
-// pixels at the widest expression and the glass stops at 180, so this is what
-// is left - the panel is round and anything past this loses a corner to it.
-constexpr float ROAM = 66.0f;
-constexpr float EYE_GAP = 52.0f;
+// How far from its home the face may drift.
+constexpr float ROAM = 26.0f;
+constexpr float EYE_GAP = 46.0f;
+// A little above the middle, which is where a face looks like it is looking at
+// you rather than sitting in a box. The drift is small because the panel is
+// round: with the mouth below the eyes the face reaches 129 pixels from its own
+// centre, and 180 is where the glass stops.
+constexpr float HOME_Y = 156.0f;
+constexpr float EYE_RISE = 28.0f;
+constexpr float MOUTH_DROP = 52.0f;
 
 constexpr float MOOD_SECONDS = 5.0f;
 constexpr float BLEND_SECONDS = 0.35f;
 constexpr float INTRO_SECONDS = 4.1f;
 
 enum class Mood : uint8_t { Neutral, Happy, Surprised, Excited, Angry, Dead, Love };
+
+// Constants, but sinf and cosf are not free and the shapes below are asked for
+// them thirty thousand times a frame. Filled once, in faceBegin.
+struct Trig {
+  float archSin, archCos;
+  float browSin, browCos;
+};
+Trig trig;
 
 // Neutral is not in here: it is what every other one returns to.
 constexpr Mood MOODS[] = {Mood::Happy,  Mood::Surprised, Mood::Excited,
@@ -45,6 +59,9 @@ struct State {
   Mood mood;
   Mood was;
   uint8_t next;        // which expression comes round next
+  float paintedX, paintedY;  // where the eyes were last drawn, so only that
+                             // much of the panel has to be put back to black
+  char label[12];      // what the typewriter has put on the panel so far
   float blinkIn;       // seconds until the next blink
   float blinking;      // seconds left of this one
   float intro;         // seconds left of waking up, zero once it is awake
@@ -153,15 +170,42 @@ inline float sdHeart(float px, float py) {
   return sqrtf(best) * (px - py < 0.0f ? -1.0f : 1.0f);
 }
 
+// The mouth is one rounded blob throughout, with a circle taken out of it: from
+// above it leaves the crescent of a smile, from below the arch of a frown, and
+// with no circle at all it is the blob itself. One shape, so it deforms between
+// expressions rather than being swapped out.
+struct Mouth {
+  float w, h, r;
+  float curveY, curveR;
+};
+
+constexpr Mouth MOUTHS[] = {
+    {15.0f, 6.0f, 6.0f, 0.0f, 0.0f},       // neutral, a small blob
+    {30.0f, 17.0f, 13.0f, -24.0f, 28.0f},  // happy
+    {12.0f, 15.0f, 12.0f, 0.0f, 0.0f},     // surprised, an o
+    {25.0f, 22.0f, 15.0f, -30.0f, 27.0f},  // excited, wide open
+    {26.0f, 9.0f, 7.0f, 24.0f, 25.0f},     // angry, cut from below
+    {22.0f, 5.0f, 5.0f, 0.0f, 0.0f},       // dead, flat
+    {24.0f, 15.0f, 12.0f, -22.0f, 25.0f},  // in love
+};
+
+float mouthShape(Mood mood, float x, float y) {
+  const Mouth &m = MOUTHS[(uint8_t)mood];
+  float d = sdRoundBox(x, y, m.w, m.h, m.r);
+  if (m.curveR > 0.0f) {
+    float cy = y - m.curveY;
+    d = fmaxf(d, -(sqrtf(x * x + cy * cy) - m.curveR));
+  }
+  return d;
+}
+
 // One eye of one expression, in its own space, with the sign of `side` telling
 // it which of the pair it is so anything slanted mirrors instead of repeating.
 float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
   switch (mood) {
-    case Mood::Happy: {
+    case Mood::Happy:
       // An arch, drawn upside down from a smile.
-      float a = 1.15f;
-      return sdArc(x, -y + 10.0f, sinf(a), cosf(a), 26.0f, 7.5f);
-    }
+      return sdArc(x, -y + 10.0f, trig.archSin, trig.archCos, 26.0f, 7.5f);
     case Mood::Surprised:
       return sdRoundBox(x, y, 34.0f, 40.0f * squeeze, 34.0f);
     case Mood::Excited:
@@ -169,9 +213,8 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
     case Mood::Angry: {
       // Tilted, then cut flat across the top in its own frame - which puts the
       // cut on a slant on the glass, and a slant is the whole of an angry eye.
-      float a = 0.42f * side;
-      float c = cosf(a);
-      float s = sinf(a);
+      float c = trig.browCos;
+      float s = trig.browSin * side;
       // Dropped before it is cut, so what survives the cut sits on the centre
       // rather than below it.
       float oy = y + 12.0f;
@@ -201,21 +244,44 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
 
 // Coverage of one eye, cross-faded while an expression is changing. Two shapes
 // are only ever evaluated during the third of a second that takes.
+// Interpolating the distances rather than the coverage is what makes this a
+// morph: the boundary walks from one shape to the other and the eye deforms
+// through the in-between. Fading the coverage instead would ghost one shape out
+// while the other came up underneath it.
+float coverFrom(float d) {
+  float cover = clamp01(0.5f - d);
+  float glow = d < GLOW_RADIUS ? clamp01(1.0f - d * GLOW_INV) : 0.0f;
+  glow = glow * glow * GLOW_GAIN * (1.0f - cover);
+  return cover + glow * 0.55f;
+}
+
+float mouthCoverage(float x, float y, float mix) {
+  float d = mouthShape(me.mood, x, y);
+  if (mix < 1.0f) {
+    float was = mouthShape(me.was, x, y);
+    d = was + (d - was) * mix;
+  }
+  return coverFrom(d);
+}
+
 float eyeCoverage(float x, float y, float side, float squeeze, float mix) {
   float d = eyeShape(me.mood, x, y, side, squeeze);
-  float cover = clamp01(0.5f - d);
-  float glow = d < GLOW_RADIUS ? clamp01(1.0f - d / GLOW_RADIUS) : 0.0f;
-  glow = glow * glow * GLOW_GAIN * (1.0f - cover);
-
   if (mix < 1.0f) {
-    float e = eyeShape(me.was, x, y, side, squeeze);
-    float wasCover = clamp01(0.5f - e);
-    float wasGlow = e < GLOW_RADIUS ? clamp01(1.0f - e / GLOW_RADIUS) : 0.0f;
-    wasGlow = wasGlow * wasGlow * GLOW_GAIN * (1.0f - wasCover);
-    cover = wasCover + (cover - wasCover) * mix;
-    glow = wasGlow + (glow - wasGlow) * mix;
+    float was = eyeShape(me.was, x, y, side, squeeze);
+    d = was + (d - was) * mix;
   }
-  return cover + glow * 0.55f;
+  return coverFrom(d);
+}
+
+void clearBox(uint16_t *fb, float fx0, float fy0, float fx1, float fy1) {
+  int16_t x0 = fx0 < 0.0f ? 0 : (int16_t)fx0;
+  int16_t y0 = fy0 < 0.0f ? 0 : (int16_t)fy0;
+  int16_t x1 = fx1 > SCREEN_W - 1 ? SCREEN_W - 1 : (int16_t)fx1;
+  int16_t y1 = fy1 > SCREEN_H - 1 ? SCREEN_H - 1 : (int16_t)fy1;
+  // Turned, so the span is still contiguous and still one memset a row.
+  for (int16_t y = y0; y <= y1; y++) {
+    memset(boardRow(fb, y) + boardX(x1), 0, (size_t)(x1 - x0 + 1) * 2);
+  }
 }
 
 void pickTarget() {
@@ -224,15 +290,19 @@ void pickTarget() {
   // the middle, so it uses the whole panel rather than hovering.
   float radius = ROAM * sqrtf(frand(0.0f, 1.0f));
   me.tx = SCREEN_R + cosf(angle) * radius;
-  me.ty = SCREEN_R + sinf(angle) * radius;
+  me.ty = HOME_Y + sinf(angle) * radius;
 }
 
 }  // namespace
 
 void faceBegin() {
   randomSeed(esp_random());
+  trig.archSin = sinf(1.15f);
+  trig.archCos = cosf(1.15f);
+  trig.browSin = sinf(0.42f);
+  trig.browCos = cosf(0.42f);
   me.x = me.tx = SCREEN_R;
-  me.y = me.ty = SCREEN_R;
+  me.y = me.ty = HOME_Y;
   me.vx = me.vy = 0.0f;
   me.clock = 0.0f;
   me.held = 0.0f;
@@ -304,9 +374,7 @@ void faceStep(float dt) {
   }
 }
 
-void faceDraw(uint16_t *fb) {
-  memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
-
+void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // The float: a slow rise and fall that never quite repeats, plus a shiver
   // while it is excited.
   float floatY = sinf(me.clock * 1.5f) * 4.0f + sinf(me.clock * 0.61f) * 2.5f;
@@ -330,41 +398,125 @@ void faceDraw(uint16_t *fb) {
   }
   float mix = me.blend;
 
-  // Generous enough for the widest expression and the glow around it. The eyes
-  // are small against the panel, so this is a fraction of it either way.
-  constexpr int16_t REACH_X = 46;
-  constexpr int16_t REACH_Y = 58;
+  constexpr float REACH_X = 38.0f;
+  constexpr float REACH_Y = 48.0f;
+  constexpr float SPAN_X = 34.0f;   // the widest any eye gets
+  constexpr float SPAN_Y = 43.0f;   // and the tallest
+  constexpr float MOUTH_REACH_X = 32.0f;
+  constexpr float MOUTH_REACH_Y = 28.0f;
+  constexpr float MOUTH_SPAN_X = 31.0f;  // the widest the mouth gets
+  constexpr float MOUTH_SPAN_Y = 23.0f;  // and the tallest
+  constexpr float HALF_W = EYE_GAP + REACH_X + GLOW_RADIUS + 2.0f;
+
+  float top = centreY - EYE_RISE - REACH_Y - GLOW_RADIUS - 2.0f;
+  float bottom = centreY + MOUTH_DROP + MOUTH_REACH_Y + GLOW_RADIUS + 2.0f;
+
+  // Only what the last frame painted can be holding anything, and clearing that
+  // beats memsetting 253KB of PSRAM sixty times a second.
+  float wasTop = me.paintedY - EYE_RISE - REACH_Y - GLOW_RADIUS - 2.0f;
+  float wasBottom = me.paintedY + MOUTH_DROP + MOUTH_REACH_Y + GLOW_RADIUS + 2.0f;
+  clearBox(fb, me.paintedX - HALF_W, wasTop, me.paintedX + HALF_W, wasBottom);
+  clearBox(fb, centreX - HALF_W, top, centreX + HALF_W, bottom);
+  float dirtyTop = wasTop < top ? wasTop : top;
+  float dirtyBottom = wasBottom > bottom ? wasBottom : bottom;
+  me.paintedX = centreX;
+  me.paintedY = centreY;
+
+  float eyeY = centreY - EYE_RISE;
   for (float side = -1.0f; side < 2.0f; side += 2.0f) {
     float eyeX = centreX + side * EYE_GAP;
     int16_t x0 = (int16_t)(eyeX - REACH_X - GLOW_RADIUS);
     int16_t x1 = (int16_t)(eyeX + REACH_X + GLOW_RADIUS);
-    int16_t y0 = (int16_t)(centreY - REACH_Y - GLOW_RADIUS);
-    int16_t y1 = (int16_t)(centreY + REACH_Y + GLOW_RADIUS);
+    int16_t y0 = (int16_t)(eyeY - REACH_Y - GLOW_RADIUS);
+    int16_t y1 = (int16_t)(eyeY + REACH_Y + GLOW_RADIUS);
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
     if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
     if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
 
     for (int16_t y = y0; y <= y1; y++) {
-      uint16_t *row = fb + (int32_t)y * SCREEN_W;
-      float ly = (float)y + 0.5f - centreY;
-      for (int16_t x = x0; x <= x1; x++) {
+      float ly = (float)y + 0.5f - eyeY;
+      // Past the tallest shape plus its glow there is nothing on this row, and
+      // that is most of the rows near the top and bottom of the box.
+      if (fabsf(ly) - SPAN_Y * squeeze > GLOW_RADIUS) {
+        continue;
+      }
+      uint16_t *row = boardRow(fb, y);
+      for (int16_t x = x1; x >= x0; x--) {
         float lx = (float)x + 0.5f - eyeX;
+        if (fabsf(lx) - SPAN_X > GLOW_RADIUS) {
+          continue;
+        }
         float v = clamp01(eyeCoverage(lx, ly, side, squeeze, mix));
         if (v <= 0.004f) {
           continue;
         }
         uint8_t level = (uint8_t)(v * 255.0f);
-        uint16_t pixel = (uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3));
-        if (pixel > row[x]) {
-          row[x] = pixel;
-        }
+        row[boardX(x)] =
+            boardColour((uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3)));
       }
     }
   }
 
-  // Nothing to name until it has woken up and settled on something.
-  if (me.intro <= 0.0f) {
-    textDraw(fb, moodName(me.mood), SCREEN_R, 296, 2, 0xFFFF);
+  float mouthY = centreY + MOUTH_DROP;
+  {
+    int16_t x0 = (int16_t)(centreX - MOUTH_REACH_X - GLOW_RADIUS);
+    int16_t x1 = (int16_t)(centreX + MOUTH_REACH_X + GLOW_RADIUS);
+    int16_t y0 = (int16_t)(mouthY - MOUTH_REACH_Y - GLOW_RADIUS);
+    int16_t y1 = (int16_t)(mouthY + MOUTH_REACH_Y + GLOW_RADIUS);
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
+    if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
+
+    for (int16_t y = y0; y <= y1; y++) {
+      float ly = (float)y + 0.5f - mouthY;
+      if (fabsf(ly) - MOUTH_SPAN_Y > GLOW_RADIUS) {
+        continue;
+      }
+      uint16_t *row = boardRow(fb, y);
+      for (int16_t x = x1; x >= x0; x--) {
+        float lx = (float)x + 0.5f - centreX;
+        if (fabsf(lx) - MOUTH_SPAN_X > GLOW_RADIUS) {
+          continue;
+        }
+        float v = clamp01(mouthCoverage(lx, ly, mix));
+        if (v <= 0.004f) {
+          continue;
+        }
+        uint8_t level = (uint8_t)(v * 255.0f);
+        row[boardX(x)] =
+            boardColour((uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3)));
+      }
+    }
   }
+
+  // The label is redrawn only when it says something new, so a settled face
+  // leaves those rows alone and the flush never has to carry them.
+  char wanted[12] = {0};
+  if (me.intro <= 0.0f) {
+    const char *name = moodName(me.mood);
+    // One letter every twentieth of a second, so the name arrives as it is
+    // typed rather than all at once under a face that is still changing.
+    uint8_t shown = (uint8_t)(me.held / 0.05f);
+    uint8_t i = 0;
+    while (i < shown && i < sizeof(wanted) - 1 && name[i]) {
+      wanted[i] = name[i];
+      i++;
+    }
+  }
+  if (strncmp(wanted, me.label, sizeof(wanted)) != 0) {
+    clearBox(fb, 0.0f, 292.0f, SCREEN_W - 1, 312.0f);
+    textDraw(fb, wanted, (int16_t)SCREEN_R, 296, 2, boardColour(0xFFFF));
+    memcpy(me.label, wanted, sizeof(wanted));
+    if (292.0f < dirtyTop) dirtyTop = 292.0f;
+    if (312.0f > dirtyBottom) dirtyBottom = 312.0f;
+  }
+
+  // Screen rows run the other way to framebuffer rows, so the band is flipped
+  // as well as clamped.
+  int16_t sTop = dirtyTop < 0.0f ? 0 : (int16_t)dirtyTop;
+  int16_t sBottom = dirtyBottom > SCREEN_H - 1 ? SCREEN_H - 1 : (int16_t)dirtyBottom;
+  *rowFrom = (int16_t)(SCREEN_H - 1 - sBottom);
+  *rowTo = (int16_t)(SCREEN_H - 1 - sTop);
 }

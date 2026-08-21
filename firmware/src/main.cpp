@@ -53,9 +53,27 @@ void loop() {
     dt = 0.05f;
   }
 
+  uint32_t t0 = micros();
+  int16_t from = 0;
+  int16_t to = SCREEN_H - 1;
   faceStep(dt);
-  faceDraw(boardFramebuffer());
-  boardFlush();
+  faceDraw(boardFramebuffer(), &from, &to);
+  uint32_t t1 = micros();
+  boardFlushRows(from, to);
+  uint32_t t2 = micros();
+
+  // Where the frame actually goes. Guessing at this is how you optimise the
+  // half that was already cheap.
+  static uint32_t frames = 0;
+  static uint32_t drawUs = 0;
+  static uint32_t flushUs = 0;
+  drawUs += t1 - t0;
+  flushUs += t2 - t1;
+  if (++frames == 60) {
+    Serial.printf("frame: draw %lu us, flush %lu us, %lu fps\n", drawUs / frames,
+                  flushUs / frames, 1000000UL / ((drawUs + flushUs) / frames));
+    frames = drawUs = flushUs = 0;
+  }
 
   // Sixty is past what the panel or the eye wants; the rest goes back.
   uint32_t spent = millis() - now;

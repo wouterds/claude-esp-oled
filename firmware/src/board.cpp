@@ -34,8 +34,8 @@ static constexpr int BL_DUTY = 1023;
 // The panel is fed a band at a time out of a buffer the DMA can actually read.
 // The framebuffer itself is 253KB and lives in PSRAM, which leaves it out of
 // reach of the SPI DMA - so each band is copied down into internal RAM on its
-// way out. The copy is also where the bytes get swapped, which this panel
-// wants and which would otherwise cost a second pass over every pixel.
+// way out. The copy is a straight memcpy because the framebuffer already holds
+// the panel's byte order; see boardColour.
 static constexpr int BAND_ROWS = 40;
 static constexpr size_t BAND_BYTES = (size_t)SCREEN_W * BAND_ROWS * 2;
 
@@ -137,7 +137,9 @@ bool boardBegin() {
   vendor.flags.use_qspi_interface = 1;
   chooseInit(vendor);
 
-  esp_lcd_panel_io_handle_t io = newPanelIo(40 * 1000 * 1000);
+  // 80MHz is what the board's own driver runs this panel at, and it halves the
+  // time a frame spends on the wire.
+  esp_lcd_panel_io_handle_t io = newPanelIo(80 * 1000 * 1000);
   if (!io) {
     Serial.println("panel io failed");
     return false;
@@ -186,14 +188,21 @@ bool boardBegin() {
 
 uint16_t *boardFramebuffer() { return framebuffer; }
 
-void boardFlush() {
-  for (int16_t y = 0; y < SCREEN_H; y += BAND_ROWS) {
-    int16_t rows = (y + BAND_ROWS <= SCREEN_H) ? BAND_ROWS : (SCREEN_H - y);
-    const uint16_t *src = framebuffer + (int32_t)y * SCREEN_W;
-    int32_t count = (int32_t)rows * SCREEN_W;
-    for (int32_t i = 0; i < count; i++) {
-      band[i] = __builtin_bswap16(src[i]);
-    }
+void boardFlush() { boardFlushRows(0, SCREEN_H - 1); }
+
+// Only the rows that changed. The face is a third of the panel and the label a
+// twentieth of it, so most frames leave the rest of the glass alone - and the
+// wire, not the drawing, is what a frame waits on.
+void boardFlushRows(int16_t from, int16_t to) {
+  if (from < 0) {
+    from = 0;
+  }
+  if (to > SCREEN_H - 1) {
+    to = SCREEN_H - 1;
+  }
+  for (int16_t y = from; y <= to; y += BAND_ROWS) {
+    int16_t rows = (y + BAND_ROWS <= to + 1) ? BAND_ROWS : (to + 1 - y);
+    memcpy(band, framebuffer + (int32_t)y * SCREEN_W, (size_t)rows * SCREEN_W * 2);
     esp_lcd_panel_draw_bitmap(panel, 0, y, SCREEN_W, y + rows, band);
     // The buffer is not ours again until the transfer says so.
     xSemaphoreTake(bandSent, portMAX_DELAY);
