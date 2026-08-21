@@ -37,7 +37,7 @@ constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
 constexpr uint16_t WHITE = 0xFFFF;
-constexpr uint16_t GREY = 0x8410;
+constexpr uint16_t GREY = 0x630C;
 constexpr uint16_t GREEN = 0x07E0;
 constexpr uint16_t YELLOW = 0xFFE0;
 constexpr uint16_t ORANGE = 0xFC00;
