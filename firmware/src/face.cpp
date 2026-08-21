@@ -43,9 +43,9 @@ struct Trig {
 Trig trig;
 
 // What a tap steps through, neutral included so there is a way back to it.
-// Happy, Excited and Love are still drawn - adding any of them to this list is
-// all it takes to bring them back.
-constexpr Mood CYCLE[] = {Mood::Neutral, Mood::Surprised, Mood::Angry, Mood::Dead};
+// Excited and Love are still drawn - adding either to this list brings it back.
+constexpr Mood CYCLE[] = {Mood::Neutral, Mood::Happy, Mood::Surprised, Mood::Angry,
+                          Mood::Dead};
 constexpr uint8_t CYCLE_COUNT = sizeof(CYCLE) / sizeof(CYCLE[0]);
 
 struct State {
@@ -114,6 +114,23 @@ inline float sdEye(float px, float py, float hx, float hy, float r) {
   return sdRoundBox(px, py, hx, hy, r < limit ? r : limit);
 }
 
+// A rounded box with one radius at the top and another at the bottom, so an eye
+// can be domed above and squarer below. Screen y runs down, so the top corners
+// are the negative ones.
+inline float sdRoundBoxTB(float px, float py, float hx, float hy, float rTop, float rBottom) {
+  float r = py < 0.0f ? rTop : rBottom;
+  float limit = hx < hy ? hx : hy;
+  if (r > limit) {
+    r = limit;
+  }
+  float qx = fabsf(px) - hx + r;
+  float qy = fabsf(py) - hy + r;
+  float ax = qx > 0.0f ? qx : 0.0f;
+  float ay = qy > 0.0f ? qy : 0.0f;
+  float inner = qx > qy ? qx : qy;
+  return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
+}
+
 inline float sdSegment(float px, float py, float ax, float ay, float bx, float by) {
   float pax = px - ax;
   float pay = py - ay;
@@ -121,17 +138,6 @@ inline float sdSegment(float px, float py, float ax, float ay, float bx, float b
   float bay = by - ay;
   float h = clamp01((pax * bax + pay * bay) / (bax * bax + bay * bay));
   return sqrtf(dot2(pax - bax * h, pay - bay * h));
-}
-
-// An arc of radius ra and thickness rb opening by `aperture` either side of +y.
-// y runs down, so negating it turns the smile of a mouth into the arch of a
-// happy eye.
-inline float sdArc(float px, float py, float sinA, float cosA, float ra, float rb) {
-  px = fabsf(px);
-  if (cosA * px > sinA * py) {
-    return sqrtf(dot2(px - sinA * ra, py - cosA * ra)) - rb;
-  }
-  return fabsf(sqrtf(px * px + py * py) - ra) - rb;
 }
 
 // Inigo Quilez's heart: point at the origin, lobes above it, y running up.
@@ -149,23 +155,25 @@ inline float sdHeart(float px, float py) {
 // above it leaves the crescent of a smile, from below the arch of a frown, and
 // with no circle at all it is the blob itself. One shape, so it deforms between
 // expressions rather than being swapped out.
+// A blob with its own radius top and bottom. A smile is the shape being rounder
+// underneath than above rather than a stripe bent into a curve - bending thins
+// the ends, which is what made every earlier attempt read as a banana.
 struct Mouth {
-  float w, h, r;
-  float curve;  // how far the ends lift: up smiles, down frowns, zero is a blob
+  float hx, hy;
+  float rTop, rBottom;
 };
 
 // Thin bars, because a bent bar thick enough to look like a blob at rest looks
 // like a wedge once it is bent. The roundness comes from the corner radius
 // being the whole of the half-height: every one of these is a capsule.
 constexpr Mouth MOUTHS[] = {
-    {11.0f, 7.0f, 7.0f, 0.0f},     // neutral, a flat pill - any bend on a
-                                   // capsule curves the whole bar into a banana
-    {17.0f, 6.5f, 6.5f, 7.0f},     // happy
-    {16.0f, 18.0f, 16.0f, 0.0f},   // surprised, a big o
-    {21.0f, 9.5f, 9.5f, 12.0f},    // excited, open and grinning
-    {15.0f, 7.0f, 7.0f, 0.0f},     // angry, neutral's pill but wider
-    {10.0f, 7.5f, 7.5f, 0.0f},     // dead, a short thick blob
-    {16.0f, 6.5f, 6.5f, 6.0f},     // in love
+    {15.0f, 7.0f, 7.0f, 7.0f},     // neutral, a flat stripe
+    {16.0f, 11.0f, 4.0f, 11.0f},   // happy, squared on top and domed underneath
+    {16.0f, 18.0f, 16.0f, 16.0f},  // surprised, an o
+    {17.0f, 12.0f, 5.0f, 12.0f},   // excited, a broader happy
+    {18.0f, 7.0f, 7.0f, 7.0f},     // angry, flat and wider than neutral
+    {10.0f, 7.5f, 7.5f, 7.5f},     // dead, short and thick
+    {15.0f, 10.0f, 4.0f, 10.0f},   // in love
 };
 
 // The blob is bent rather than cut. Taking a circle out of it leaves the ends
@@ -173,39 +181,7 @@ constexpr Mouth MOUTHS[] = {
 // blob should not have - bending keeps every side as round as it started.
 float mouthShape(Mood mood, float x, float y) {
   const Mouth &m = MOUTHS[(uint8_t)mood];
-  float lift = m.curve * (x * x) / (m.w * m.w);
-  return sdRoundBox(x, y + lift, m.w, m.h, m.r);
-}
-
-// The pupil is the whole of the gaze. An eye with nothing in it can only be
-// moved, and a white shape sliding sideways reads as the face shifting rather
-// than as anything being looked at - so the pupil carries nearly all of the
-// travel and the eye itself barely leans. Where it runs past the edge of the
-// eye there is simply nothing left to take away, which is what an eye looking
-// hard to one side does anyway.
-// The same rounded box as the eye around it, pulled in by a constant so the
-// white left over is an even border the whole way round rather than a ring that
-// is fatter at the top and bottom. A circle in a tall eye reads as a hole; this
-// reads as a pupil.
-inline float pupil(float x, float y, float hx, float hy, float r, float inset) {
-  // Far enough to press against the side it is looking at, not so far that it
-  // eats the border there - an eye with white left on only one side reads as a
-  // crescent rather than as an eye aimed at something.
-  float px = x - me.lookX * 0.40f;
-  float py = y - me.lookY * 0.40f;
-  float ix = hx - inset;
-  float iy = hy - inset;
-  float ir = r - inset;
-  if (ix < 1.0f) {
-    ix = 1.0f;
-  }
-  if (iy < 1.0f) {
-    iy = 1.0f;
-  }
-  if (ir < 0.0f) {
-    ir = 0.0f;
-  }
-  return sdEye(px, py, ix, iy, ir);
+  return sdRoundBoxTB(x, y, m.hx, m.hy, m.rTop, m.rBottom);
 }
 
 // One eye of one expression, in its own space, with the sign of `side` telling
@@ -213,18 +189,12 @@ inline float pupil(float x, float y, float hx, float hy, float r, float inset) {
 float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
   switch (mood) {
     case Mood::Happy:
-      // An arch, drawn upside down from a smile.
-      return sdArc(x, -y + 10.0f, trig.archSin, trig.archCos, 26.0f, 7.5f);
+      // Neutral's blob, domed over the top and squared off underneath.
+      return sdRoundBoxTB(x, y, 28.0f, 29.0f * squeeze, 28.0f, 9.0f);
     case Mood::Surprised:
-      return fmaxf(sdEye(x, y, 34.0f, 40.0f * squeeze, 34.0f),
-                   -pupil(x, y, 34.0f, 40.0f * squeeze, 34.0f, 11.0f));
+      return sdEye(x, y, 34.0f, 40.0f * squeeze, 34.0f);
     case Mood::Excited:
-      // A pupil is a circle taken out of the eye, so the hole is as round as
-      // the eye around it. Because expressions morph by interpolating
-      // distances, it opens out of a solid eye rather than appearing - it
-      // grows.
-      return fmaxf(sdEye(x, y, 32.0f, 36.0f * squeeze, 32.0f),
-                   -pupil(x, y, 32.0f, 36.0f * squeeze, 32.0f, 11.0f));
+      return sdEye(x, y, 32.0f, 36.0f * squeeze, 32.0f);
     case Mood::Angry: {
       // Just tilted, and shorter than it is wide. Cutting the top flat is the
       // obvious way to draw a brow and it leaves a hard edge across the one
@@ -234,10 +204,7 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       float s = trig.browSin * side;
       float rx = x * c - y * s;
       float ry = x * s + y * c;
-      // The pupil is inset in the tilted frame with the rest of it, and a
-      // thinner border than the others because there is less eye to spare.
-      return fmaxf(sdEye(rx, ry, 29.0f, 19.0f * squeeze, 18.0f),
-                   -pupil(rx, ry, 29.0f, 19.0f * squeeze, 18.0f, 7.0f));
+      return sdEye(rx, ry, 29.0f, 19.0f * squeeze, 18.0f);
     }
     case Mood::Dead: {
       constexpr float ARM = 20.0f;
@@ -262,8 +229,7 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
     }
     case Mood::Neutral:
     default:
-      return fmaxf(sdEye(x, y, 29.0f, 38.0f * squeeze, 23.0f),
-                   -pupil(x, y, 29.0f, 38.0f * squeeze, 23.0f, 11.0f));
+      return sdEye(x, y, 29.0f, 38.0f * squeeze, 23.0f);
   }
 }
 
@@ -455,10 +421,10 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   constexpr float REACH_Y = 42.0f;
   constexpr float SPAN_X = 34.0f;   // the widest any eye gets
   constexpr float SPAN_Y = 41.0f;   // and the tallest
-  constexpr float MOUTH_REACH_X = 30.0f;
-  constexpr float MOUTH_REACH_Y = 32.0f;
-  constexpr float MOUTH_SPAN_X = 28.0f;  // the widest the mouth gets
-  constexpr float MOUTH_SPAN_Y = 27.0f;  // and the tallest once it is bent
+  constexpr float MOUTH_REACH_X = 22.0f;
+  constexpr float MOUTH_REACH_Y = 22.0f;
+  constexpr float MOUTH_SPAN_X = 19.0f;  // the widest the mouth gets
+  constexpr float MOUTH_SPAN_Y = 19.0f;  // and the tallest
   constexpr float HALF_W = EYE_GAP + REACH_X + GLOW_RADIUS + 2.0f;
 
   float top = centreY - EYE_RISE - REACH_Y - GLOW_RADIUS - 2.0f;
@@ -475,12 +441,12 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   me.paintedX = centreX;
   me.paintedY = centreY;
 
-  float eyeY = centreY - EYE_RISE + me.lookY * 0.16f;
+  float eyeY = centreY - EYE_RISE + me.lookY * 0.5f;
   // The two do not travel together: the eye on the side being looked toward
   // carries a little more of the movement, and each carries a slow wobble of
   // its own.
   for (float side = -1.0f; side < 2.0f; side += 2.0f) {
-    float eyeX = centreX + side * EYE_GAP + me.lookX * (0.16f + side * 0.05f) +
+    float eyeX = centreX + side * EYE_GAP + me.lookX * (0.5f + side * 0.12f) +
                  sinf(me.clock * 2.3f + (side > 0.0f ? 1.7f : 0.0f)) * 1.1f;
     int16_t x0 = (int16_t)(eyeX - REACH_X - GLOW_RADIUS);
     int16_t x1 = (int16_t)(eyeX + REACH_X + GLOW_RADIUS);
