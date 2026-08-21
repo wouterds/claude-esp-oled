@@ -316,14 +316,15 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
     target[1] = (float)usageWeekly();
   }
 
-  // Long once the address has stopped needing the bottom of the glass.
+  // Long only while nothing else wants the bottom of the glass: the address has
+  // it until a token does, and the countdown has it whenever the figures are up.
   if (!usageReady() && figures) {
     figures = false;
     figuresMoved = true;
   }
   bool reshape = figuresMoved;
   figuresMoved = false;
-  float wanted = usageReady() ? 1.0f : 0.0f;
+  float wanted = usageReady() && !figures ? 1.0f : 0.0f;
   if (reachT != wanted) {
     float by = dt / REACH_S;
     reachT = wanted > reachT ? (reachT + by > wanted ? wanted : reachT + by)
