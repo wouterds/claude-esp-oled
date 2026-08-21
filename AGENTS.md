@@ -1,11 +1,15 @@
 # AGENTS.md
 
-A desk pet. An 8x8 RGB matrix on an ESP32-S3, showing what Claude is doing, how
-the session is going, and how much context window is left.
+A desk pet. A face on a 360x360 round LCD on an ESP32-S3, living on the panel on
+its own.
+
+The host side below is still the 8x8 RGB matrix this started as - scenes, wire
+protocol, daemon, hooks. It is kept for what is in it and nothing on the board
+reads any of it.
 
 | | |
 | --- | --- |
-| `firmware/` | the sketch on the board - decodes frames, nothing else |
+| `firmware/` | all of the pet that is on the board - panel, face, behaviour |
 | `packages/matrix` | the panel: wire protocol, serial port, framebuffer, colour |
 | `packages/pet` | what the pet *is*: state, mood, faces, scenes, sessions |
 | `packages/tools` | executables that answer one question or set one thing |
@@ -55,8 +59,8 @@ npx status-pixel 0,0,#ff0000
 
 ## Guides
 
-- [Hardware](.agents/docs/hardware.md) - the board, flashing, and the two things
-  that cost a day
+- [Hardware](.agents/docs/hardware.md) - the board, its wiring, flashing, and the
+  things that cost a day
 - [Wire Protocol](.agents/docs/protocol.md) - packets, frame order, and why gamma
   is applied where it is
 - [State](.agents/docs/state.md) - sessions, precedence, expiry, and where
@@ -111,9 +115,17 @@ Invisible in the code until they are broken.
   from `Math.random` - which is why a spec can assert what was drawn
 - **Gamma is applied at the wire, not in scenes**, so scene arithmetic stays in
   the space a human judges brightness by
-- **The firmware knows nothing.** No animation, no state, no notion of a mood.
-  Every scene lives on the host, so iterating on behaviour costs a restart rather
-  than a reflash
+- **The face lives on the board.** A 360x360 frame at 16 bits is 253KB, and no
+  serial link streams that thirty times a second - so the scene, the timing and
+  the mood are all on the S3 and iterating on behaviour costs a reflash rather
+  than a restart. That is the reverse of what the matrix did, and it is the
+  resolution that forced it rather than a change of mind
+- **A shape is a distance, not a span of pixels.** Every part of the face is a
+  signed distance field, so coverage falls out of the distance and the edges are
+  smooth without a second pass - and an eye becomes a squint, or a smile becomes
+  a surprised o, by moving a number rather than by branching to another shape.
+  It is also what makes the renderer affordable: one probe at the centre of a
+  tile bounds the whole tile, which clears most of the panel without touching it
 - **Which way up the panel sits cannot be verified from here**, and every face is
   wrong in three of the four cases. `npx status-orient` draws a marker that
   cannot be read two ways; someone with eyes on it decides

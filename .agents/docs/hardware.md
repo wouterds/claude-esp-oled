@@ -1,9 +1,30 @@
 # Hardware
 
-A Waveshare ESP32-S3-Matrix: an **ESP32-S3FH4R2** with an 8x8 WS2812 matrix on
-**GPIO14**, talking over the S3's own USB-Serial-JTAG peripheral. It enumerates
-as Espressif `303a:1001`, which is what the host matches on - the tty node is
-named after whichever port it landed on and changes when the board moves.
+A Waveshare **ESP32-S3-Touch-LCD-1.85B**: an **ESP32-S3R8** - 16MB of flash and
+8MB of octal PSRAM - behind a 1.85" **round** 360x360 IPS panel in a machined
+aluminium case. The panel is a **ST77916** on QSPI. A **CST816S** touch
+controller, a **QMI8658** IMU, **ES8311**/**ES7210** audio, a **PCF85063** clock
+and a **BQ27220** battery gauge are also on it, all on one I2C bus, and nothing
+here talks to any of them.
+
+**Not the same board as the ESP32-S3-Touch-LCD-1.85.** Same size, same panel,
+same QSPI pins - and on the non-B, LCD reset is behind a TCA9554 IO expander
+that this one does not have. Firmware written for one comes up black on the
+other. Waveshare document them as separate products; the B's page is the one to
+read.
+
+## Wiring
+
+| | |
+| --- | --- |
+| LCD data | `GPIO46` `GPIO45` `GPIO42` `GPIO41` (D0..D3) |
+| LCD clock / select | `GPIO40` / `GPIO21` |
+| LCD reset | **`GPIO3`** - straight off the S3, no expander |
+| LCD backlight | `GPIO5`, PWM capable |
+| I2C - touch, IMU, audio, gauge, clock | `SDA GPIO11`, `SCL GPIO10` |
+| Touch | `CST816S` at `0x15`, reset `GPIO1`, interrupt `GPIO4` |
+| USB | native, `D- GPIO19`, `D+ GPIO20` |
+| BOOT button | `GPIO0`, pulled up, low when pressed |
 
 ## Building and flashing
 
@@ -20,23 +41,48 @@ npm run firmware:flash
 npm run firmware:monitor
 ```
 
-## The two things that cost a day
+## The things that cost a day
 
-**The flash header must say 4MB.** There is no PlatformIO board definition for
-this module, so it is the generic S3 devkit narrowed down - and that profile
-assumes 8MB. `board_build.flash_size` only reaches the app; without the
-`board_upload` entries the second stage bootloader keeps an 8MB header, the flash
-probe fails against the real chip, and **the sketch never runs**. The board
-enumerates on USB, exposes no CDC interface and looks bricked. The one line that
-says so scrolls past before a monitor can attach:
+**Plugging in the USB-C does not turn the board on.** It has a battery gauge and
+a soft power path, so `PWR` is a power button and not a reset: **hold it 2s to
+toggle power, or press it for 1s to power on**. An unpowered board presents *no*
+USB device at all - not a broken one, none - so this reads as a dead cable or a
+dead board rather than as a board that is simply switched off. `ls /dev | grep
+cu.usbmodem` empty, and `ioreg -p IOUSB -w0 -l | grep 12346` finding nothing, is
+what it looks like.
 
-```
-E (89) spi_flash: Detected size(4096k) smaller than the size in the binary image header(8192k)
-```
+**`boot:0x2 (DOWNLOAD(USB/UART0))` in the log means `GPIO0` was low at reset**,
+which almost always means `BOOT` is still being held. It will sit at `waiting for
+download` forever and never reach the sketch. Let go of the button.
+
+**The flash header must say 16MB and the PSRAM must say octal.** There is no
+PlatformIO board definition for this module, so it is the generic S3 devkit
+narrowed down - and that profile assumes 8MB of flash and quad PSRAM. Both are
+silent when wrong. The wrong flash header stops the sketch before it reaches
+`setup()`; `qio_qspi` instead of `qio_opi` leaves the 253KB framebuffer failing
+to allocate with the panel already lit and nothing on it. `esptool flash-id`
+reports the size the chip actually is, which is the thing to check it against.
 
 **`ARDUINO_USB_CDC_ON_BOOT=1` is what points `Serial` at USB.** Left at the
-devkit default of 0, `Serial` goes to the UART pins and the board looks mute over
-USB while running perfectly well.
+devkit default of 0, `Serial` goes to the UART pins and the board looks mute
+over USB while running perfectly well.
+
+**Light the backlight after the first frame, not before.** The panel powers up
+holding whatever was last in its RAM and shows that to the room for as long as
+it takes to reach the first flush.
+
+**The official `espressif32` platform is still on Arduino core 2.x.**
+Arduino_GFX's ESP32 backend includes `esp32-hal-periman.h`, which only exists
+from core 3.0, so the build dies inside the library's own headers with nothing
+pointing at the core version as the cause. `platformio.ini` pins the
+**pioarduino** fork instead.
+
+## The panel is round
+
+360x360 of framebuffer, but the glass is a circle. The corners are not clipped,
+they are simply not there - anything drawn outside the inscribed circle is
+rendered, paid for and never seen. Scenes keep themselves inside it, which is
+what the roam radius in `buddy.cpp` is.
 
 ## When the port disappears
 
@@ -47,42 +93,5 @@ esptool has nothing to reflash through and it reads as a dead board. It is not.
 `ioreg -w0 -r -n "USB JTAG/serial debug unit" -l` shows the device present with
 no `IOUSBHostInterface` under it, which is the tell.
 
-A power cycle fixes it. If the board is on a hub with per-port power switching -
-`ppps` in `uhubctl`'s listing - that needs no hands:
-
-```bash
-uhubctl                              # find the hub and port, check for ppps
-uhubctl -l <hub> -p <port> -a cycle -d 3
-```
-
-Otherwise, unplug it.
-
-## The strip is RGB
-
-Not the GRB that most WS2812 panels want. Measured rather than guessed: a frame
-of pure red came back green, which is exactly what an RGB strip does when it is
-handed GRB bytes.
-
-**Check the colours before believing anything about the geometry.** Getting this
-wrong disguises itself as a wiring fault, because it swaps red and green - so an
-orientation marker's two arms come back with their *colours* exchanged while
-sitting in exactly the right places. That reads as the arms being in the wrong
-places, and "correcting" it transposes a panel that was already right. The tell
-that it is colour and not geometry is a colour appearing that was never sent.
-
-## Brightness
-
-Around **15**. 48 is genuinely blinding at desk distance and 15 is comfortable
-lit across the whole panel, so the ceiling of 96 exists for a bright room rather
-than for use.
-
-## Power
-
-A WS2812 channel draws about 20mA wide open, so a full white panel wants **3.8A**
-against a USB port's 500mA. The host is free to send white, so the firmware sums
-every frame, converts at 20mA a channel and scales the whole frame down if it
-would exceed 450mA.
-
-This is enforced rather than trusted because a brownout presents as a reboot or a
-hang with nothing pointing at the frame that caused it. The visible symptom of
-the cap doing its job is a picture dimmer than the brightness asked for.
+A power cycle fixes it, and on this board that is the `PWR` button rather than
+the cable.
