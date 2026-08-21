@@ -123,13 +123,17 @@ float sdArc(float px, float py, const Arc &a) {
 uint16_t colourAt(float percent) {
   // The stops are not evenly spaced, because the reading is not: a bar at a
   // seventh of its window has plenty of room and should look like it, and the
-  // teal it starts at is the one the battery goes when it is charging. Amber
-  // does not arrive until four fifths, where there is something to say.
+  // teal it starts at is the one the battery goes when it is charging. Half way
+  // is where it starts to yellow, three fifths is full yellow, seven tenths has
+  // gone warm without losing any of it, and amber waits until four fifths - by
+  // which point there is something to say.
   struct Stop {
     float at, r, g, b;
   };
   constexpr Stop RAMP[] = {{0.0f, 0.0f, 255.0f, 180.0f},
-                           {0.5f, 60.0f, 255.0f, 120.0f},
+                           {0.5f, 215.0f, 255.0f, 40.0f},
+                           {0.6f, 255.0f, 255.0f, 0.0f},
+                           {0.7f, 255.0f, 182.0f, 0.0f},
                            {0.8f, 255.0f, 168.0f, 0.0f},
                            {1.0f, 255.0f, 48.0f, 64.0f}};
   constexpr uint8_t COUNT = sizeof(RAMP) / sizeof(RAMP[0]);

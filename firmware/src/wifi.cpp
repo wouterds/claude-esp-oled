@@ -22,11 +22,12 @@ char onNetwork[33] = {0};
 char onAddress[16] = {0};
 volatile int onRssi = 0;
 
-// Once, and only after a join has already failed: what is actually in the air.
+// Once a boot, after the radio has settled: what is actually in the air.
 // An SSID that does not appear here is not one the device is failing to join,
 // it is one that is not there - a different problem that looks exactly the same
-// from outside, and the usual reason is a phone handing out its hotspot on
-// 5GHz, which this radio cannot hear at all.
+// from outside. Two usual reasons: a phone handing out its hotspot on 5GHz,
+// which this radio cannot hear at all, and a phone that has gone to sleep and
+// stopped handing it out.
 void look() {
   int found = WiFi.scanNetworks();
   Serial.printf("wifi: %d networks in range\n", found);
@@ -39,10 +40,14 @@ void look() {
 }
 
 void wifiTask(void *) {
-  bool looked = false;
+  static bool looked = false;
   for (;;) {
     if (WiFi.status() == WL_CONNECTED) {
       if (!joined) {
+        if (!looked) {
+          looked = true;
+          look();
+        }
         strncpy(onNetwork, WiFi.SSID().c_str(), sizeof(onNetwork) - 1);
         strncpy(onAddress, WiFi.localIP().toString().c_str(), sizeof(onAddress) - 1);
         Serial.printf("wifi: on %s, %d dBm, %s\n", onNetwork, WiFi.RSSI(),
