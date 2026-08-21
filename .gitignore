@@ -10,10 +10,8 @@ build/
 # per platform, restored by `pio run`.
 firmware/.pio/
 
-# Local agent state - worktrees and machine-specific settings. What is committed
-# is the wiring: the settings that grant a session permission to drive the
-# display, the hooks that follow the session, and a symlink to the skills, which
-# live in .agents/ and stay reviewable.
+# Local agent state. What is committed is the wiring - the settings that grant a
+# session permission to build and flash.
 #
 # The directory is allowed back in first. A global gitignore excluding `.claude/`
 # is common, git will not descend into an excluded directory, and no negation
@@ -21,9 +19,4 @@ firmware/.pio/
 # which presents as these files simply never showing up in `git status`.
 !.claude/
 .claude/*
-!.claude/hooks/
 !.claude/settings.json
-!.claude/skills
-
-# Where the daemon keeps its socket and pid. Runtime state of one machine.
-/.run/
