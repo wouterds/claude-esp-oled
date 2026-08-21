@@ -8,8 +8,8 @@ constexpr int16_t GLYPH_W = 5;
 constexpr int16_t GLYPH_H = 7;
 
 // Column-major, one byte per column, bit 0 at the top. Space, then A-Z, then
-// 0-9, then a full stop and a percent - which between them is a mood, an
-// address and a charge level and nothing else.
+// 0-9, then a full stop, a percent and a colon - which between them is a mood,
+// an address, a charge level and a clock, and nothing else.
 const uint8_t GLYPHS[][GLYPH_W] = {
     {0x00, 0x00, 0x00, 0x00, 0x00}, {0x7E, 0x11, 0x11, 0x11, 0x7E},
     {0x7F, 0x49, 0x49, 0x49, 0x36}, {0x3E, 0x41, 0x41, 0x41, 0x22},
@@ -31,11 +31,13 @@ const uint8_t GLYPHS[][GLYPH_W] = {
     {0x3C, 0x4A, 0x49, 0x49, 0x30}, {0x01, 0x71, 0x09, 0x05, 0x03},
     {0x36, 0x49, 0x49, 0x49, 0x36}, {0x06, 0x49, 0x49, 0x29, 0x1E},
     {0x00, 0x60, 0x60, 0x00, 0x00}, {0x23, 0x13, 0x08, 0x64, 0x62},
+    {0x00, 0x66, 0x66, 0x00, 0x00},
 };
 
 constexpr uint8_t DIGIT_0 = 27;
 constexpr uint8_t FULL_STOP = 37;
 constexpr uint8_t PERCENT = 38;
+constexpr uint8_t COLON = 39;
 
 // Anything the font does not carry lands on the blank, which keeps a typo from
 // walking off the end of the table.
@@ -54,6 +56,9 @@ inline const uint8_t *glyph(char c) {
   }
   if (c == '%') {
     return GLYPHS[PERCENT];
+  }
+  if (c == ':') {
+    return GLYPHS[COLON];
   }
   return GLYPHS[0];
 }
