@@ -29,6 +29,10 @@ constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
 constexpr int16_t ADDRESS_Y = 320;
+// What the longest address could take: fifteen glyphs at twice size. The glass
+// narrows fast down here and this is what has to fit inside it.
+constexpr int16_t ADDRESS_X0 = 88;
+constexpr int16_t ADDRESS_X1 = 272;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
@@ -86,12 +90,15 @@ void plot(uint16_t *fb, int16_t x, int16_t y, float coverage, uint16_t colour) {
   boardRow(fb, y)[boardX(x)] = boardColour((uint16_t)((r << 11) | (g << 5) | b));
 }
 
-void clearBand(uint16_t *fb, int16_t from, int16_t to) {
+// Only as wide as what is being redrawn. The bars run down both edges of the
+// glass and nothing here puts them back, so clearing a whole row to repaint
+// something in the middle of it takes a bite out of them.
+void clearBand(uint16_t *fb, int16_t from, int16_t to, int16_t x0, int16_t x1) {
   for (int16_t y = from; y <= to; y++) {
     if (y < 0 || y >= SCREEN_H) {
       continue;
     }
-    memset(boardRow(fb, y), 0, (size_t)SCREEN_W * 2);
+    memset(boardRow(fb, y) + boardX(x1), 0, (size_t)(x1 - x0 + 1) * 2);
   }
 }
 
@@ -259,7 +266,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   typed = reveal;
 
   if (topChanged) {
-    clearBand(fb, BAR_TOP, BAR_BOTTOM);
+    clearBand(fb, BAR_TOP, BAR_BOTTOM, WIFI_X - 14, BATTERY_X + 18);
     if (battery.present) {
       // The bar inside it already says how much, so the number said it twice.
       drawBattery(fb, battery.percent, batteryColour(battery, blink));
@@ -274,7 +281,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   }
 
   if (bottomChanged) {
-    clearBand(fb, BOTTOM_FROM, BOTTOM_TO);
+    clearBand(fb, BOTTOM_FROM, BOTTOM_TO, ADDRESS_X0, ADDRESS_X1);
     if (typed > 0) {
       memcpy(typing, shown.address, typed);
       typing[typed] = '\0';
