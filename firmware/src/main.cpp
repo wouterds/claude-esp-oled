@@ -3,6 +3,7 @@
 
 #include "battery.h"
 #include "board.h"
+#include "touch.h"
 #include "face.h"
 
 static constexpr uint32_t FRAME_MS = 16;
@@ -41,6 +42,7 @@ void setup() {
     }
   }
   batteryReport();
+  touchBegin();
   faceBegin();
   lastFrame = millis();
 }
@@ -56,6 +58,9 @@ void loop() {
   uint32_t t0 = micros();
   int16_t from = 0;
   int16_t to = SCREEN_H - 1;
+  if (touchTapped()) {
+    faceProd();
+  }
   faceStep(dt);
   faceDraw(boardFramebuffer(), &from, &to);
   uint32_t t1 = micros();

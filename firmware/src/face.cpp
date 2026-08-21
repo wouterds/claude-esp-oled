@@ -15,7 +15,7 @@
 namespace {
 
 constexpr float PI_F = 3.14159265f;
-constexpr float GLOW_RADIUS = 13.0f;
+constexpr float GLOW_RADIUS = 8.0f;
 constexpr float GLOW_INV = 1.0f / GLOW_RADIUS;
 constexpr float GLOW_GAIN = 0.5f;
 
@@ -30,9 +30,7 @@ constexpr float HOME_Y = 156.0f;
 constexpr float EYE_RISE = 28.0f;
 constexpr float MOUTH_DROP = 52.0f;
 
-constexpr float MOOD_SECONDS = 5.0f;
 constexpr float BLEND_SECONDS = 0.35f;
-constexpr float INTRO_SECONDS = 4.1f;
 
 enum class Mood : uint8_t { Neutral, Happy, Surprised, Excited, Angry, Dead, Love };
 
@@ -44,10 +42,11 @@ struct Trig {
 };
 Trig trig;
 
-// Neutral is not in here: it is what every other one returns to.
-constexpr Mood MOODS[] = {Mood::Happy,  Mood::Surprised, Mood::Excited,
-                          Mood::Angry,  Mood::Dead,      Mood::Love};
-constexpr uint8_t MOOD_COUNT = sizeof(MOODS) / sizeof(MOODS[0]);
+// What a tap steps through, neutral included so there is a way back to it.
+// Happy, Excited and Love are still drawn - adding any of them to this list is
+// all it takes to bring them back.
+constexpr Mood CYCLE[] = {Mood::Neutral, Mood::Surprised, Mood::Angry, Mood::Dead};
+constexpr uint8_t CYCLE_COUNT = sizeof(CYCLE) / sizeof(CYCLE[0]);
 
 struct State {
   float x, y;          // where the eyes are
@@ -62,45 +61,12 @@ struct State {
   float paintedX, paintedY;  // where the eyes were last drawn, so only that
                              // much of the panel has to be put back to black
   char label[12];      // what the typewriter has put on the panel so far
+  float lookX, lookY;      // where it is looking, eased
+  float lookTX, lookTY;    // and where it has decided to look next
+  float lookIn;            // seconds until it looks somewhere else
   float blinkIn;       // seconds until the next blink
   float blinking;      // seconds left of this one
-  float intro;         // seconds left of waking up, zero once it is awake
 };
-
-// A point on a scripted curve. Between two of them it eases rather than ramps,
-// so nothing in the wake-up starts or stops abruptly.
-struct Key {
-  float at;
-  float value;
-};
-
-// Heavy lids, one look that does not take, then open. Waking is the pause
-// before the second attempt rather than the opening itself.
-constexpr Key WAKE_LIDS[] = {{0.00f, 0.04f}, {0.55f, 0.05f}, {0.80f, 0.50f},
-                             {1.00f, 0.08f}, {1.45f, 1.00f}};
-// Then a look around, left first and held, because a head turning back too
-// soon reads as a twitch rather than as looking at something.
-constexpr Key WAKE_LOOK_X[] = {{1.45f, 0.0f},  {1.90f, -30.0f}, {2.40f, -30.0f},
-                               {2.90f, 30.0f}, {3.40f, 30.0f},  {3.90f, 0.0f}};
-constexpr Key WAKE_LOOK_Y[] = {{1.45f, 0.0f}, {2.00f, -12.0f}, {2.60f, 10.0f},
-                               {3.20f, -8.0f}, {3.90f, 0.0f}};
-
-template <uint8_t N>
-float keyed(const Key (&keys)[N], float t) {
-  if (t <= keys[0].at) {
-    return keys[0].value;
-  }
-  for (uint8_t i = 1; i < N; i++) {
-    if (t > keys[i].at) {
-      continue;
-    }
-    float span = keys[i].at - keys[i - 1].at;
-    float e = span > 0.0001f ? (t - keys[i - 1].at) / span : 1.0f;
-    e = e * e * (3.0f - 2.0f * e);
-    return keys[i - 1].value + (keys[i].value - keys[i - 1].value) * e;
-  }
-  return keys[N - 1].value;
-}
 
 const char *moodName(Mood mood) {
   switch (mood) {
@@ -137,6 +103,15 @@ inline float sdRoundBox(float px, float py, float hx, float hy, float r) {
   float ay = qy > 0.0f ? qy : 0.0f;
   float inner = qx > qy ? qx : qy;
   return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
+}
+
+// A rounded box whose corner radius can never outrun the half-extent it is
+// rounding. Squashing an eye - a blink, a wake - drives the height below the
+// radius, and sdRoundBox is only a distance while the radius fits inside it;
+// past that the ends come out in points.
+inline float sdEye(float px, float py, float hx, float hy, float r) {
+  float limit = hx < hy ? hx : hy;
+  return sdRoundBox(px, py, hx, hy, r < limit ? r : limit);
 }
 
 inline float sdSegment(float px, float py, float ax, float ay, float bx, float by) {
@@ -183,13 +158,14 @@ struct Mouth {
 // like a wedge once it is bent. The roundness comes from the corner radius
 // being the whole of the half-height: every one of these is a capsule.
 constexpr Mouth MOUTHS[] = {
-    {15.0f, 4.5f, 4.5f, 3.0f},     // neutral, a bar with the hint of a smile
-    {25.0f, 5.0f, 5.0f, 15.0f},    // happy
-    {12.0f, 13.0f, 12.0f, 0.0f},   // surprised, an o
+    {11.0f, 7.0f, 7.0f, 0.0f},     // neutral, a flat pill - any bend on a
+                                   // capsule curves the whole bar into a banana
+    {17.0f, 6.5f, 6.5f, 7.0f},     // happy
+    {16.0f, 18.0f, 16.0f, 0.0f},   // surprised, a big o
     {21.0f, 9.5f, 9.5f, 12.0f},    // excited, open and grinning
-    {21.0f, 5.0f, 5.0f, -12.0f},   // angry
-    {19.0f, 4.0f, 4.0f, 0.0f},     // dead, flat
-    {21.0f, 5.5f, 5.5f, 13.0f},    // in love
+    {15.0f, 7.0f, 7.0f, 0.0f},     // angry, neutral's pill but wider
+    {10.0f, 7.5f, 7.5f, 0.0f},     // dead, a short thick blob
+    {16.0f, 6.5f, 6.5f, 6.0f},     // in love
 };
 
 // The blob is bent rather than cut. Taking a circle out of it leaves the ends
@@ -201,6 +177,37 @@ float mouthShape(Mood mood, float x, float y) {
   return sdRoundBox(x, y + lift, m.w, m.h, m.r);
 }
 
+// The pupil is the whole of the gaze. An eye with nothing in it can only be
+// moved, and a white shape sliding sideways reads as the face shifting rather
+// than as anything being looked at - so the pupil carries nearly all of the
+// travel and the eye itself barely leans. Where it runs past the edge of the
+// eye there is simply nothing left to take away, which is what an eye looking
+// hard to one side does anyway.
+// The same rounded box as the eye around it, pulled in by a constant so the
+// white left over is an even border the whole way round rather than a ring that
+// is fatter at the top and bottom. A circle in a tall eye reads as a hole; this
+// reads as a pupil.
+inline float pupil(float x, float y, float hx, float hy, float r, float inset) {
+  // Far enough to press against the side it is looking at, not so far that it
+  // eats the border there - an eye with white left on only one side reads as a
+  // crescent rather than as an eye aimed at something.
+  float px = x - me.lookX * 0.40f;
+  float py = y - me.lookY * 0.40f;
+  float ix = hx - inset;
+  float iy = hy - inset;
+  float ir = r - inset;
+  if (ix < 1.0f) {
+    ix = 1.0f;
+  }
+  if (iy < 1.0f) {
+    iy = 1.0f;
+  }
+  if (ir < 0.0f) {
+    ir = 0.0f;
+  }
+  return sdEye(px, py, ix, iy, ir);
+}
+
 // One eye of one expression, in its own space, with the sign of `side` telling
 // it which of the pair it is so anything slanted mirrors instead of repeating.
 float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
@@ -209,16 +216,15 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       // An arch, drawn upside down from a smile.
       return sdArc(x, -y + 10.0f, trig.archSin, trig.archCos, 26.0f, 7.5f);
     case Mood::Surprised:
-      return sdRoundBox(x, y, 34.0f, 40.0f * squeeze, 34.0f);
-    case Mood::Excited: {
-      // A round eye with a glint taken out of it. Both boundaries are circles,
-      // so nothing here ends in a corner, and the hole reads as a highlight
-      // because the eye is the only lit thing on the panel.
-      float d = sdRoundBox(x, y, 31.0f, 34.0f * squeeze, 31.0f);
-      float gx = x + 11.0f;
-      float gy = y + 12.0f;
-      return fmaxf(d, -(sqrtf(gx * gx + gy * gy) - 8.5f));
-    }
+      return fmaxf(sdEye(x, y, 34.0f, 40.0f * squeeze, 34.0f),
+                   -pupil(x, y, 34.0f, 40.0f * squeeze, 34.0f, 11.0f));
+    case Mood::Excited:
+      // A pupil is a circle taken out of the eye, so the hole is as round as
+      // the eye around it. Because expressions morph by interpolating
+      // distances, it opens out of a solid eye rather than appearing - it
+      // grows.
+      return fmaxf(sdEye(x, y, 32.0f, 36.0f * squeeze, 32.0f),
+                   -pupil(x, y, 32.0f, 36.0f * squeeze, 32.0f, 11.0f));
     case Mood::Angry: {
       // Just tilted, and shorter than it is wide. Cutting the top flat is the
       // obvious way to draw a brow and it leaves a hard edge across the one
@@ -228,7 +234,10 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       float s = trig.browSin * side;
       float rx = x * c - y * s;
       float ry = x * s + y * c;
-      return sdRoundBox(rx, ry, 29.0f, 19.0f * squeeze, 18.0f);
+      // The pupil is inset in the tilted frame with the rest of it, and a
+      // thinner border than the others because there is less eye to spare.
+      return fmaxf(sdEye(rx, ry, 29.0f, 19.0f * squeeze, 18.0f),
+                   -pupil(rx, ry, 29.0f, 19.0f * squeeze, 18.0f, 7.0f));
     }
     case Mood::Dead: {
       constexpr float ARM = 20.0f;
@@ -239,14 +248,22 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
     }
     case Mood::Love: {
       // Narrower than it is tall, because the heart is naturally squat and at
-      // equal scales it reads as a shield.
-      constexpr float SX = 26.0f;
-      constexpr float SY = 34.0f;
-      return sdHeart(x / SX, -y / SY + 0.6f) * SX;
+      // equal scales it reads as a shield. Subtracting from the field afterwards
+      // inflates the whole shape by that much and rounds every corner with it -
+      // the point at the bottom, the notch at the top - which is what turns an
+      // outline into a thick rounded heart.
+      // Scaled up rather than inflated: the notch between the lobes scales
+      // with everything else, where inflating fills it in and leaves a shield.
+      // The little that is added rounds the point at the bottom.
+      constexpr float SX = 33.0f;
+      constexpr float SY = 39.0f;
+      constexpr float FATTEN = 3.5f;
+      return sdHeart(x / SX, -y / SY + 0.62f) * SX - FATTEN;
     }
     case Mood::Neutral:
     default:
-      return sdRoundBox(x, y, 29.0f, 38.0f * squeeze, 23.0f);
+      return fmaxf(sdEye(x, y, 29.0f, 38.0f * squeeze, 23.0f),
+                   -pupil(x, y, 29.0f, 38.0f * squeeze, 23.0f, 11.0f));
   }
 }
 
@@ -299,6 +316,17 @@ void pickTarget() {
   float radius = ROAM * sqrtf(frand(0.0f, 1.0f));
   me.tx = SCREEN_R + cosf(angle) * radius;
   me.ty = HOME_Y + sinf(angle) * radius;
+
+  // The eyes go first. Deciding to be somewhere else and then looking at it on
+  // the way is what separates drifting from being blown about.
+  float dx = me.tx - me.x;
+  float dy = me.ty - me.y;
+  float len = sqrtf(dx * dx + dy * dy);
+  if (len > 1.0f) {
+    me.lookTX = dx / len * frand(11.0f, 20.0f);
+    me.lookTY = dy / len * frand(5.0f, 9.0f);
+    me.lookIn = frand(0.5f, 1.2f);
+  }
 }
 
 }  // namespace
@@ -317,10 +345,11 @@ void faceBegin() {
   me.blend = 1.0f;
   me.mood = Mood::Neutral;
   me.was = Mood::Neutral;
-  me.next = 0;
+  me.next = 1;  // neutral is where it starts, so a tap moves it on
+  me.lookX = me.lookY = me.lookTX = me.lookTY = 0.0f;
+  me.lookIn = 1.0f;
   me.blinkIn = 2.0f;
   me.blinking = 0.0f;
-  me.intro = INTRO_SECONDS;
   pickTarget();
 }
 
@@ -328,28 +357,7 @@ void faceStep(float dt) {
   me.clock += dt;
   me.blend = clamp01(me.blend + dt / BLEND_SECONDS);
 
-  // Nothing has a mood yet while it is still working out where it is.
-  if (me.intro > 0.0f) {
-    me.intro -= dt;
-    if (me.intro > 0.0f) {
-      return;
-    }
-    me.intro = 0.0f;
-    me.held = 0.0f;
-  }
-
   me.held += dt;
-  if (me.held >= MOOD_SECONDS) {
-    me.held = 0.0f;
-    me.was = me.mood;
-    me.blend = 0.0f;
-    if (me.mood == Mood::Neutral) {
-      me.mood = MOODS[me.next];
-      me.next = (uint8_t)((me.next + 1) % MOOD_COUNT);
-    } else {
-      me.mood = Mood::Neutral;
-    }
-  }
 
   // A critically damped spring: it arrives without ringing, and the stiffness
   // alone is the difference between drifting over and darting.
@@ -366,6 +374,41 @@ void faceStep(float dt) {
     pickTarget();
   }
 
+  // Drifting on its own reads as floating. What reads as looking at things is
+  // the shape of the movement: eyes snap to somewhere and hold there, mostly
+  // nearby with the occasional long look off to one side. Easing them evenly
+  // between points is a camera pan, not a creature.
+  me.lookIn -= dt;
+  if (me.lookIn <= 0.0f) {
+    long roll = random(0, 100);
+    if (roll < 42) {
+      // Straight at you, and held. Something that only ever looks past you is
+      // not looking at anything - most of the time it should just be there.
+      me.lookTX = frand(-2.5f, 2.5f);
+      me.lookTY = frand(-1.5f, 1.5f);
+      me.lookIn = frand(1.5f, 3.6f);
+    } else if (roll < 76) {
+      // Wherever it is heading.
+      float dx = me.tx - me.x;
+      float dy = me.ty - me.y;
+      float len = sqrtf(dx * dx + dy * dy);
+      if (len < 1.0f) {
+        len = 1.0f;
+      }
+      me.lookTX = dx / len * frand(10.0f, 20.0f);
+      me.lookTY = dy / len * frand(4.0f, 9.0f);
+      me.lookIn = frand(0.6f, 1.7f);
+    } else {
+      // And now and then, something off past the edge of the glass.
+      me.lookTX = frand(-21.0f, 21.0f);
+      me.lookTY = frand(-9.0f, 9.0f);
+      me.lookIn = frand(0.8f, 2.2f);
+    }
+  }
+  float settle = 1.0f - expf(-dt * 26.0f);
+  me.lookX += (me.lookTX - me.lookX) * settle;
+  me.lookY += (me.lookTY - me.lookY) * settle;
+
   // Blinking is the cheapest thing on the panel and does the most work, but a
   // blink through an X or a heart would read as a glitch rather than as life.
   if (me.mood == Mood::Neutral || me.mood == Mood::Surprised) {
@@ -380,6 +423,14 @@ void faceStep(float dt) {
   } else {
     me.blinking = 0.0f;
   }
+}
+
+void faceProd() {
+  me.was = me.mood;
+  me.blend = 0.0f;
+  me.held = 0.0f;
+  me.mood = CYCLE[me.next];
+  me.next = (uint8_t)((me.next + 1) % CYCLE_COUNT);
 }
 
 void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
@@ -398,18 +449,12 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   if (me.blinking > 0.0f) {
     squeeze = 0.06f + 0.94f * fabsf(cosf((me.blinking / 0.16f) * PI_F));
   }
-  if (me.intro > 0.0f) {
-    float woke = INTRO_SECONDS - me.intro;
-    squeeze = keyed(WAKE_LIDS, woke);
-    centreX += keyed(WAKE_LOOK_X, woke);
-    centreY += keyed(WAKE_LOOK_Y, woke);
-  }
   float mix = me.blend;
 
   constexpr float REACH_X = 38.0f;
-  constexpr float REACH_Y = 48.0f;
+  constexpr float REACH_Y = 42.0f;
   constexpr float SPAN_X = 34.0f;   // the widest any eye gets
-  constexpr float SPAN_Y = 43.0f;   // and the tallest
+  constexpr float SPAN_Y = 41.0f;   // and the tallest
   constexpr float MOUTH_REACH_X = 30.0f;
   constexpr float MOUTH_REACH_Y = 32.0f;
   constexpr float MOUTH_SPAN_X = 28.0f;  // the widest the mouth gets
@@ -430,9 +475,13 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   me.paintedX = centreX;
   me.paintedY = centreY;
 
-  float eyeY = centreY - EYE_RISE;
+  float eyeY = centreY - EYE_RISE + me.lookY * 0.16f;
+  // The two do not travel together: the eye on the side being looked toward
+  // carries a little more of the movement, and each carries a slow wobble of
+  // its own.
   for (float side = -1.0f; side < 2.0f; side += 2.0f) {
-    float eyeX = centreX + side * EYE_GAP;
+    float eyeX = centreX + side * EYE_GAP + me.lookX * (0.16f + side * 0.05f) +
+                 sinf(me.clock * 2.3f + (side > 0.0f ? 1.7f : 0.0f)) * 1.1f;
     int16_t x0 = (int16_t)(eyeX - REACH_X - GLOW_RADIUS);
     int16_t x1 = (int16_t)(eyeX + REACH_X + GLOW_RADIUS);
     int16_t y0 = (int16_t)(eyeY - REACH_Y - GLOW_RADIUS);
@@ -502,7 +551,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // The label is redrawn only when it says something new, so a settled face
   // leaves those rows alone and the flush never has to carry them.
   char wanted[12] = {0};
-  if (me.intro <= 0.0f) {
+  {
     const char *name = moodName(me.mood);
     // One letter every twentieth of a second, so the name arrives as it is
     // typed rather than all at once under a face that is still changing.
