@@ -376,8 +376,6 @@ void gaugeFigures() {
 
 float gaugeReach() { return reach; }
 
-uint16_t gaugeColour(uint8_t percent) { return colourAt((float)percent); }
-
 void gaugeDraw(uint16_t *fb) {
   for (uint8_t side = 0; side < 2; side++) {
     const Pixel *p = pixels + side * SIDE_PIXELS;
