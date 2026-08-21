@@ -31,10 +31,7 @@ constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
 constexpr int16_t ADDRESS_Y = 310;
-// What the longest address could take: fifteen glyphs at twice size. The glass
-// narrows fast down here and this is what has to fit inside it.
-constexpr int16_t ADDRESS_X0 = 88;
-constexpr int16_t ADDRESS_X1 = 272;
+constexpr int16_t BOTTOM_SCALE = 2;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
@@ -87,6 +84,9 @@ void clockOf(char *out, size_t size, uint32_t ms) {
 char typing[16] = {0};
 uint8_t typed = 0;
 uint32_t typedAt = 0;
+// Half the width of what was last put down there, so a shorter line still takes
+// the longer one it replaces off the glass.
+int16_t wiped = 0;
 
 // Framebuffer rows run the other way to screen rows.
 inline int16_t bandFrom(int16_t screenTo) { return (int16_t)(SCREEN_H - 1 - screenTo); }
@@ -325,18 +325,25 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   }
 
   if (bottomChanged) {
-    clearBand(fb, BOTTOM_FROM, BOTTOM_TO, ADDRESS_X0, ADDRESS_X1);
+    // Only as wide as the words themselves, rather than as wide as the longest
+    // line there could be. The bars' bottom ends reach in to about x=89 through
+    // these rows once they are at full length, and a band sized for the worst
+    // case takes a bite out of them for the sake of room nothing is using.
+    int16_t step = textStep(BOTTOM_SCALE);
+    int16_t half = full > 0 ? (int16_t)((full * step) / 2 + 2) : 0;
+    int16_t widest = half > wiped ? half : wiped;
+    wiped = half;
+    if (widest > 0) {
+      clearBand(fb, BOTTOM_FROM, BOTTOM_TO, (int16_t)(SCREEN_R - widest),
+                (int16_t)(SCREEN_R + widest));
+    }
     if (typed > 0) {
       memcpy(typing, shown.address, typed);
       typing[typed] = '\0';
-      // Centred on where the whole address will be, so it does not slide left
-      // as it arrives.
-      // Centred on where the whole address will be, so it does not slide left
-      // as it arrives. Grey rather than white: it should not outshout the face.
-      constexpr int16_t SCALE = 2;
-      int16_t step = textStep(SCALE);
+      // Centred on where the whole line will be, so it does not slide left as
+      // it arrives.
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
-      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, SCALE,
+      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, BOTTOM_SCALE,
                boardColour(WHITE));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
