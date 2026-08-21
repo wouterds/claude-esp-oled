@@ -22,10 +22,11 @@ constexpr float GLOW_GAIN = 0.5f;
 // How far from its home the face may drift.
 constexpr float ROAM = 26.0f;
 constexpr float EYE_GAP = 46.0f;
-// Below the middle, which leaves the top of the glass to the icons. The drift is small because the panel is round: with the
+// The clear box the face paints inside runs from 80 above this to 84 below it,
+// so the anchor sits two above the middle of the glass to put the face on it. The drift is small because the panel is round: with the
 // mouth below the eyes the face reaches 129 pixels from its own centre, and 180
 // is where the glass stops.
-constexpr float HOME_Y = 174.0f;
+constexpr float HOME_Y = 178.0f;
 constexpr float EYE_RISE = 28.0f;
 constexpr float MOUTH_DROP = 52.0f;
 
