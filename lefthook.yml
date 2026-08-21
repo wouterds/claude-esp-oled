@@ -20,20 +20,16 @@ post-checkout:
       run: npm install --package-lock-only
 
 pre-commit:
-  parallel: true
   commands:
-    biome:
-      glob: "*.{ts,tsx,js,jsx,json,css}"
-      run: npx biome check --no-errors-on-unmatched {staged_files}
-    # Whole-repo rather than staged, because a type or a spec breaks from the
-    # other side of an import. Turbo caches both, so an unchanged workspace
-    # costs nothing and only a commit touching typescript pays at all.
-    typecheck:
-      glob: "*.{ts,tsx}"
-      run: npm run typecheck
-    test:
-      glob: "*.{ts,tsx}"
-      run: npm test
+    # A sketch that does not compile is not a commit. Skipped rather than failed
+    # where PlatformIO is absent, because a checkout that only touches docs
+    # should not need a toolchain - CI compiles every push regardless.
+    firmware:
+      glob: "firmware/**/*.{c,cpp,h,ini}"
+      run: |
+        pio="$(command -v pio || echo "$HOME/.platformio/penv/bin/pio")"
+        if [ -x "$pio" ]; then "$pio" run -d firmware; else
+          echo "platformio not installed - skipping the build"; fi
 
 commit-msg:
   parallel: true

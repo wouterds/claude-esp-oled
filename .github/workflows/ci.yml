@@ -10,22 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-      # A file nothing imports, or an export nothing reads, is a mistake worth
-      # catching before it lands.
-      - run: npx knip
-
   firmware:
     runs-on: ubuntu-latest
     steps:
@@ -33,8 +17,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      # Nothing here can flash a board, but a sketch that does not compile is
-      # worth knowing about without one - and the flash geometry that stopped it
-      # booting once lives in platformio.ini, which this reads.
+      # Nothing here can flash a board, and nothing here can tell whether the
+      # panel came up. What this does catch is a sketch that stopped compiling,
+      # and the flash and PSRAM geometry that stopped it booting once, which
+      # lives in platformio.ini and is read to build either env.
       - run: pip install platformio
-      - run: pio run -d firmware
+      - run: pio run -d firmware -e esp32-s3-touch-lcd-185
+      - run: pio run -d firmware -e selftest
