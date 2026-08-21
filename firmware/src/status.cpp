@@ -247,10 +247,11 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   }
 
   uint8_t full = (uint8_t)strlen(shown.address);
-  uint8_t reveal = (uint8_t)((millis() - typedAt) / 45);
-  if (reveal > full) {
-    reveal = full;
-  }
+  // Clamped before it is narrowed, not after. A byte of it wraps every two
+  // hundred and fifty-six steps, which is a whole address retyping itself out
+  // of nowhere every eleven seconds.
+  uint32_t steps = (millis() - typedAt) / 45;
+  uint8_t reveal = steps >= full ? full : (uint8_t)steps;
   bool bottomChanged = reveal != typed;
   bottomChanged |= overlaps(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM), faceFrom, faceTo);
 
