@@ -19,20 +19,20 @@ constexpr float HALF_THICK = 3.5f;
 // Either side of the horizontal. Short is three quarters of the panel's height,
 // which is as far as an arc goes before its bottom end curves back in to where
 // the address is written. With the address gone there is nothing down there to
-// avoid, so it grows to nine tenths - and unevenly, because the room it gained
-// is at the bottom: the top end gets half of what the bottom end gets.
+// avoid, so the two of them reach round the bottom towards each other until
+// they are ninety pixels apart, which is most of the way round the glass.
 constexpr float SWEEP_SHORT = 0.87f;
-constexpr float SWEEP_TOP = 1.038f;
-constexpr float SWEEP_BOTTOM = 1.283f;
+constexpr float SWEEP_TOP = 1.08f;
+constexpr float SWEEP_BOTTOM = 1.4f;
 constexpr float REACH_S = 0.8f;
 
 constexpr int16_t BOX_X0 = 0;
 // Far enough in to hold the ends. An arc that reaches down to five past seven
 // has its cap at x=131, nowhere near the x=80 that held the short one - and a
 // box that stops short of it does not shorten the bar, it guillotines it.
-constexpr int16_t BOX_X1 = 150;
-constexpr int16_t BOX_Y0 = 26;
-constexpr int16_t BOX_Y1 = 351;
+constexpr int16_t BOX_X1 = 160;
+constexpr int16_t BOX_Y0 = 22;
+constexpr int16_t BOX_Y1 = 356;
 
 constexpr uint16_t TRACK = 0x528A;
 
@@ -40,6 +40,10 @@ constexpr uint16_t TRACK = 0x528A;
 // the glass and tucked inside their own bar.
 constexpr int16_t FIGURE_X = 46;
 constexpr int16_t FIGURE_Y = 173;
+// The room they take, which is not on the ring - so clearing the ring does not
+// clear them and they have to be swept on their own.
+constexpr int16_t FIGURE_HW = 27;
+constexpr int16_t FIGURE_HH = 9;
 
 // How fast a bar closes on the number it was given. Exponential rather than a
 // timed ease, so a bar already on its way somewhere just bends.
@@ -214,6 +218,21 @@ void build(uint8_t side, float percent) {
   }
 }
 
+// Four characters' worth either side of where they are centred, on both edges.
+// Cheap enough to do every frame they are up, which is what keeps a 100% that
+// has become a 9% from leaving its other two digits behind.
+void clearFigures(uint16_t *fb) {
+  for (int16_t y = FIGURE_Y - FIGURE_HH; y <= FIGURE_Y + FIGURE_HH; y++) {
+    if (y < 0 || y >= SCREEN_H) {
+      continue;
+    }
+    uint16_t *line = boardRow(fb, y);
+    size_t bytes = (size_t)(FIGURE_HW * 2 + 1) * 2;
+    memset(line + boardX(FIGURE_X + FIGURE_HW), 0, bytes);
+    memset(line + boardX(SCREEN_W - 1 - FIGURE_X + FIGURE_HW), 0, bytes);
+  }
+}
+
 // A bar that has just got shorter leaves its old ends behind, and nothing else
 // on the panel is ever going to clear them. Only the ring gets cleared, not the
 // box around it: at this width the box would take the address with it.
@@ -229,6 +248,7 @@ void wipe(uint16_t *fb) {
     memset(line + boardX(x1), 0, bytes);
     memset(line + boardX(SCREEN_W - 1 - x0), 0, bytes);
   }
+  clearFigures(fb);
 }
 
 }  // namespace
@@ -334,6 +354,7 @@ void gaugeDraw(uint16_t *fb) {
   if (!figures) {
     return;
   }
+  clearFigures(fb);
   // Inside the arc at its widest, which is the one part of the panel that is
   // already wiped and put back every frame.
   for (uint8_t side = 0; side < 2; side++) {
