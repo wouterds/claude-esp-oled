@@ -21,22 +21,24 @@ constexpr int16_t MIDDLE = 34;
 
 // The glass is a circle. At y=26 there are only 93 pixels either side of the
 // centre line, so everything here has to live between 87 and 273.
-constexpr int16_t BATTERY_X = 126;
-constexpr int16_t PERCENT_X = 141;
-constexpr int16_t WIFI_X = 232;
+// Either side of the middle, now that the icon says it on its own.
+constexpr int16_t BATTERY_X = 145;
+constexpr int16_t WIFI_X = 215;
 
 constexpr int16_t ADDRESS_Y = 298;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
-constexpr int16_t BOTTOM_TO = ADDRESS_Y + 17;
+constexpr int16_t BOTTOM_TO = ADDRESS_Y + 14;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREEN = 0x07E0;
-constexpr uint16_t AMBER = 0xFD20;
+constexpr uint16_t YELLOW = 0xFFE0;
+constexpr uint16_t ORANGE = 0xFC00;
 constexpr uint16_t RED = 0xF800;
 constexpr uint16_t DIM = 0x4208;
 
-constexpr uint8_t LOW_PERCENT = 20;
-constexpr uint8_t CRITICAL_PERCENT = 10;
+constexpr uint8_t YELLOW_AT = 30;
+constexpr uint8_t ORANGE_AT = 20;
+constexpr uint8_t RED_AT = 10;
 
 struct Shown {
   uint8_t percent;
@@ -154,12 +156,15 @@ void drawWifi(uint16_t *fb, bool online) {
       float px = (float)x + 0.5f - WIFI_X;
       float py = (float)y + 0.5f - (MIDDLE + 6.0f);
 
-      float d = sdArc(px, py, sinA, cosA, 11.0f, 1.5f);
-      float mid = sdArc(px, py, sinA, cosA, 7.0f, 1.5f);
+      float d = sdArc(px, py, sinA, cosA, 11.0f, 1.6f);
+      // Closer in than it looks like it should be. The gap that reads as right
+      // is the one between the arc's inner edge and the dot, not between their
+      // centres, and the thickness of the arc eats most of it.
+      float mid = sdArc(px, py, sinA, cosA, 6.4f, 1.6f);
       if (mid < d) {
         d = mid;
       }
-      float dot = sqrtf(px * px + py * py) - 1.8f;
+      float dot = sqrtf(px * px + py * py) - 2.5f;
       if (dot < d) {
         d = dot;
       }
@@ -182,11 +187,14 @@ uint16_t batteryColour(const BatteryState &battery, bool blink) {
   if (battery.charging) {
     return GREEN;
   }
-  if (battery.percent <= CRITICAL_PERCENT) {
+  if (battery.percent <= RED_AT) {
     return blink ? RED : 0x3800;
   }
-  if (battery.percent <= LOW_PERCENT) {
-    return AMBER;
+  if (battery.percent <= ORANGE_AT) {
+    return ORANGE;
+  }
+  if (battery.percent <= YELLOW_AT) {
+    return YELLOW;
   }
   return WHITE;
 }
@@ -197,7 +205,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   BatteryState battery = batteryRead();
   const char *address = wifiAddress();
   bool online = address != nullptr;
-  bool blink = battery.percent <= CRITICAL_PERCENT && !battery.charging
+  bool blink = battery.percent <= RED_AT && !battery.charging
                    ? ((millis() / 450) & 1) != 0
                    : false;
 
@@ -231,17 +239,8 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   if (topChanged) {
     clearBand(fb, BAR_TOP, BAR_BOTTOM);
     if (battery.present) {
-      uint16_t colour = batteryColour(battery, blink);
-      drawBattery(fb, battery.percent, colour);
-      char label[6];
-      snprintf(label, sizeof(label), "%u%%", battery.percent);
-      // Left aligned just past the tip, and centred on the icon's own middle
-      // line. textDraw centres on a point, so the point moves with the length -
-      // otherwise 9% and 100% sit in different places.
-      int16_t glyphs = (int16_t)strlen(label);
-      int16_t left = BATTERY_X + 20;
-      textDraw(fb, label, (int16_t)(left + (glyphs * 6 - 1) / 2), MIDDLE - 3, 1,
-               boardColour(colour));
+      // The bar inside it already says how much, so the number said it twice.
+      drawBattery(fb, battery.percent, batteryColour(battery, blink));
     }
     drawWifi(fb, online);
     boardFlushRows(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP));
@@ -259,9 +258,12 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       typing[typed] = '\0';
       // Centred on where the whole address will be, so it does not slide left
       // as it arrives.
-      constexpr int16_t STEP = 12;
-      int16_t left = (int16_t)(SCREEN_R - (full * STEP - 2) / 2);
-      textDraw(fb, typing, (int16_t)(left + (typed * STEP - 2) / 2), ADDRESS_Y, 2,
+      // Half again as big: readable across a desk without taking a third of
+      // the panel, which is what actual size did.
+      constexpr int16_t HALVES = 3;
+      int16_t step = textStep(HALVES);
+      int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
+      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, HALVES,
                boardColour(WHITE));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));

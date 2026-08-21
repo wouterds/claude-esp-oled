@@ -60,41 +60,42 @@ inline const uint8_t *glyph(char c) {
 
 }  // namespace
 
-void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t scale,
+int16_t textStep(int16_t halves) { return (int16_t)(((GLYPH_W + 1) * halves + 1) / 2); }
+
+void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t halves,
               uint16_t colour) {
   int16_t count = 0;
   for (const char *p = s; *p; p++) {
     count++;
   }
-  if (count == 0) {
+  if (count == 0 || halves < 2) {
     return;
   }
 
-  int16_t step = (GLYPH_W + 1) * scale;
-  int16_t x = centreX - (count * step - scale) / 2;
+  int16_t step = textStep(halves);
+  int16_t wide = (int16_t)((GLYPH_W * halves + 1) / 2);
+  int16_t tall = (int16_t)((GLYPH_H * halves + 1) / 2);
+  int16_t x = centreX - (count * step - (step - wide)) / 2;
 
   for (int16_t i = 0; i < count; i++) {
     const uint8_t *cols = glyph(s[i]);
-    for (int16_t col = 0; col < GLYPH_W; col++) {
-      uint8_t bits = cols[col];
-      for (int16_t row = 0; row < GLYPH_H; row++) {
-        if (!(bits & (1 << row))) {
+    // Nearest neighbour back into the glyph rather than a run per source pixel,
+    // which is what lets the size land between whole multiples of it.
+    for (int16_t dy = 0; dy < tall; dy++) {
+      int16_t at = top + dy;
+      if (at < 0 || at >= SCREEN_H) {
+        continue;
+      }
+      uint16_t *line = boardRow(fb, at);
+      uint8_t row = (uint8_t)((dy * 2) / halves);
+      for (int16_t dx = 0; dx < wide; dx++) {
+        uint8_t col = (uint8_t)((dx * 2) / halves);
+        if (!(cols[col] & (1 << row))) {
           continue;
         }
-        int16_t px = x + (col * scale);
-        int16_t py = top + (row * scale);
-        for (int16_t dy = 0; dy < scale; dy++) {
-          int16_t at = py + dy;
-          if (at < 0 || at >= SCREEN_H) {
-            continue;
-          }
-          uint16_t *line = boardRow(fb, at);
-          for (int16_t dx = 0; dx < scale; dx++) {
-            int16_t ax = px + dx;
-            if (ax >= 0 && ax < SCREEN_W) {
-              line[boardX(ax)] = colour;
-            }
-          }
+        int16_t ax = x + dx;
+        if (ax >= 0 && ax < SCREEN_W) {
+          line[boardX(ax)] = colour;
         }
       }
     }
