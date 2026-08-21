@@ -32,7 +32,7 @@ constexpr float MOUTH_DROP = 52.0f;
 
 constexpr float BLEND_SECONDS = 0.35f;
 
-enum class Mood : uint8_t { Neutral, Happy, Surprised, Excited, Angry, Dead, Love };
+enum class Mood : uint8_t { Neutral, Happy, Surprised, Excited, Angry, Dead, Love, Tired };
 
 // Constants, but sinf and cosf are not free and the shapes below are asked for
 // them thirty thousand times a frame. Filled once, in faceBegin.
@@ -44,8 +44,8 @@ Trig trig;
 
 // What a tap steps through, neutral included so there is a way back to it.
 // Excited and Love are still drawn - adding either to this list brings it back.
-constexpr Mood CYCLE[] = {Mood::Neutral, Mood::Happy, Mood::Surprised, Mood::Angry,
-                          Mood::Dead};
+constexpr Mood CYCLE[] = {Mood::Neutral, Mood::Happy,  Mood::Surprised,
+                          Mood::Angry,   Mood::Tired,  Mood::Dead};
 constexpr uint8_t CYCLE_COUNT = sizeof(CYCLE) / sizeof(CYCLE[0]);
 
 struct State {
@@ -82,6 +82,8 @@ const char *moodName(Mood mood) {
       return "DEAD";
     case Mood::Love:
       return "IN LOVE";
+    case Mood::Tired:
+      return "TIRED";
     case Mood::Neutral:
     default:
       return "NEUTRAL";
@@ -174,6 +176,8 @@ constexpr Mouth MOUTHS[] = {
     {18.0f, 7.0f, 7.0f, 7.0f},     // angry, flat and wider than neutral
     {10.0f, 7.5f, 7.5f, 7.5f},     // dead, short and thick
     {15.0f, 10.0f, 4.0f, 10.0f},   // in love
+    {12.0f, 6.5f, 6.5f, 6.5f},     // tired, a small even blob - a sag here
+                                   // reads as a frown, and a frown is cross
 };
 
 // The blob is bent rather than cut. Taking a circle out of it leaves the ends
@@ -191,6 +195,21 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
     case Mood::Happy:
       // Neutral's blob, domed over the top and squared off underneath.
       return sdRoundBoxTB(x, y, 28.0f, 29.0f * squeeze, 28.0f, 9.0f);
+    case Mood::Tired: {
+      // A lid comes down onto a bottom edge that stays where it is. Scaling the
+      // height alone takes the eye in from the top and the bottom at once,
+      // which reads as an eye getting smaller rather than as one closing - and
+      // that is the whole difference between sleepy and shrinking.
+      constexpr float FULL = 29.0f;
+      float half = FULL * squeeze;
+      float ly = y - (FULL - half);
+
+      // Rounded over the top, not squared, and not tilted at all. A flat edge
+      // above a squat eye is a brow and reads as cross; a slant either way is
+      // an emotion of its own, outward into sadness and inward into anger.
+      // Tired is none of those - it is just slack.
+      return sdRoundBoxTB(x, ly, 28.0f, half, 15.0f, 24.0f);
+    }
     case Mood::Surprised:
       return sdEye(x, y, 34.0f, 40.0f * squeeze, 34.0f);
     case Mood::Excited:
@@ -347,7 +366,12 @@ void faceStep(float dt) {
   me.lookIn -= dt;
   if (me.lookIn <= 0.0f) {
     long roll = random(0, 100);
-    if (roll < 42) {
+    if (me.mood == Mood::Tired) {
+      // Down and not far. Eyes that keep casting about are not sleepy ones.
+      me.lookTX = frand(-6.0f, 6.0f);
+      me.lookTY = frand(1.0f, 5.5f);
+      me.lookIn = frand(1.6f, 3.4f);
+    } else if (roll < 42) {
       // Straight at you, and held. Something that only ever looks past you is
       // not looking at anything - most of the time it should just be there.
       me.lookTX = frand(-2.5f, 2.5f);
@@ -412,6 +436,31 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   float centreY = me.y + floatY;
 
   float squeeze = 1.0f;
+  if (me.mood == Mood::Tired) {
+    // Losing the argument with sleep: the lids sink, catch themselves twice on
+    // the way down and lose a little more each time, and then it jolts awake in
+    // a quarter of a second and starts again. An even slide down and back reads
+    // as a machine breathing; the failed recoveries are what make it a thing
+    // trying to stay awake.
+    float t = fmodf(me.clock, 9.0f);
+    float open;
+    if (t < 8.0f) {
+      // Down, and only ever down. Anything that lifts on the way makes the
+      // whole thing a rhythm, and a rhythm reads as breathing rather than as
+      // losing a fight. Squared so it barely moves at first and goes quickest
+      // at the end, which is how sleep actually arrives.
+      float e = t * (1.0f / 8.0f);
+      open = 1.0f - e * e;
+    } else {
+      // Then all at once. This is the one place the movement should be abrupt:
+      // it is the catching-itself, and everything before it was the slide.
+      open = clamp01((t - 8.0f) * (1.0f / 0.16f));
+    }
+    // It never gets all the way there. The floor leaves the eye a clear slit
+    // rather than a line, so what you see is something catching itself just
+    // before it goes under rather than something that has already gone.
+    squeeze = 0.30f + 0.70f * open;
+  }
   if (me.blinking > 0.0f) {
     squeeze = 0.06f + 0.94f * fabsf(cosf((me.blinking / 0.16f) * PI_F));
   }
