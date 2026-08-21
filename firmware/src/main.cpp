@@ -68,7 +68,7 @@ void loop() {
   faceDraw(boardFramebuffer(), &from, &to);
   uint32_t t1 = micros();
   boardFlushRows(from, to);
-  statusDraw(boardFramebuffer());
+  statusDraw(boardFramebuffer(), from, to);
   uint32_t t2 = micros();
 
   // Where the frame actually goes. Guessing at this is how you optimise the
