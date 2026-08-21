@@ -20,3 +20,7 @@ firmware/.pio/
 !.claude/
 .claude/*
 !.claude/settings.json
+
+# Wifi credentials. This repository is public and a password committed once is
+# in the history for good; .env.example is the template.
+firmware/.env

@@ -4,6 +4,7 @@
 #include "battery.h"
 #include "board.h"
 #include "touch.h"
+#include "wifi.h"
 #include "face.h"
 
 static constexpr uint32_t FRAME_MS = 16;
@@ -43,6 +44,7 @@ void setup() {
   }
   batteryReport();
   touchBegin();
+  wifiBegin();
   faceBegin();
   lastFrame = millis();
 }
