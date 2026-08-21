@@ -25,23 +25,32 @@ static inline uint16_t blendHalf(uint16_t under, uint16_t over) {
 }
 
 static void selftest() {
-  static const int16_t RADIUS = 46;
+  static const int16_t RADIUS = 23;
+  static const uint8_t COUNT = 9;
   static const uint16_t COLOUR[3] = {0xF800, 0x07E0, 0x001F};
-  static float px[3] = {150.0f, 210.0f, 180.0f};
-  static float py[3] = {140.0f, 170.0f, 220.0f};
-  static float vx[3] = {132.0f, -108.0f, 76.0f};
-  static float vy[3] = {94.0f, 121.0f, -143.0f};
-  static bool lit = false;
+  static float px[COUNT], py[COUNT], vx[COUNT], vy[COUNT];
+  static bool started = false;
 
-  if (!lit) {
-    lit = true;
+  if (!started) {
+    started = true;
     boardBacklight(1023);
-    Serial.println("selftest: three bouncing balls, full brightness");
+    // Spread around a ring, each thrown off at its own angle, so they take a
+    // while to fall into step with one another.
+    for (uint8_t i = 0; i < COUNT; i++) {
+      float around = (float)i * 0.6981317f;
+      px[i] = SCREEN_R + cosf(around) * 92.0f;
+      py[i] = SCREEN_R + sinf(around) * 92.0f;
+      float heading = around * 2.3f + 0.7f;
+      float speed = 210.0f + (float)(i % 3) * 45.0f;
+      vx[i] = cosf(heading) * speed;
+      vy[i] = sinf(heading) * speed;
+    }
+    Serial.printf("selftest: %u balls, r=%d, full brightness\n", COUNT, RADIUS);
   }
 
   const float dt = 0.016f;
   const float limit = SCREEN_R - RADIUS - 2.0f;
-  for (uint8_t i = 0; i < 3; i++) {
+  for (uint8_t i = 0; i < COUNT; i++) {
     px[i] += vx[i] * dt;
     py[i] += vy[i] * dt;
 
@@ -61,9 +70,10 @@ static void selftest() {
 
   uint16_t *fb = boardFramebuffer();
   memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
-  for (uint8_t i = 0; i < 3; i++) {
+  for (uint8_t i = 0; i < COUNT; i++) {
     int16_t cx = (int16_t)px[i];
     int16_t cy = (int16_t)py[i];
+    uint16_t colour = COLOUR[i % 3];
     for (int16_t y = cy - RADIUS; y <= cy + RADIUS; y++) {
       if (y < 0 || y >= SCREEN_H) {
         continue;
@@ -76,15 +86,12 @@ static void selftest() {
         int32_t dy = y - cy;
         if (dx * dx + dy * dy <= RADIUS * RADIUS) {
           int32_t at = (int32_t)y * SCREEN_W + x;
-          fb[at] = blendHalf(fb[at], COLOUR[i]);
+          fb[at] = blendHalf(fb[at], colour);
         }
       }
     }
   }
-  // A grid over everything, at the same half opacity. Every line is drawn the
-  // same way, so anything that makes one line look unlike the others is the
-  // panel rather than the drawing. Ten divisions rather than nine, so it does
-  // not line up with the bands the flush sends and mask a fault at their seams.
+
   const int16_t STEP = 36;
   for (int16_t y = 0; y < SCREEN_H; y += STEP) {
     uint16_t *row = fb + (int32_t)y * SCREEN_W;
