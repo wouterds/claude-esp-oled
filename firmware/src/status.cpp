@@ -28,7 +28,7 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
-constexpr int16_t ADDRESS_Y = 327;
+constexpr int16_t ADDRESS_Y = 320;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
