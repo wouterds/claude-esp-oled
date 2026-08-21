@@ -7,6 +7,7 @@
 #include "touch.h"
 #include "wifi.h"
 #include "face.h"
+#include "gauge.h"
 
 static constexpr uint32_t FRAME_MS = 16;
 
@@ -47,6 +48,11 @@ void setup() {
   touchBegin();
   wifiBegin();
   faceBegin();
+  gaugeBegin();
+  // Once, whole. Every frame after this only flushes the rows the face moved
+  // through, which is not where most of the bars are.
+  gaugeDraw(boardFramebuffer());
+  boardFlush();
   lastFrame = millis();
 }
 
@@ -66,6 +72,9 @@ void loop() {
   }
   faceStep(dt);
   faceDraw(boardFramebuffer(), &from, &to);
+  // The face clears a box wide enough to reach both bars, so they go back in
+  // before the flush rather than being repaired after it.
+  gaugeDraw(boardFramebuffer());
   uint32_t t1 = micros();
   boardFlushRows(from, to);
   statusDraw(boardFramebuffer(), from, to);
