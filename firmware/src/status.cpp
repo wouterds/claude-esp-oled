@@ -30,7 +30,7 @@ constexpr int16_t BATTERY_X = 199;
 
 // The middle of the digits rather than their top, which is where the font
 // measures from.
-constexpr int16_t ADDRESS_Y = 316;
+constexpr int16_t ADDRESS_Y = 334;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 8;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 8;
 
