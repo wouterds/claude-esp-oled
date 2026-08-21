@@ -112,8 +112,13 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour) {
   constexpr float CAVITY_HW = CELL_HW - WALL - GAP;
   constexpr float CAVITY_HH = CELL_HH - WALL - GAP;
   // Down the screen is up the cell: the charge stands on the bottom of it and
-  // its top edge is what moves.
+  // its top edge is what moves. It is a box in its own right rather than the
+  // cavity cut off at a line, so the top of it is as round as the bottom - and
+  // as it empties the corners close on each other until what is left is a
+  // lozenge rather than a sliver with square shoulders.
   float top = CAVITY_HH - 2.0f * CAVITY_HH * (battery.percent / 100.0f);
+  float chargeHH = (CAVITY_HH - top) * 0.5f;
+  float chargeY = (CAVITY_HH + top) * 0.5f;
 
   for (int16_t y = (int16_t)(CELL_Y - CELL_HH - NUB_HH * 2 - 2);
        y <= (int16_t)(CELL_Y + CELL_HH + 2); y++) {
@@ -130,9 +135,11 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour) {
       if (battery.percent == 0) {
         continue;
       }
+      // Cut to the cavity, or what is left at a few percent is a full-width
+      // sliver hanging out past the rounded bottom of the space holding it.
       float cavity = sdRoundBox(px, py, CAVITY_HW, CAVITY_HH, CELL_R * 0.5f);
-      float cut = top - py;
-      plot(fb, x, y, 0.5f - (cavity > cut ? cavity : cut), colour);
+      float charge = sdRoundBox(px, py - chargeY, CAVITY_HW, chargeHH, CELL_R * 0.5f);
+      plot(fb, x, y, 0.5f - (charge > cavity ? charge : cavity), colour);
     }
   }
 }
