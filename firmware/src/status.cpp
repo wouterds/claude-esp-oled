@@ -34,7 +34,7 @@ constexpr uint16_t GREEN = 0x07E0;
 constexpr uint16_t YELLOW = 0xFFE0;
 constexpr uint16_t ORANGE = 0xFC00;
 constexpr uint16_t RED = 0xF800;
-constexpr uint16_t DIM = 0x4208;
+constexpr uint16_t DIM = 0x2124;
 
 constexpr uint8_t YELLOW_AT = 30;
 constexpr uint8_t ORANGE_AT = 20;
@@ -143,6 +143,9 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
   }
 }
 
+// Offline it is the same glyph in a dark grey rather than a struck-through one.
+// It is next to a battery that says how it is doing by colour, so a colour is
+// already the language of that corner.
 void drawWifi(uint16_t *fb, bool online) {
   constexpr float APERTURE = 0.72f;
   const float sinA = sinf(APERTURE);
@@ -168,17 +171,7 @@ void drawWifi(uint16_t *fb, bool online) {
       if (dot < d) {
         d = dot;
       }
-      float coverage = 0.5f - d;
-
-      if (!online) {
-        // Struck through rather than hidden. An icon that vanishes when it has
-        // something to say is one you have to notice the absence of.
-        float along = (px + py) * 0.70710678f;
-        float across = (px - py) * 0.70710678f;
-        float bar = sdRoundBox(across, along, 1.4f, 11.0f, 1.4f);
-        plot(fb, x, y, 0.5f - bar, WHITE);
-      }
-      plot(fb, x, y, coverage, colour);
+      plot(fb, x, y, 0.5f - d, colour);
     }
   }
 }
