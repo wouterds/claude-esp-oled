@@ -17,9 +17,12 @@ constexpr uint8_t TOUCH = 0x15;
 // transaction for the low byte of an x is a second thing to go wrong.
 constexpr uint8_t REG_FINGERS = 0x02;
 constexpr uint8_t REPORT_BYTES = 5;
-// How far across the glass counts as having gone somewhere. A sixth of it: less
-// and a tap with a slide in it turns the page.
-constexpr int16_t CROSSED = 60;
+// How far across the glass counts as having gone somewhere. Measured rather
+// than chosen, and far short of what a swipe looks like to the person doing it:
+// a finger is sampled once a frame and a frame here is 35ms, so both ends of a
+// swipe are over before they are seen and half the glass reports as a third of
+// it. Taps come in under ten pixels of jitter, and this sits above them.
+constexpr int16_t CROSSED = 22;
 // The controller reports at about a hundred hertz while a finger is on the
 // glass, so a gap this long with nothing arriving is the finger being gone.
 constexpr uint32_t RELEASE_MS = 200;
@@ -107,13 +110,14 @@ void touchStep() {
   // touch is turned the same way or it disagrees with what it is pointing at.
   int16_t x = (int16_t)(SCREEN_W - 1 - (((high & 0x0F) << 8) | low));
 
-  if (down) {
-    if (!wasDown) {
-      fromX = x;
-      landed = true;
-    }
-    atX = x;
-  } else if (wasDown) {
+  if (down && !wasDown) {
+    fromX = x;
+    landed = true;
+  }
+  // The report that says the finger is gone still carries where it was, and it
+  // is the furthest along anything gets to see.
+  atX = x;
+  if (!down && wasDown) {
     lift();
   }
   wasDown = down;
