@@ -1,30 +1,24 @@
 #include <Arduino.h>
-#include <math.h>
-#include <string.h>
 
 #include "board.h"
-#include "buddy.h"
-#include "face.h"
-
-// A face on a round panel, and nothing else. It is not told anything and it
-// does not ask - the whole of it is here, so what it does costs a flash rather
-// than a protocol.
-static Buddy buddy;
-static Rect painted = {0, 0, 0, 0};
-static uint32_t lastFrame = 0;
+#include "scene.h"
 
 // BOOT is the only button the S3 can see. PWR switches the power path itself
 // and is not wired to the chip at all, so nothing here can read it or stand in
 // for it. Held low at reset BOOT traps the ROM in the bootloader; once running
 // it is an ordinary input with a pull-up, and a short press is safe.
 static constexpr int BUTTON = 0;
+static constexpr uint32_t DEBOUNCE_MS = 40;
+static constexpr uint32_t FRAME_MS = 16;
+
 static bool showing = true;
 static bool held = false;
 static uint32_t settled = 0;
+static uint32_t lastFrame = 0;
 
 static void pollButton(uint32_t now) {
   bool down = digitalRead(BUTTON) == LOW;
-  if (down == held || (now - settled) < 40) {
+  if (down == held || (now - settled) < DEBOUNCE_MS) {
     return;
   }
   settled = now;
@@ -37,103 +31,6 @@ static void pollButton(uint32_t now) {
   Serial.printf("display: %s\n", showing ? "on" : "off");
 }
 
-#ifdef BUDDY_SELFTEST
-// Three half-opacity balls loose on a round panel. The glass is a circle, so
-// they bounce off it the way anything bounces off a curve - reflected about the
-// radius rather than about a wall - and where they cross, the colours add.
-static inline uint16_t blendHalf(uint16_t under, uint16_t over) {
-  uint16_t r = (((under >> 11) & 0x1F) + ((over >> 11) & 0x1F)) >> 1;
-  uint16_t g = (((under >> 5) & 0x3F) + ((over >> 5) & 0x3F)) >> 1;
-  uint16_t b = ((under & 0x1F) + (over & 0x1F)) >> 1;
-  return (uint16_t)((r << 11) | (g << 5) | b);
-}
-
-static void selftest() {
-  static const int16_t RADIUS = 23;
-  static const uint8_t COUNT = 9;
-  static const uint16_t COLOUR[3] = {0xF800, 0x07E0, 0x001F};
-  static float px[COUNT], py[COUNT], vx[COUNT], vy[COUNT];
-  static bool started = false;
-
-  if (!started) {
-    started = true;
-    boardBacklight(1023);
-    // Spread around a ring, each thrown off at its own angle, so they take a
-    // while to fall into step with one another.
-    for (uint8_t i = 0; i < COUNT; i++) {
-      float around = (float)i * 0.6981317f;
-      px[i] = SCREEN_R + cosf(around) * 92.0f;
-      py[i] = SCREEN_R + sinf(around) * 92.0f;
-      float heading = around * 2.3f + 0.7f;
-      float speed = 210.0f + (float)(i % 3) * 45.0f;
-      vx[i] = cosf(heading) * speed;
-      vy[i] = sinf(heading) * speed;
-    }
-    Serial.printf("selftest: %u balls, r=%d, full brightness\n", COUNT, RADIUS);
-  }
-
-  const float dt = 0.016f;
-  const float limit = SCREEN_R - RADIUS - 2.0f;
-  for (uint8_t i = 0; i < COUNT; i++) {
-    px[i] += vx[i] * dt;
-    py[i] += vy[i] * dt;
-
-    float ox = px[i] - SCREEN_R;
-    float oy = py[i] - SCREEN_R;
-    float dist = sqrtf(ox * ox + oy * oy);
-    if (dist > limit && dist > 0.001f) {
-      float nx = ox / dist;
-      float ny = oy / dist;
-      float along = vx[i] * nx + vy[i] * ny;
-      vx[i] -= 2.0f * along * nx;
-      vy[i] -= 2.0f * along * ny;
-      px[i] = SCREEN_R + nx * limit;
-      py[i] = SCREEN_R + ny * limit;
-    }
-  }
-
-  uint16_t *fb = boardFramebuffer();
-  memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
-  for (uint8_t i = 0; i < COUNT; i++) {
-    int16_t cx = (int16_t)px[i];
-    int16_t cy = (int16_t)py[i];
-    uint16_t colour = COLOUR[i % 3];
-    for (int16_t y = cy - RADIUS; y <= cy + RADIUS; y++) {
-      if (y < 0 || y >= SCREEN_H) {
-        continue;
-      }
-      for (int16_t x = cx - RADIUS; x <= cx + RADIUS; x++) {
-        if (x < 0 || x >= SCREEN_W) {
-          continue;
-        }
-        int32_t dx = x - cx;
-        int32_t dy = y - cy;
-        if (dx * dx + dy * dy <= RADIUS * RADIUS) {
-          int32_t at = (int32_t)y * SCREEN_W + x;
-          fb[at] = blendHalf(fb[at], colour);
-        }
-      }
-    }
-  }
-
-  const int16_t STEP = 36;
-  for (int16_t y = 0; y < SCREEN_H; y += STEP) {
-    uint16_t *row = fb + (int32_t)y * SCREEN_W;
-    for (int16_t x = 0; x < SCREEN_W; x++) {
-      row[x] = blendHalf(row[x], 0xFFFF);
-    }
-  }
-  for (int16_t x = 0; x < SCREEN_W; x += STEP) {
-    for (int16_t y = 0; y < SCREEN_H; y++) {
-      int32_t at = (int32_t)y * SCREEN_W + x;
-      fb[at] = blendHalf(fb[at], 0xFFFF);
-    }
-  }
-
-  boardFlush();
-}
-#endif
-
 void setup() {
   Serial.begin(115200);
   if (!boardBegin()) {
@@ -142,21 +39,16 @@ void setup() {
     }
   }
   pinMode(BUTTON, INPUT_PULLUP);
-  buddyBegin(buddy);
+  sceneBegin();
   lastFrame = millis();
 }
 
 void loop() {
-#ifdef BUDDY_SELFTEST
-  selftest();
-  return;
-#endif
-
   uint32_t now = millis();
   pollButton(now);
   if (!showing) {
     // Nothing is drawn while it is off, and the clock starts again on the way
-    // back so the buddy does not arrive somewhere else entirely.
+    // back so nothing moves the width of the pause in one frame.
     lastFrame = now;
     delay(30);
     return;
@@ -164,24 +56,17 @@ void loop() {
 
   float dt = (float)(now - lastFrame) * 0.001f;
   lastFrame = now;
-  // A stall must not teleport it across the panel on the frame after.
   if (dt > 0.05f) {
     dt = 0.05f;
   }
 
-  buddyUpdate(buddy, dt, now);
-  FaceParams face = buddyFace(buddy, now);
-
-  uint16_t *fb = boardFramebuffer();
-  // Only last frame's rect can be holding anything: faceRender writes every
-  // pixel of the box it returns, the black ones included.
-  faceClear(fb, painted);
-  painted = faceRender(fb, face);
+  sceneStep(dt);
+  sceneDraw(boardFramebuffer());
   boardFlush();
 
   // Sixty is past what the panel or the eye wants; the rest goes back.
   uint32_t spent = millis() - now;
-  if (spent < 16) {
-    delay(16 - spent);
+  if (spent < FRAME_MS) {
+    delay(FRAME_MS - spent);
   }
 }
