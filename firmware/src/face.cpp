@@ -176,27 +176,29 @@ inline float sdHeart(float px, float py) {
 // expressions rather than being swapped out.
 struct Mouth {
   float w, h, r;
-  float curveY, curveR;
+  float curve;  // how far the ends lift: up smiles, down frowns, zero is a blob
 };
 
+// Thin bars, because a bent bar thick enough to look like a blob at rest looks
+// like a wedge once it is bent. The roundness comes from the corner radius
+// being the whole of the half-height: every one of these is a capsule.
 constexpr Mouth MOUTHS[] = {
-    {15.0f, 6.0f, 6.0f, 0.0f, 0.0f},       // neutral, a small blob
-    {30.0f, 17.0f, 13.0f, -24.0f, 28.0f},  // happy
-    {12.0f, 15.0f, 12.0f, 0.0f, 0.0f},     // surprised, an o
-    {25.0f, 22.0f, 15.0f, -30.0f, 27.0f},  // excited, wide open
-    {26.0f, 9.0f, 7.0f, 24.0f, 25.0f},     // angry, cut from below
-    {22.0f, 5.0f, 5.0f, 0.0f, 0.0f},       // dead, flat
-    {24.0f, 15.0f, 12.0f, -22.0f, 25.0f},  // in love
+    {15.0f, 4.5f, 4.5f, 3.0f},     // neutral, a bar with the hint of a smile
+    {25.0f, 5.0f, 5.0f, 15.0f},    // happy
+    {12.0f, 13.0f, 12.0f, 0.0f},   // surprised, an o
+    {21.0f, 9.5f, 9.5f, 12.0f},    // excited, open and grinning
+    {21.0f, 5.0f, 5.0f, -12.0f},   // angry
+    {19.0f, 4.0f, 4.0f, 0.0f},     // dead, flat
+    {21.0f, 5.5f, 5.5f, 13.0f},    // in love
 };
 
+// The blob is bent rather than cut. Taking a circle out of it leaves the ends
+// of the crescent in points, which is the one thing a mouth made of a rounded
+// blob should not have - bending keeps every side as round as it started.
 float mouthShape(Mood mood, float x, float y) {
   const Mouth &m = MOUTHS[(uint8_t)mood];
-  float d = sdRoundBox(x, y, m.w, m.h, m.r);
-  if (m.curveR > 0.0f) {
-    float cy = y - m.curveY;
-    d = fmaxf(d, -(sqrtf(x * x + cy * cy) - m.curveR));
-  }
-  return d;
+  float lift = m.curve * (x * x) / (m.w * m.w);
+  return sdRoundBox(x, y + lift, m.w, m.h, m.r);
 }
 
 // One eye of one expression, in its own space, with the sign of `side` telling
@@ -208,25 +210,31 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       return sdArc(x, -y + 10.0f, trig.archSin, trig.archCos, 26.0f, 7.5f);
     case Mood::Surprised:
       return sdRoundBox(x, y, 34.0f, 40.0f * squeeze, 34.0f);
-    case Mood::Excited:
-      return sdRoundBox(x, y, 32.0f, 42.0f * squeeze, 30.0f);
+    case Mood::Excited: {
+      // A round eye with a glint taken out of it. Both boundaries are circles,
+      // so nothing here ends in a corner, and the hole reads as a highlight
+      // because the eye is the only lit thing on the panel.
+      float d = sdRoundBox(x, y, 31.0f, 34.0f * squeeze, 31.0f);
+      float gx = x + 11.0f;
+      float gy = y + 12.0f;
+      return fmaxf(d, -(sqrtf(gx * gx + gy * gy) - 8.5f));
+    }
     case Mood::Angry: {
-      // Tilted, then cut flat across the top in its own frame - which puts the
-      // cut on a slant on the glass, and a slant is the whole of an angry eye.
+      // Just tilted, and shorter than it is wide. Cutting the top flat is the
+      // obvious way to draw a brow and it leaves a hard edge across the one
+      // shape that should be round the whole way round; the slant carries it
+      // on its own.
       float c = trig.browCos;
       float s = trig.browSin * side;
-      // Dropped before it is cut, so what survives the cut sits on the centre
-      // rather than below it.
-      float oy = y + 12.0f;
-      float rx = x * c - oy * s;
-      float ry = x * s + oy * c;
-      float d = sdRoundBox(rx, ry, 30.0f, 36.0f * squeeze, 16.0f);
-      return fmaxf(d, -8.0f - ry);
+      float rx = x * c - y * s;
+      float ry = x * s + y * c;
+      return sdRoundBox(rx, ry, 29.0f, 19.0f * squeeze, 18.0f);
     }
     case Mood::Dead: {
-      float arm = 21.0f;
-      float a = sdSegment(x, y, -arm, -arm, arm, arm) - 5.5f;
-      float b = sdSegment(x, y, -arm, arm, arm, -arm) - 5.5f;
+      constexpr float ARM = 20.0f;
+      constexpr float THICK = 8.5f;
+      float a = sdSegment(x, y, -ARM, -ARM, ARM, ARM) - THICK;
+      float b = sdSegment(x, y, -ARM, ARM, ARM, -ARM) - THICK;
       return fminf(a, b);
     }
     case Mood::Love: {
@@ -402,10 +410,10 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   constexpr float REACH_Y = 48.0f;
   constexpr float SPAN_X = 34.0f;   // the widest any eye gets
   constexpr float SPAN_Y = 43.0f;   // and the tallest
-  constexpr float MOUTH_REACH_X = 32.0f;
-  constexpr float MOUTH_REACH_Y = 28.0f;
-  constexpr float MOUTH_SPAN_X = 31.0f;  // the widest the mouth gets
-  constexpr float MOUTH_SPAN_Y = 23.0f;  // and the tallest
+  constexpr float MOUTH_REACH_X = 30.0f;
+  constexpr float MOUTH_REACH_Y = 32.0f;
+  constexpr float MOUTH_SPAN_X = 28.0f;  // the widest the mouth gets
+  constexpr float MOUTH_SPAN_Y = 27.0f;  // and the tallest once it is bent
   constexpr float HALF_W = EYE_GAP + REACH_X + GLOW_RADIUS + 2.0f;
 
   float top = centreY - EYE_RISE - REACH_Y - GLOW_RADIUS - 2.0f;
