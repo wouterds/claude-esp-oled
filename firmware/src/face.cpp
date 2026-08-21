@@ -48,11 +48,11 @@ constexpr uint8_t DEAD_AT = 95;
 constexpr uint8_t CROSS_AT = 80;
 constexpr uint8_t EASY_UNDER = 40;
 constexpr uint8_t STILL_POLLS = 5;
-constexpr float PLEASED_S = 4.0f;
-constexpr float BETWEEN_S = 6.0f;
+// Long enough to be seen and not so long it stops being an expression. It is a
+// reaction to something happening, not a state it lives in.
+constexpr float CHEER_S = 5.0f;
 // A window rolling over does not creep back down, it falls.
 constexpr uint8_t A_RESET = 10;
-constexpr float RELIEF_S = 12.0f;
 
 struct State {
   float x, y;          // where the eyes are
@@ -62,8 +62,8 @@ struct State {
   float held;          // seconds the current mood has been worn
   uint8_t seen[2];     // what the gauges last said
   bool read;           // and whether they have ever said anything
-  float relief;        // seconds of good cheer owed by a window rolling over
-  float pleased;       // where it is in the pleased-then-neutral round
+  float cheer;         // seconds of good cheer still owed
+  bool easy;           // whether both windows were last seen with room to spare
   float blend;         // 0 while settled, counts up through a change
   Mood mood;
   Mood was;
@@ -283,8 +283,8 @@ void faceBegin() {
   me.held = 0.0f;
   me.seen[0] = me.seen[1] = 0;
   me.read = false;
-  me.relief = 0.0f;
-  me.pleased = 0.0f;
+  me.cheer = 0.0f;
+  me.easy = false;
   me.blend = 1.0f;
   me.mood = Mood::Neutral;
   me.was = Mood::Neutral;
@@ -303,14 +303,20 @@ void settle(float dt) {
   }
   uint8_t a = usageSession();
   uint8_t b = usageWeekly();
-  if (me.read && (a + A_RESET <= me.seen[0] || b + A_RESET <= me.seen[1])) {
-    me.relief = RELIEF_S;
+  bool dropped = me.read && (a + A_RESET <= me.seen[0] || b + A_RESET <= me.seen[1]);
+  bool easy = a < EASY_UNDER && b < EASY_UNDER;
+  // Both of the good things are events rather than states: a window rolling
+  // over, or opening its eyes to find there is room. Either is worth five
+  // seconds and then it has been said.
+  if (dropped || (easy && (!me.read || !me.easy))) {
+    me.cheer = CHEER_S;
   }
   me.seen[0] = a;
   me.seen[1] = b;
+  me.easy = easy;
   me.read = true;
-  if (me.relief > 0.0f) {
-    me.relief -= dt;
+  if (me.cheer > 0.0f) {
+    me.cheer -= dt;
   }
 
   uint8_t worst = a > b ? a : b;
@@ -321,16 +327,8 @@ void settle(float dt) {
     want = Mood::Angry;
   } else if (usageStill() >= STILL_POLLS) {
     want = Mood::Tired;
-  } else if (me.relief > 0.0f) {
+  } else if (me.cheer > 0.0f) {
     want = Mood::Happy;
-  } else if (a < EASY_UNDER && b < EASY_UNDER) {
-    // Pleased in bursts rather than grinning without pause, which stops being
-    // an expression and becomes a face.
-    me.pleased += dt;
-    while (me.pleased > PLEASED_S + BETWEEN_S) {
-      me.pleased -= PLEASED_S + BETWEEN_S;
-    }
-    want = me.pleased < PLEASED_S ? Mood::Happy : Mood::Neutral;
   } else {
     want = Mood::Neutral;
   }
