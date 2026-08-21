@@ -13,6 +13,30 @@ static Buddy buddy;
 static Rect painted = {0, 0, 0, 0};
 static uint32_t lastFrame = 0;
 
+// BOOT is the only button the S3 can see. PWR switches the power path itself
+// and is not wired to the chip at all, so nothing here can read it or stand in
+// for it. Held low at reset BOOT traps the ROM in the bootloader; once running
+// it is an ordinary input with a pull-up, and a short press is safe.
+static constexpr int BUTTON = 0;
+static bool showing = true;
+static bool held = false;
+static uint32_t settled = 0;
+
+static void pollButton(uint32_t now) {
+  bool down = digitalRead(BUTTON) == LOW;
+  if (down == held || (now - settled) < 40) {
+    return;
+  }
+  settled = now;
+  held = down;
+  if (!down) {
+    return;
+  }
+  showing = !showing;
+  boardDisplay(showing);
+  Serial.printf("display: %s\n", showing ? "on" : "off");
+}
+
 #ifdef BUDDY_SELFTEST
 // Three half-opacity balls loose on a round panel. The glass is a circle, so
 // they bounce off it the way anything bounces off a curve - reflected about the
@@ -117,6 +141,7 @@ void setup() {
       delay(1000);
     }
   }
+  pinMode(BUTTON, INPUT_PULLUP);
   buddyBegin(buddy);
   lastFrame = millis();
 }
@@ -128,6 +153,15 @@ void loop() {
 #endif
 
   uint32_t now = millis();
+  pollButton(now);
+  if (!showing) {
+    // Nothing is drawn while it is off, and the clock starts again on the way
+    // back so the buddy does not arrive somewhere else entirely.
+    lastFrame = now;
+    delay(30);
+    return;
+  }
+
   float dt = (float)(now - lastFrame) * 0.001f;
   lastFrame = now;
   // A stall must not teleport it across the panel on the frame after.

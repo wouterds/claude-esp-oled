@@ -20,3 +20,8 @@ void boardFlush();
 // 0 to 1023. Black on this panel is the crystal blocking a backlight that is
 // always on, so this is the only real control over how black the black looks.
 void boardBacklight(uint16_t duty);
+
+// Blanks the panel and its backlight together, or brings both back. Not sleep:
+// the board stays awake, because the only switch that cuts power is wired to
+// the power path and not to the S3.
+void boardDisplay(bool on);

@@ -188,6 +188,19 @@ bool boardBegin() {
 
 void boardBacklight(uint16_t duty) { ledcWrite(LCD_BL, duty); }
 
+void boardDisplay(bool on) {
+  // Backlight last on the way up and first on the way down, for the same reason
+  // it is lit after the first flush: the panel holds its old frame across both
+  // transitions and the backlight is what decides whether the room sees it.
+  if (!on) {
+    ledcWrite(LCD_BL, 0);
+    esp_lcd_panel_disp_on_off(panel, false);
+    return;
+  }
+  esp_lcd_panel_disp_on_off(panel, true);
+  ledcWrite(LCD_BL, BL_DUTY);
+}
+
 uint16_t *boardFramebuffer() { return framebuffer; }
 
 void boardFlush() {
