@@ -45,15 +45,15 @@ constexpr uint8_t ORANGE_AT = 20;
 constexpr uint8_t RED_AT = 10;
 
 struct Shown {
+  uint8_t bars;
   uint8_t percent;
   bool charging;
   bool present;
-  bool online;
   bool blink;
   char address[16];
 };
 
-Shown shown = {255, false, false, false, false, {0}};
+Shown shown = {255, 255, false, false, false, {0}};
 
 // The address arrives a letter at a time, the way the mood used to.
 char typing[16] = {0};
@@ -150,11 +150,16 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
 // Offline it is the same glyph in a dark grey rather than a struck-through one.
 // It is next to a battery that says how it is doing by colour, so a colour is
 // already the language of that corner.
-void drawWifi(uint16_t *fb, bool online) {
+void drawWifi(uint16_t *fb, uint8_t bars) {
   constexpr float APERTURE = 0.72f;
   const float sinA = sinf(APERTURE);
   const float cosA = cosf(APERTURE);
-  uint16_t colour = online ? WHITE : DIM;
+  // Two arcs and a dot is three bars of signal. The ones the signal does not
+  // reach are drawn dim rather than left out, so it is the fill that says how
+  // much and the glyph keeps the same shape however weak it gets.
+  uint16_t outer = bars >= 3 ? WHITE : DIM;
+  uint16_t middle = bars >= 2 ? WHITE : DIM;
+  uint16_t centre = bars >= 1 ? WHITE : DIM;
 
   for (int16_t y = MIDDLE - 9; y <= MIDDLE + 9; y++) {
     for (int16_t x = WIFI_X - 12; x <= WIFI_X + 12; x++) {
@@ -164,19 +169,12 @@ void drawWifi(uint16_t *fb, bool online) {
       float px = (float)x + 0.5f - WIFI_X;
       float py = (float)y + 0.5f - (MIDDLE + 5.0f);
 
-      float d = sdArc(px, py, sinA, cosA, 11.0f, 1.6f);
+      plot(fb, x, y, 0.5f - sdArc(px, py, sinA, cosA, 11.0f, 1.6f), outer);
       // Closer in than it looks like it should be. The gap that reads as right
       // is the one between the arc's inner edge and the dot, not between their
       // centres, and the thickness of the arc eats most of it.
-      float mid = sdArc(px, py, sinA, cosA, 6.4f, 1.6f);
-      if (mid < d) {
-        d = mid;
-      }
-      float dot = sqrtf(px * px + py * py) - 2.5f;
-      if (dot < d) {
-        d = dot;
-      }
-      plot(fb, x, y, 0.5f - d, colour);
+      plot(fb, x, y, 0.5f - sdArc(px, py, sinA, cosA, 6.4f, 1.6f), middle);
+      plot(fb, x, y, 0.5f - (sqrtf(px * px + py * py) - 2.5f), centre);
     }
   }
 }
@@ -197,18 +195,31 @@ uint16_t batteryColour(const BatteryState &battery, bool blink) {
   return WHITE;
 }
 
+// Where the bars fall. Anything at all is the dot, and each ring above it is
+// roughly another dozen decibels of margin - a room away, and a floor away.
+uint8_t wifiBars(bool online) {
+  if (!online) {
+    return 0;
+  }
+  int rssi = wifiRssi();
+  if (rssi >= -60) {
+    return 3;
+  }
+  return rssi >= -72 ? 2 : 1;
+}
+
 }  // namespace
 
 void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   BatteryState battery = batteryRead();
   const char *address = wifiAddress();
-  bool online = address != nullptr;
+  uint8_t bars = wifiBars(address != nullptr);
   bool blink = battery.percent <= RED_AT && !battery.charging
                    ? ((millis() / 450) & 1) != 0
                    : false;
 
   bool topChanged = battery.percent != shown.percent || battery.charging != shown.charging ||
-                    battery.present != shown.present || online != shown.online ||
+                    battery.present != shown.present || bars != shown.bars ||
                     blink != shown.blink;
   // Whatever the face just painted over is gone, whether it changed or not.
   topChanged |= overlaps(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP), faceFrom, faceTo);
@@ -240,12 +251,12 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       // The bar inside it already says how much, so the number said it twice.
       drawBattery(fb, battery.percent, batteryColour(battery, blink));
     }
-    drawWifi(fb, online);
+    drawWifi(fb, bars);
     boardFlushRows(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP));
     shown.percent = battery.percent;
     shown.charging = battery.charging;
     shown.present = battery.present;
-    shown.online = online;
+    shown.bars = bars;
     shown.blink = blink;
   }
 

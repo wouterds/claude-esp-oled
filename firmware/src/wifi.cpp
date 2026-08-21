@@ -12,12 +12,15 @@ namespace {
 
 constexpr uint32_t ATTEMPT_MS = 8000;
 constexpr uint32_t RETRY_MS = 5000;
+// The signal is on the glass, so it is asked for often enough to move.
+constexpr uint32_t POLL_MS = 1000;
 constexpr uint8_t COUNT = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
 
 WiFiMulti multi;
 volatile bool joined = false;
 char onNetwork[33] = {0};
 char onAddress[16] = {0};
+volatile int onRssi = 0;
 
 void wifiTask(void *) {
   for (;;) {
@@ -29,13 +32,15 @@ void wifiTask(void *) {
                       WiFi.localIP().toString().c_str());
         joined = true;
       }
-      vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
+      onRssi = WiFi.RSSI();
+      vTaskDelay(pdMS_TO_TICKS(POLL_MS));
       continue;
     }
 
     if (joined) {
       Serial.println("wifi: dropped");
       joined = false;
+      onRssi = 0;
       onNetwork[0] = '\0';
       onAddress[0] = '\0';
     }
@@ -80,3 +85,5 @@ bool wifiConnected() { return joined; }
 const char *wifiNetwork() { return joined ? onNetwork : nullptr; }
 
 const char *wifiAddress() { return joined ? onAddress : nullptr; }
+
+int wifiRssi() { return joined ? onRssi : 0; }
