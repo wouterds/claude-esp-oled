@@ -172,7 +172,9 @@ void drawWifi(uint16_t *fb, uint8_t bars) {
       float px = (float)x + 0.5f - WIFI_X;
       float py = (float)y + 0.5f - (MIDDLE + 5.0f);
 
-      plot(fb, x, y, 0.5f - sdArc(px, py, sinA, cosA, 11.0f, 1.6f), outer);
+      // A pixel further off than the rest. The outer arc is the longest of the
+      // three and reads as crowding the one below it at the same spacing.
+      plot(fb, x, y, 0.5f - sdArc(px, py + 1.0f, sinA, cosA, 11.0f, 1.6f), outer);
       // Closer in than it looks like it should be. The gap that reads as right
       // is the one between the arc's inner edge and the dot, not between their
       // centres, and the thickness of the arc eats most of it.
