@@ -21,8 +21,10 @@ constexpr uint8_t REPORT_BYTES = 5;
 // than chosen, and far short of what a swipe looks like to the person doing it:
 // a finger is sampled once a frame and a frame here is 35ms, so both ends of a
 // swipe are over before they are seen and half the glass reports as a third of
-// it. Taps come in under ten pixels of jitter, and this sits above them.
-constexpr int16_t CROSSED = 22;
+// it. Taps come in under ten pixels of jitter, so this sits just above them:
+// anything further from that floor asks for a swipe deliberate enough to be
+// work, since most of what the finger did was never sampled.
+constexpr int16_t CROSSED = 15;
 // The controller reports at about a hundred hertz while a finger is on the
 // glass, so a gap this long with nothing arriving is the finger being gone.
 constexpr uint32_t RELEASE_MS = 200;
