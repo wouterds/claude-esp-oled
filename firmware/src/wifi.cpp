@@ -22,7 +22,24 @@ char onNetwork[33] = {0};
 char onAddress[16] = {0};
 volatile int onRssi = 0;
 
+// Once, and only after a join has already failed: what is actually in the air.
+// An SSID that does not appear here is not one the device is failing to join,
+// it is one that is not there - a different problem that looks exactly the same
+// from outside, and the usual reason is a phone handing out its hotspot on
+// 5GHz, which this radio cannot hear at all.
+void look() {
+  int found = WiFi.scanNetworks();
+  Serial.printf("wifi: %d networks in range\n", found);
+  for (int i = 0; i < found; i++) {
+    String name = WiFi.SSID(i);
+    Serial.printf("wifi:   [%s] %d dBm, %u chars\n", name.c_str(), WiFi.RSSI(i),
+                  (unsigned)name.length());
+  }
+  WiFi.scanDelete();
+}
+
 void wifiTask(void *) {
+  bool looked = false;
   for (;;) {
     if (WiFi.status() == WL_CONNECTED) {
       if (!joined) {
@@ -48,6 +65,10 @@ void wifiTask(void *) {
     // of this is on the core drawing the face.
     multi.run(ATTEMPT_MS);
     if (WiFi.status() != WL_CONNECTED) {
+      if (!looked) {
+        looked = true;
+        look();
+      }
       vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
     }
   }
