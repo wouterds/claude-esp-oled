@@ -20,19 +20,19 @@ constexpr float HALF_THICK = 3.5f;
 // which is as far as an arc goes before its bottom end curves back in to where
 // the address is written. With the address gone there is nothing down there to
 // avoid, so the two of them reach round the bottom towards each other until
-// they are ninety pixels apart, which is most of the way round the glass.
+// their ends are twenty-five pixels apart, which is nearly the whole circle.
 constexpr float SWEEP_SHORT = 0.87f;
 constexpr float SWEEP_TOP = 1.08f;
-constexpr float SWEEP_BOTTOM = 1.4f;
+constexpr float SWEEP_BOTTOM = 1.5f;
 constexpr float REACH_S = 0.8f;
 
 constexpr int16_t BOX_X0 = 0;
 // Far enough in to hold the ends. An arc that reaches down to five past seven
 // has its cap at x=131, nowhere near the x=80 that held the short one - and a
 // box that stops short of it does not shorten the bar, it guillotines it.
-constexpr int16_t BOX_X1 = 160;
+constexpr int16_t BOX_X1 = 175;
 constexpr int16_t BOX_Y0 = 22;
-constexpr int16_t BOX_Y1 = 356;
+constexpr int16_t BOX_Y1 = 358;
 
 constexpr uint16_t TRACK = 0x528A;
 
