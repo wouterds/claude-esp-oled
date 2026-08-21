@@ -9,9 +9,11 @@ namespace {
 // The stroke, and the box the glyphs are drawn in. Half a stroke either side of
 // a four-two half-height puts the digits just over nine pixels tall.
 constexpr float HALF_STROKE = 0.6f;
-// The glyphs are drawn in their own units and then taken down to this. Shapes
-// stay where they were laid out and only the size argues.
-constexpr float SIZE = 0.85f;
+// The glyphs are laid out in pixels, so anything but one puts every stem
+// between two columns instead of on one. A one-pixel stroke that lands on a
+// boundary is half lit in each, and a digit that is only stems - a 1 - comes
+// out visibly greyer than the ones with curves to carry them.
+constexpr float SIZE = 1.0f;
 // How fast the edge falls off. At one the ramp is a pixel wide and the glyphs
 // look airbrushed at this size; steeper puts most of the edge inside a single
 // pixel and they read as drawn on the grid, which is what they should look
@@ -25,12 +27,9 @@ enum Kind : uint8_t { SEG, ARC, RING };
 // SEG is a capsule from a,b to c,d. ARC is a piece of a circle at a,b of radius
 // c, bisected by the direction d and reaching e either side of it. RING is the
 // outline of a rounded box, which is the only closed curve here.
-// w is added to the stroke's half-width, and is zero for everything with a
-// shape. A full stop has none: shrunk with the rest it lands under a pixel and
-// comes out as a grey smudge rather than a dot, so it carries its own weight.
 struct Stroke {
   Kind kind;
-  float a, b, c, d, e, w;
+  float a, b, c, d, e;
 };
 
 constexpr float UP = -1.5707963f;
@@ -54,7 +53,7 @@ const Stroke G6[] = {{ARC, 0.0f, 1.7f, 2.15f, DOWN, ROUND}, {SEG, -2.1f, 1.5f, 0
 const Stroke G7[] = {{SEG, -2.0f, -3.9f, 2.1f, -3.9f}, {SEG, 2.1f, -3.9f, -0.7f, 3.9f}};
 const Stroke G8[] = {{ARC, 0.0f, -2.0f, 1.9f, UP, ROUND}, {ARC, 0.0f, 2.05f, 2.05f, DOWN, ROUND}};
 const Stroke G9[] = {{ARC, 0.0f, -1.7f, 2.15f, UP, ROUND}, {SEG, 2.1f, -1.5f, -0.9f, 3.9f}};
-const Stroke GDOT[] = {{SEG, 0.0f, 3.5f, 0.0f, 3.55f, 0.0f, 0.4f}};
+const Stroke GDOT[] = {{SEG, 0.0f, 3.5f, 0.0f, 3.6f}};
 
 // The width each one is allowed, which is not the same for all of them: a full
 // stop is two pixels of ink and giving it a digit's room puts a hole in the
@@ -67,9 +66,9 @@ struct Glyph {
 
 #define GLYPH(g, w) \
   { g, (uint8_t)(sizeof(g) / sizeof(Stroke)), w }
-const Glyph DIGITS[] = {GLYPH(G0, 6), GLYPH(G1, 6), GLYPH(G2, 6), GLYPH(G3, 6), GLYPH(G4, 6),
-                        GLYPH(G5, 6), GLYPH(G6, 6), GLYPH(G7, 6), GLYPH(G8, 6), GLYPH(G9, 6)};
-const Glyph DOT = GLYPH(GDOT, 3);
+const Glyph DIGITS[] = {GLYPH(G0, 7), GLYPH(G1, 7), GLYPH(G2, 7), GLYPH(G3, 7), GLYPH(G4, 7),
+                        GLYPH(G5, 7), GLYPH(G6, 7), GLYPH(G7, 7), GLYPH(G8, 7), GLYPH(G9, 7)};
+const Glyph DOT = GLYPH(GDOT, 4);
 #undef GLYPH
 
 inline float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
@@ -132,12 +131,11 @@ float distance(const Glyph *g, float px, float py) {
     } else {
       v = sdRing(px, py, s.a, s.b, s.c, s.d, s.e);
     }
-    v -= HALF_STROKE + s.w;
     if (v < d) {
       d = v;
     }
   }
-  return d;
+  return d - HALF_STROKE;
 }
 
 }  // namespace
