@@ -20,7 +20,6 @@ jobs:
       # Nothing here can flash a board, and nothing here can tell whether the
       # panel came up. What this does catch is a sketch that stopped compiling,
       # and the flash and PSRAM geometry that stopped it booting once, which
-      # lives in platformio.ini and is read to build either env.
+      # lives in platformio.ini and is read to build it.
       - run: pip install platformio
-      - run: pio run -d firmware -e esp32-s3-touch-lcd-185
-      - run: pio run -d firmware -e selftest
+      - run: pio run -d firmware

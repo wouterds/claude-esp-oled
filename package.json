@@ -6,7 +6,6 @@
   "scripts": {
     "firmware:build": "pio run -d firmware",
     "firmware:flash": "./firmware/flash.sh",
-    "firmware:flash:test": "./firmware/flash.sh selftest",
     "firmware:monitor": "pio device monitor -d firmware"
   },
   "devDependencies": {

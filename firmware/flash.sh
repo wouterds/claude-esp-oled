@@ -9,7 +9,6 @@ set -euo pipefail
 
 PIO="$(command -v pio || echo "$HOME/.platformio/penv/bin/pio")"
 PY="$(dirname "$PIO")/python"
-ENV="${1:-esp32-s3-touch-lcd-185}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 port() { ls /dev | grep '^cu\.usbmodem' | head -1; }
@@ -22,7 +21,7 @@ if [ -z "$p" ]; then
   exit 1
 fi
 
-"$PIO" run -d "$HERE" -e "$ENV" -t upload --upload-port "/dev/$p"
+"$PIO" run -d "$HERE" -t upload --upload-port "/dev/$p"
 
 sleep 1
 p="$(port)"
@@ -50,6 +49,6 @@ while time.time() < end:
         buf += d.decode(errors='replace')
 s.close()
 for line in buf.splitlines():
-    if any(k in line.lower() for k in ('panel', 'selftest', 'backlight', 'boot:', 'framebuffer')):
+    if any(k in line.lower() for k in ('panel', 'backlight', 'display', 'boot:', 'framebuffer')):
         print(' ', line)
 PYEOF
