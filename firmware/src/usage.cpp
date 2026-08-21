@@ -23,6 +23,12 @@ volatile uint8_t session = 0;
 volatile uint8_t weekly = 0;
 volatile bool wake = false;
 volatile uint8_t still = 0;
+int lastCode = 0;
+uint8_t misses = 0;
+// A token can be revoked, or simply expire. Three refusals in a row and the
+// device goes back to asking for a new one: the address returns, the numbers go
+// away and the bars come in.
+constexpr uint8_t GIVE_UP_AT = 3;
 
 // The web app's own headers, near enough. The endpoint is not documented and
 // answers a browser, so it is asked the way a browser asks.
@@ -53,6 +59,7 @@ bool get(const String &url, const char *token, String &out) {
   }
   dress(http, token);
   int code = http.GET();
+  lastCode = code;
   if (code != 200) {
     Serial.printf("usage: %d from %s\n", code, url.c_str());
     http.end();
@@ -114,19 +121,32 @@ bool window(const String &body, const char *name, uint8_t &out) {
 }
 
 void poll(const char *token) {
-  if (!findOrg(token)) {
-    return;
-  }
   String body;
-  if (!get(String(HOST) + "/api/organizations/" + org + "/usage", token, body)) {
-    return;
-  }
   uint8_t hours = 0;
   uint8_t week = 0;
-  if (!window(body, "five_hour", hours) || !window(body, "seven_day", week)) {
-    Serial.printf("usage: cannot read %u bytes of that\n", body.length());
+  bool got = findOrg(token) &&
+             get(String(HOST) + "/api/organizations/" + org + "/usage", token, body) &&
+             window(body, "five_hour", hours) && window(body, "seven_day", week);
+
+  if (!got) {
+    // Turned away outright is answer enough; anything else gets the benefit of
+    // the doubt for a couple of rounds, because a radio drops.
+    bool refused = lastCode == 401 || lastCode == 403;
+    if (refused || ++misses >= GIVE_UP_AT) {
+      if (ready) {
+        Serial.printf("usage: %s, asking for a token again\n",
+                      refused ? "refused" : "no answer");
+      }
+      ready = false;
+      still = 0;
+      misses = 0;
+      // A new token may belong to somebody else.
+      org[0] = '\0';
+    }
     return;
   }
+
+  misses = 0;
   if (!ready || hours != session || week != weekly) {
     Serial.printf("usage: five hour %u%%, seven day %u%%\n", hours, week);
     still = 0;

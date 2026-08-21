@@ -19,31 +19,32 @@ constexpr float HALF_THICK = 3.5f;
 // Either side of the horizontal. Short is three quarters of the panel's height,
 // which is as far as an arc goes before its bottom end curves back in to where
 // the address is written. With the address gone there is nothing down there to
-// avoid, so the two of them reach round the bottom towards each other until
-// their ends are twenty-five pixels apart, which is nearly the whole circle.
+// avoid, so both ends go out together and the bar stays symmetric about the
+// horizontal - which is what it looks like it ought to be.
 constexpr float SWEEP_SHORT = 0.87f;
-constexpr float SWEEP_TOP = 1.08f;
-constexpr float SWEEP_BOTTOM = 1.5f;
+constexpr float SWEEP_TOP = 1.13f;
+constexpr float SWEEP_BOTTOM = 1.13f;
 constexpr float REACH_S = 0.8f;
 
 constexpr int16_t BOX_X0 = 0;
 // Far enough in to hold the ends. An arc that reaches down to five past seven
 // has its cap at x=131, nowhere near the x=80 that held the short one - and a
 // box that stops short of it does not shorten the bar, it guillotines it.
-constexpr int16_t BOX_X1 = 175;
-constexpr int16_t BOX_Y0 = 22;
-constexpr int16_t BOX_Y1 = 358;
+constexpr int16_t BOX_X1 = 115;
+constexpr int16_t BOX_Y0 = 18;
+constexpr int16_t BOX_Y1 = 342;
 
-constexpr uint16_t TRACK = 0x528A;
+constexpr uint16_t TRACK = 0x4A49;
 
 // Where the two numbers go when they are asked for: level with the middle of
 // the glass and tucked inside their own bar.
 constexpr int16_t FIGURE_X = 46;
-constexpr int16_t FIGURE_Y = 173;
-// The room they take, which is not on the ring - so clearing the ring does not
-// clear them and they have to be swept on their own.
-constexpr int16_t FIGURE_HW = 27;
-constexpr int16_t FIGURE_HH = 9;
+// The top of the glyphs, because that is what the font is given - measure the
+// box around them from their middle and it comes up four rows short at the
+// bottom, which is exactly the part of a digit that survives being cleared.
+constexpr int16_t FIGURE_TOP = 173;
+constexpr int16_t FIGURE_HEIGHT = 14;
+constexpr int16_t FIGURE_HW = 28;
 
 // How fast a bar closes on the number it was given. Exponential rather than a
 // timed ease, so a bar already on its way somewhere just bends.
@@ -78,6 +79,9 @@ float alpha = 0.0f;
 // the middle of it.
 float reachT = 0.0f;
 float reach = 0.0f;
+// How much of their length they are currently allowed. Only ever below one
+// while they are arriving.
+float grow = 0.0f;
 bool figures = false;
 bool figuresMoved = false;
 float shown[2] = {0.0f, 0.0f};
@@ -179,8 +183,8 @@ void build(uint8_t side, float percent) {
 
   // Ends measured from the horizontal, and no longer the same as each other, so
   // the arc is bisected off-centre by however much they differ.
-  float up = SWEEP_SHORT + (SWEEP_TOP - SWEEP_SHORT) * reach;
-  float down = SWEEP_SHORT + (SWEEP_BOTTOM - SWEEP_SHORT) * reach;
+  float up = (SWEEP_SHORT + (SWEEP_TOP - SWEEP_SHORT) * reach) * grow;
+  float down = (SWEEP_SHORT + (SWEEP_BOTTOM - SWEEP_SHORT) * reach) * grow;
   float span = up + down;
   Arc track = arcAt((float)M_PI + (up - down) * 0.5f, span * 0.5f);
   Arc fill = arcAt((float)M_PI - down + span * fraction * 0.5f, span * fraction * 0.5f);
@@ -222,7 +226,7 @@ void build(uint8_t side, float percent) {
 // Cheap enough to do every frame they are up, which is what keeps a 100% that
 // has become a 9% from leaving its other two digits behind.
 void clearFigures(uint16_t *fb) {
-  for (int16_t y = FIGURE_Y - FIGURE_HH; y <= FIGURE_Y + FIGURE_HH; y++) {
+  for (int16_t y = FIGURE_TOP - 2; y <= FIGURE_TOP + FIGURE_HEIGHT + 1; y++) {
     if (y < 0 || y >= SCREEN_H) {
       continue;
     }
@@ -277,6 +281,9 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
       alpha = 1.0f;
       phase = Phase::Live;
     }
+    // Out of the middle as they come up, rather than appearing full length.
+    grow = alpha * alpha * (3.0f - 2.0f * alpha);
+    wipe(fb);
     build(0, shown[0]);
     build(1, shown[1]);
     gaugeDraw(fb);
@@ -292,6 +299,10 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
   }
 
   // Long once the address has stopped needing the bottom of the glass.
+  if (!usageReady() && figures) {
+    figures = false;
+    figuresMoved = true;
+  }
   bool reshape = figuresMoved;
   figuresMoved = false;
   float wanted = usageReady() ? 1.0f : 0.0f;
@@ -361,6 +372,6 @@ void gaugeDraw(uint16_t *fb) {
     char said[6];
     snprintf(said, sizeof(said), "%u%%", (unsigned)(shown[side] + 0.5f));
     int16_t at = side == 1 ? (int16_t)(SCREEN_W - 1 - FIGURE_X) : FIGURE_X;
-    textDraw(fb, said, at, FIGURE_Y, 2, boardColour(0xFFFF));
+    textDraw(fb, said, at, FIGURE_TOP, 2, boardColour(0xFFFF));
   }
 }

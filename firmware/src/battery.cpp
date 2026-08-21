@@ -10,6 +10,12 @@ constexpr int I2C_SCL = 10;
 constexpr uint8_t GAUGE = 0x55;
 constexpr uint8_t REG_VOLTAGE = 0x08;
 constexpr uint8_t REG_CURRENT = 0x0C;
+constexpr uint8_t REG_FLAGS = 0x0A;
+// Bit zero of the flags word: the gauge has decided the pack is discharging.
+// It is the gauge's own answer to the question, rather than a threshold guessed
+// at from a current reading that is zero for the first second after a boot and
+// zero again whenever a full pack sits on a charger.
+constexpr uint16_t FLAG_DISCHARGING = 0x0001;
 constexpr uint8_t REG_CHARGE = 0x2C;
 // Often enough that plugging the cable in changes the icon while your hand is
 // still on it. Three word reads is nothing now that the bus is quiet.
@@ -48,17 +54,14 @@ void sample() {
   }
 
   uint16_t percent = 0;
-  uint16_t current = 0;
+  uint16_t flags = 0;
   readWord(REG_CHARGE, percent);
-  readWord(REG_CURRENT, current);
+  bool told = readWord(REG_FLAGS, flags);
 
   cached.millivolts = millivolts;
   cached.percent = percent > 100 ? 100 : (uint8_t)percent;
-  // Current is signed, and out of the pack is negative. A flat zero is the
-  // gauge not having measured yet rather than a pack sitting perfectly still,
-  // and reading that as not-discharging turns the icon green at every boot.
-  if (current != 0) {
-    cached.charging = (int16_t)current > DISCHARGING_MA;
+  if (told) {
+    cached.charging = (flags & FLAG_DISCHARGING) == 0;
   }
   // A gauge with nothing on its terminals still answers; it just reads flat.
   cached.present = millivolts >= 2500;
@@ -74,8 +77,13 @@ void batteryBegin() {
     Serial.printf("battery: none attached or flat (%u mV)\n", cached.millivolts);
     return;
   }
-  Serial.printf("battery: %u mV, %u%%, %s\n", cached.millivolts, cached.percent,
-                cached.charging ? "external power" : "on battery");
+  uint16_t current = 0;
+  uint16_t flags = 0;
+  readWord(REG_CURRENT, current);
+  readWord(REG_FLAGS, flags);
+  Serial.printf("battery: %u mV, %u%%, %s (flags %04x, %d mA)\n", cached.millivolts,
+                cached.percent, cached.charging ? "external power" : "on battery", flags,
+                (int)(int16_t)current);
 }
 
 BatteryState batteryRead() {
