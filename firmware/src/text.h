@@ -2,13 +2,16 @@
 
 #include <stdint.h>
 
-// Digits and a full stop, which is an address and nothing else. They are not a
-// bitmap: each one is a handful of strokes measured in pixels and filled by
-// distance, so the curves are curves and the edges are soft. A five by seven
-// blown up to twice size is legible and looks like a cheap clock; this is nine
-// pixels tall and looks drawn.
-// Drawn from its left edge, because the glyphs are not all the same width.
-void textDraw(uint16_t *fb, const char *s, int16_t leftX, int16_t centreY, uint16_t colour);
+// Uppercase, digits, a full stop and a percent, five by seven, centred on x.
+// Enough to name an address and a charge level and nothing more - a font is a
+// lot of flash to spend on a handful of words.
+//
+// Whole multiples only. A bitmap glyph scaled by anything else has to double
+// some of its columns and not others, and five pixels of letterform will not
+// survive that - it comes out as something you can tell is text and cannot
+// read.
+void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t scale,
+              uint16_t colour);
 
-// What it will come to, for placing that left edge.
-int16_t textWidth(const char *s);
+// How wide one glyph and the gap after it come out at that size.
+int16_t textStep(int16_t scale);

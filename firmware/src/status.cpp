@@ -28,11 +28,9 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
-// The middle of the digits rather than their top, which is where the font
-// measures from.
-constexpr int16_t ADDRESS_Y = 334;
-constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 8;
-constexpr int16_t BOTTOM_TO = ADDRESS_Y + 8;
+constexpr int16_t ADDRESS_Y = 327;
+constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
+constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x8410;
@@ -282,11 +280,13 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       typing[typed] = '\0';
       // Centred on where the whole address will be, so it does not slide left
       // as it arrives.
-      // Placed by where the whole address will end up, so it does not slide
-      // left as it arrives. Grey rather than white: it should not outshout the
-      // face.
-      int16_t left = (int16_t)(SCREEN_R - textWidth(shown.address) / 2);
-      textDraw(fb, typing, left, ADDRESS_Y, GREY);
+      // Centred on where the whole address will be, so it does not slide left
+      // as it arrives. Grey rather than white: it should not outshout the face.
+      constexpr int16_t SCALE = 2;
+      int16_t step = textStep(SCALE);
+      int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
+      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, SCALE,
+               boardColour(GREY));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }
