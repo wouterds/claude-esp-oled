@@ -1,37 +1,19 @@
-# claude-status
+# claude-esp-oled
 
-A desk pet that shows what Claude is doing.
+A desk pet. A kawaii face that lives on a round 360x360 display on an ESP32-S3
+and wanders around it - blinking, darting, hopping, and occasionally giggling.
 
-An 8x8 RGB matrix on an ESP32-S3, over USB. A face for the mood, a border or a
-sweep for what the session is busy with, the top row for how much of the week is
-spent, and the bottom row for the rolling 5h window. Every so often it stops and
-dances.
+It is not connected to anything. Everything it does is on the board.
 
 ```bash
 npm install
-npm run firmware:flash   # once
-npm run pet              # start it - detaches and stays up
-npx status-install       # so it follows you into every project
+npm run firmware:flash
 ```
 
-Then nothing. Status arrives on its own from Claude Code's own lifecycle hooks -
-across every project and every session at once, following whichever one you are
-actually typing in.
+Hardware is a **Waveshare ESP32-S3-Touch-LCD-1.85B**. Despite the name of this
+repository the panel is an IPS LCD rather than an OLED, which matters: black is
+backlight leaking through liquid crystal rather than a pixel that is off.
 
-```bash
-npm run pet:stop         # stops it, and clears the panel on the way out
-npm run pet:restart      # after changing anything it renders
-
-npx status-show          # the panel, the sessions, the board, the daemon
-npx status-preview       # watch it in a terminal, with no board attached
-npx status-play heart
-```
-
-No board yet? `npx status-preview` renders the whole thing in a terminal.
-
-## Reading further
-
-| | |
-| --- | --- |
-| [AGENTS.md](AGENTS.md) | the architecture, and why each boundary is where it is |
-| [.agents/docs/](.agents/docs/) | the board, the protocol, the state model |
+See [AGENTS.md](AGENTS.md) for the layout and
+[.agents/docs/hardware.md](.agents/docs/hardware.md) for the board - including
+the five things that each present as a dead board and none of which say so.

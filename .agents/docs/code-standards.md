@@ -2,24 +2,27 @@
 
 ## Style
 
-- **Linter and formatter**: Biome, never ESLint or Prettier. Always through
-  `npm run lint` / `npm run lint:fix`, never `biome` directly
-- **Indentation**: 2 spaces. **Line width**: 100 characters
+- **Indentation**: 2 spaces. **Line width**: 100 characters. `.clang-format`
+  carries both for editors; nothing enforces them in CI
 - **KISS**: the simplest thing that does the job. On a non-trivial change, stop
   and ask whether there is a shape that makes whole branches disappear - prefer
   deleting complexity to rearranging it
 - **Clarity over cleverness**: clear names and obvious control flow. If a block
   needs a comment to be understood, first try to rewrite it so it does not
-- **Ternaries**: single-expression assignments only. Never nested
-- **Guard clauses over ternary returns**: return early on the edge case
+- **Guard clauses over nested conditions**: return early on the edge case
 
-## TypeScript
+## C++
 
-- Avoid `any`. Prefer inference where the type is obvious
-- Every package is `strict`, ES2022, bundler resolution
-- `export const` with arrow functions, never `function`
-- Factory functions returning objects rather than classes - the framebuffer and
-  the director are both built this way, and it keeps `this` out of a render loop
+- Plain structs and free functions. No classes, no inheritance, no exceptions -
+  this is a render loop on a microcontroller
+- `static` at file scope for anything not in a header. An anonymous namespace
+  for helpers that only the file it lives in should ever call
+- `float`, never `double`. The S3 has a single-precision FPU and a double costs
+  a software emulation in the middle of a per-pixel loop
+- Beware names the standard library also has. `lerp` is in `<cmath>` from C++20
+  and a helper of the same name is ambiguous rather than shadowing
+- Hot loops hoist their trig. Anything that does not vary per pixel is computed
+  once a frame into a prepared struct - there are 129,600 pixels
 
 ## Comments
 
@@ -31,49 +34,33 @@ Default to none - names and small functions are the documentation.
 - Keep it to a line or two. Longer means the code should be clearer, or the
   reasoning belongs in the commit message
 
-Most of the comments in this repo are one of three things: a physical limit that
-is not in the code (a WS2812's current draw), a failure mode that presents as
-something unrelated (a brownout looking like a bad cable), or a decision that
-looks arbitrary until you know what it prevents (why the gauge row is sacred).
+Most of the comments here are one of three things: a physical limit that is not
+in the code (an LCD cannot switch a pixel off), a failure mode that presents as
+something unrelated (a DMA race looking like a broken panel), or a decision that
+looks arbitrary until you know what it prevents (why the backlight comes on
+after the first flush and not before).
 
 ## Testing
 
-Every test is laid out **given / when / then**, in that order and labelled with
-those comments. The setup, the one action under test, and what must be true after
-it. A test with no `// when` is testing nothing, and a test with two of them is
-two tests.
+There is no test runner. Nothing here can be proven without the panel, and the
+panel cannot be read back - so the self-test is the harness.
 
-```ts
-it("lights half the row at half spent", () => {
-  // given
-  const frame = createFrame();
+`npm run firmware:flash:test` builds the `selftest` env, which draws shapes with
+no renderer behind them. That is what separates a fault in the panel from a
+fault in what is being drawn, and on this board it has been each of them in
+turn. When something looks wrong, reach for it before theorising:
 
-  // when
-  drawBar(frame, FIVE_HOUR_ROW, 0.5);
+- a solid fill that is not solid is the panel or its init
+- a solid fill that is clean, with the face still wrong, is the renderer
+- colours in the wrong order is the byte swap
+- a picture that will not hold still is the flush racing its own DMA
 
-  // then
-  expect(litInRow(frame, FIVE_HOUR_ROW)).toEqual([0, 1, 2, 3]);
-});
-```
-
-Where a case is only meaningful swept across inputs, the loop goes in `// when`
-and the assertion with it - the sweep is the action.
-
-What earns a spec here is **arithmetic and rules** - frame addressing, gamma,
-the gauge, session expiry, which session speaks. Those are the things that go
-wrong silently, because a wrong pixel still renders.
-
-What does not earn one is the serial port or the rendering loop. Those are proven
-by running the thing and looking at it - `npx status-preview` for a scene, and
-someone with eyes on the panel for anything about the panel.
-
-**Prove a spec can fail.** The one holding status accents out of the gauge row
-was written against a bug that was real; it was checked by putting the bug back.
+Arithmetic that can be checked without hardware - a distance function, a blend -
+is worth compiling on the host and printing, which costs a minute and has caught
+more than reasoning about it did.
 
 ## Change Discipline
 
 - Every changed line traces to the request. No drive-by fixes
 - Remove orphans **your** change creates
 - Match the surrounding style even where you would do it differently
-- Update every consumer directly and **never** re-export from an old location to
-  soften a move. Let `npm run typecheck` prove you found them all
