@@ -11,7 +11,9 @@ constexpr uint8_t GAUGE = 0x55;
 constexpr uint8_t REG_VOLTAGE = 0x08;
 constexpr uint8_t REG_CURRENT = 0x0C;
 constexpr uint8_t REG_CHARGE = 0x2C;
-constexpr uint32_t EVERY_MS = 2000;
+// Often enough that plugging the cable in changes the icon while your hand is
+// still on it. Three word reads is nothing now that the bus is quiet.
+constexpr uint32_t EVERY_MS = 500;
 // Not discharging is the useful question, not whether charge is going in. A
 // full pack on a charger draws nothing and would read as running on battery,
 // which is the one time you most want to see that it is plugged in. On battery
