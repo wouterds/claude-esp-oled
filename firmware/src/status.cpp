@@ -38,7 +38,10 @@ constexpr uint16_t GREEN = 0x07E0;
 constexpr uint16_t YELLOW = 0xFFE0;
 constexpr uint16_t ORANGE = 0xFC00;
 constexpr uint16_t RED = 0xF800;
-constexpr uint16_t DIM = 0x2124;
+// Not as dark as it looks like it should be. Black here is a crystal failing
+// to block a backlight that is always on, so anything under about a third
+// sinks into it and the ring may as well not have been drawn.
+constexpr uint16_t DIM = 0x738E;
 
 constexpr uint8_t YELLOW_AT = 30;
 constexpr uint8_t ORANGE_AT = 20;
