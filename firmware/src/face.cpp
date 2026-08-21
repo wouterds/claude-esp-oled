@@ -32,7 +32,7 @@ constexpr float MOUTH_DROP = 52.0f;
 
 constexpr float BLEND_SECONDS = 0.35f;
 
-enum class Mood : uint8_t { Neutral, Happy, Surprised, Excited, Angry, Dead, Love, Tired };
+enum class Mood : uint8_t { Neutral, Happy, Surprised, Angry, Dead, Tired };
 
 // Constants, but sinf and cosf are not free and the shapes below are asked for
 // them thirty thousand times a frame. Filled once, in faceBegin.
@@ -43,7 +43,6 @@ struct Trig {
 Trig trig;
 
 // What a tap steps through, neutral included so there is a way back to it.
-// Excited and Love are still drawn - adding either to this list brings it back.
 constexpr Mood CYCLE[] = {Mood::Neutral, Mood::Happy,  Mood::Surprised,
                           Mood::Angry,   Mood::Tired,  Mood::Dead};
 constexpr uint8_t CYCLE_COUNT = sizeof(CYCLE) / sizeof(CYCLE[0]);
@@ -64,6 +63,10 @@ struct State {
   float lookX, lookY;      // where it is looking, eased
   float lookTX, lookTY;    // and where it has decided to look next
   float lookIn;            // seconds until it looks somewhere else
+  uint8_t taps;        // taps inside the current window
+  float tapWindow;     // when that window opened
+  float crazy;         // seconds left of losing it, zero the rest of the time
+  float flip;          // seconds until the next expression while it is loose
   float blinkIn;       // seconds until the next blink
   float blinking;      // seconds left of this one
 };
@@ -74,14 +77,10 @@ const char *moodName(Mood mood) {
       return "HAPPY";
     case Mood::Surprised:
       return "SURPRISED";
-    case Mood::Excited:
-      return "EXCITED";
     case Mood::Angry:
       return "ANGRY";
     case Mood::Dead:
       return "DEAD";
-    case Mood::Love:
-      return "IN LOVE";
     case Mood::Tired:
       return "TIRED";
     case Mood::Neutral:
@@ -142,21 +141,6 @@ inline float sdSegment(float px, float py, float ax, float ay, float bx, float b
   return sqrtf(dot2(pax - bax * h, pay - bay * h));
 }
 
-// Inigo Quilez's heart: point at the origin, lobes above it, y running up.
-inline float sdHeart(float px, float py) {
-  px = fabsf(px);
-  if (py + px > 1.0f) {
-    return sqrtf(dot2(px - 0.25f, py - 0.75f)) - 0.35355339f;
-  }
-  float m = 0.5f * (px + py > 0.0f ? px + py : 0.0f);
-  float best = fminf(dot2(px, py - 1.0f), dot2(px - m, py - m));
-  return sqrtf(best) * (px - py < 0.0f ? -1.0f : 1.0f);
-}
-
-// The mouth is one rounded blob throughout, with a circle taken out of it: from
-// above it leaves the crescent of a smile, from below the arch of a frown, and
-// with no circle at all it is the blob itself. One shape, so it deforms between
-// expressions rather than being swapped out.
 // A blob with its own radius top and bottom. A smile is the shape being rounder
 // underneath than above rather than a stripe bent into a curve - bending thins
 // the ends, which is what made every earlier attempt read as a banana.
@@ -168,14 +152,13 @@ struct Mouth {
 // Thin bars, because a bent bar thick enough to look like a blob at rest looks
 // like a wedge once it is bent. The roundness comes from the corner radius
 // being the whole of the half-height: every one of these is a capsule.
+// In the order the enum declares them, because that is what indexes this.
 constexpr Mouth MOUTHS[] = {
     {15.0f, 7.0f, 7.0f, 7.0f},     // neutral, a flat stripe
     {16.0f, 11.0f, 4.0f, 11.0f},   // happy, squared on top and domed underneath
     {16.0f, 18.0f, 16.0f, 16.0f},  // surprised, an o
-    {17.0f, 12.0f, 5.0f, 12.0f},   // excited, a broader happy
     {18.0f, 7.0f, 7.0f, 7.0f},     // angry, flat and wider than neutral
     {10.0f, 7.5f, 7.5f, 7.5f},     // dead, short and thick
-    {15.0f, 10.0f, 4.0f, 10.0f},   // in love
     {12.0f, 6.5f, 6.5f, 6.5f},     // tired, a small even blob - a sag here
                                    // reads as a frown, and a frown is cross
 };
@@ -212,8 +195,6 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
     }
     case Mood::Surprised:
       return sdEye(x, y, 34.0f, 40.0f * squeeze, 34.0f);
-    case Mood::Excited:
-      return sdEye(x, y, 32.0f, 36.0f * squeeze, 32.0f);
     case Mood::Angry: {
       // Just tilted, and shorter than it is wide. Cutting the top flat is the
       // obvious way to draw a brow and it leaves a hard edge across the one
@@ -231,20 +212,6 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       float a = sdSegment(x, y, -ARM, -ARM, ARM, ARM) - THICK;
       float b = sdSegment(x, y, -ARM, ARM, ARM, -ARM) - THICK;
       return fminf(a, b);
-    }
-    case Mood::Love: {
-      // Narrower than it is tall, because the heart is naturally squat and at
-      // equal scales it reads as a shield. Subtracting from the field afterwards
-      // inflates the whole shape by that much and rounds every corner with it -
-      // the point at the bottom, the notch at the top - which is what turns an
-      // outline into a thick rounded heart.
-      // Scaled up rather than inflated: the notch between the lobes scales
-      // with everything else, where inflating fills it in and leaves a shield.
-      // The little that is added rounds the point at the bottom.
-      constexpr float SX = 33.0f;
-      constexpr float SY = 39.0f;
-      constexpr float FATTEN = 3.5f;
-      return sdHeart(x / SX, -y / SY + 0.62f) * SX - FATTEN;
     }
     case Mood::Neutral:
     default:
@@ -333,6 +300,10 @@ void faceBegin() {
   me.next = 1;  // neutral is where it starts, so a tap moves it on
   me.lookX = me.lookY = me.lookTX = me.lookTY = 0.0f;
   me.lookIn = 1.0f;
+  me.taps = 0;
+  me.tapWindow = 0.0f;
+  me.crazy = 0.0f;
+  me.flip = 0.0f;
   me.blinkIn = 2.0f;
   me.blinking = 0.0f;
   pickTarget();
@@ -344,9 +315,41 @@ void faceStep(float dt) {
 
   me.held += dt;
 
+  if (me.crazy > 0.0f) {
+    me.crazy -= dt;
+    me.flip -= dt;
+    if (me.flip <= 0.0f) {
+      // Snapped rather than morphed. A third of a second of easing between two
+      // shapes is a long time when the whole point is that it cannot settle.
+      me.flip = 0.10f;
+      // From the set that is actually in use. Reaching across the whole enum
+      // drags back the two expressions that were taken out of it.
+      me.mood = CYCLE[random(0, CYCLE_COUNT)];
+      me.was = me.mood;
+      me.blend = 1.0f;
+      me.held = 1.0f;
+    }
+    if (me.crazy <= 0.0f) {
+      // And then it is over, and it is embarrassed about it.
+      me.crazy = 0.0f;
+      // The window starts again from here, so calming down and being set off
+      // by the next single tap cannot happen.
+      me.tapWindow = me.clock;
+      me.taps = 0;
+      me.was = me.mood;
+      me.mood = Mood::Neutral;
+      me.next = 1;
+      me.blend = 0.0f;
+      me.held = 0.0f;
+      pickTarget();
+    }
+  }
+
   // A critically damped spring: it arrives without ringing, and the stiffness
   // alone is the difference between drifting over and darting.
-  const float k = 9.0f;
+  // Flung about while it is loose, and it changes its mind about where before
+  // it ever arrives.
+  const float k = me.crazy > 0.0f ? 70.0f : 9.0f;
   const float damping = 2.0f * sqrtf(k);
   me.vx += ((me.tx - me.x) * k - me.vx * damping) * dt;
   me.vy += ((me.ty - me.y) * k - me.vy * damping) * dt;
@@ -355,7 +358,7 @@ void faceStep(float dt) {
 
   float dx = me.tx - me.x;
   float dy = me.ty - me.y;
-  if (dx * dx + dy * dy < 16.0f) {
+  if (dx * dx + dy * dy < (me.crazy > 0.0f ? 900.0f : 16.0f)) {
     pickTarget();
   }
 
@@ -366,7 +369,11 @@ void faceStep(float dt) {
   me.lookIn -= dt;
   if (me.lookIn <= 0.0f) {
     long roll = random(0, 100);
-    if (me.mood == Mood::Tired) {
+    if (me.crazy > 0.0f) {
+      me.lookTX = frand(-24.0f, 24.0f);
+      me.lookTY = frand(-13.0f, 13.0f);
+      me.lookIn = frand(0.05f, 0.14f);
+    } else if (me.mood == Mood::Tired) {
       // Down and not far. Eyes that keep casting about are not sleepy ones.
       me.lookTX = frand(-6.0f, 6.0f);
       me.lookTY = frand(1.0f, 5.5f);
@@ -416,6 +423,27 @@ void faceStep(float dt) {
 }
 
 void faceProd() {
+  // Nothing gets through while it is loose. Counting taps during a tantrum only
+  // ever extends it, and letting one land would step the expression underneath
+  // the flickering where it would not be seen anyway.
+  if (me.crazy > 0.0f) {
+    return;
+  }
+
+  // Five taps inside five seconds and it loses it. The window is rolling rather
+  // than fixed, so a slow prod every four seconds never adds up to a tantrum.
+  if (me.clock - me.tapWindow > 5.0f) {
+    me.tapWindow = me.clock;
+    me.taps = 0;
+  }
+  me.taps++;
+  if (me.taps >= 5) {
+    me.taps = 0;
+    me.crazy = 4.5f;
+    me.flip = 0.0f;
+    return;
+  }
+
   me.was = me.mood;
   me.blend = 0.0f;
   me.held = 0.0f;
@@ -428,15 +456,17 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // while it is excited.
   float floatY = sinf(me.clock * 1.5f) * 4.0f + sinf(me.clock * 0.61f) * 2.5f;
   float floatX = sinf(me.clock * 0.83f) * 3.0f;
-  if (me.mood == Mood::Excited) {
-    floatX += sinf(me.clock * 31.0f) * 2.5f;
-    floatY += sinf(me.clock * 27.0f) * 2.0f;
-  }
   float centreX = me.x + floatX;
   float centreY = me.y + floatY;
 
   float squeeze = 1.0f;
-  if (me.mood == Mood::Tired) {
+  if (me.crazy > 0.0f) {
+    // Shaking with it, on two frequencies that do not divide into one another
+    // so it never falls into a rhythm.
+    centreX += sinf(me.clock * 47.0f) * 7.0f + sinf(me.clock * 31.0f) * 4.0f;
+    centreY += sinf(me.clock * 53.0f) * 6.0f + sinf(me.clock * 29.0f) * 3.5f;
+  }
+  if (me.mood == Mood::Tired && me.crazy <= 0.0f) {
     // Losing the argument with sleep: the lids sink, catch themselves twice on
     // the way down and lose a little more each time, and then it jolts awake in
     // a quarter of a second and starts again. An even slide down and back reads
@@ -567,7 +597,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // leaves those rows alone and the flush never has to carry them.
   char wanted[12] = {0};
   {
-    const char *name = moodName(me.mood);
+    const char *name = me.crazy > 0.0f ? "AAAAAA" : moodName(me.mood);
     // One letter every twentieth of a second, so the name arrives as it is
     // typed rather than all at once under a face that is still changing.
     uint8_t shown = (uint8_t)(me.held / 0.05f);
