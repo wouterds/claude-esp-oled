@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "board.h"
+
 namespace {
 
 constexpr int I2C_SDA = 11;
@@ -10,7 +12,14 @@ constexpr int I2C_SCL = 10;
 constexpr int TP_RESET = 1;
 constexpr int TP_INT = 4;
 constexpr uint8_t TOUCH = 0x15;
+// The finger count, then the first point's coordinates behind it - five bytes
+// in one read, because the bus is shared with the battery gauge and a second
+// transaction for the low byte of an x is a second thing to go wrong.
 constexpr uint8_t REG_FINGERS = 0x02;
+constexpr uint8_t REPORT_BYTES = 5;
+// How far across the glass counts as having gone somewhere. A sixth of it: less
+// and a tap with a slide in it turns the page.
+constexpr int16_t CROSSED = 60;
 // The controller reports at about a hundred hertz while a finger is on the
 // glass, so a gap this long with nothing arriving is the finger being gone.
 constexpr uint32_t RELEASE_MS = 200;
@@ -19,6 +28,23 @@ bool wasDown = false;
 bool present = false;
 volatile bool reported = false;
 uint32_t lastReport = 0;
+bool landed = false;
+Swipe went = Swipe::None;
+int16_t fromX = 0;
+int16_t atX = 0;
+
+// Where the finger started against where it ended. Called wherever a finger
+// stops being down, which is both when the controller says so and when it goes
+// quiet for long enough to have meant it.
+void lift() {
+  wasDown = false;
+  int16_t by = (int16_t)(atX - fromX);
+  if (by >= CROSSED) {
+    went = Swipe::Right;
+  } else if (by <= -CROSSED) {
+    went = Swipe::Left;
+  }
+}
 
 void IRAM_ATTR onReport() { reported = true; }
 
@@ -48,15 +74,16 @@ void touchBegin() {
   reported = false;
 }
 
-bool touchTapped() {
+void touchStep() {
+  landed = false;
   if (!present) {
-    return false;
+    return;
   }
   if (!reported) {
     if (wasDown && millis() - lastReport > RELEASE_MS) {
-      wasDown = false;
+      lift();
     }
-    return false;
+    return;
   }
   reported = false;
   lastReport = millis();
@@ -64,15 +91,38 @@ bool touchTapped() {
   Wire.beginTransmission(TOUCH);
   Wire.write(REG_FINGERS);
   if (Wire.endTransmission(false) != 0) {
-    return false;
+    return;
   }
-  if (Wire.requestFrom((int)TOUCH, 1) != 1) {
-    return false;
+  if (Wire.requestFrom((int)TOUCH, (int)REPORT_BYTES) != REPORT_BYTES) {
+    return;
   }
 
   bool down = Wire.read() > 0;
-  // The landing, not the holding: a finger left on the glass is one tap.
-  bool landed = down && !wasDown;
+  uint8_t high = Wire.read();
+  uint8_t low = Wire.read();
+  Wire.read();
+  Wire.read();
+  // The top nibble of the high byte is the event, not the coordinate. The panel
+  // is mounted upside down and everything drawn on it is turned to match, so a
+  // touch is turned the same way or it disagrees with what it is pointing at.
+  int16_t x = (int16_t)(SCREEN_W - 1 - (((high & 0x0F) << 8) | low));
+
+  if (down) {
+    if (!wasDown) {
+      fromX = x;
+      landed = true;
+    }
+    atX = x;
+  } else if (wasDown) {
+    lift();
+  }
   wasDown = down;
-  return landed;
+}
+
+bool touchTapped() { return landed; }
+
+Swipe touchSwiped() {
+  Swipe was = went;
+  went = Swipe::None;
+  return was;
 }
