@@ -8,7 +8,12 @@ namespace {
 
 // The stroke, and the box the glyphs are drawn in. Half a stroke either side of
 // a four-two half-height puts the digits just over nine pixels tall.
-constexpr float HALF_STROKE = 0.85f;
+constexpr float HALF_STROKE = 0.62f;
+// How fast the edge falls off. At one the ramp is a pixel wide and the glyphs
+// look airbrushed at this size; steeper puts most of the edge inside a single
+// pixel and they read as drawn on the grid, which is what they should look
+// like next to a face made of the same pixels.
+constexpr float EDGE = 1.7f;
 constexpr int16_t REACH_X = 5;
 constexpr int16_t REACH_Y = 6;
 
@@ -159,7 +164,8 @@ void textDraw(uint16_t *fb, const char *s, int16_t leftX, int16_t centreY, uint1
         if (x < 0 || x >= SCREEN_W) {
           continue;
         }
-        float coverage = 0.5f - distance(g, (float)x + 0.5f - at, (float)y + 0.5f - centreY);
+        float coverage =
+            0.5f - distance(g, (float)x + 0.5f - at, (float)y + 0.5f - centreY) * EDGE;
         if (coverage <= 0.02f) {
           continue;
         }
