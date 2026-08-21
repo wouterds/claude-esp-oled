@@ -96,9 +96,11 @@ void loop() {
 
   touchStep();
   Swipe swipe = touchSwiped();
-  if (swipe == Swipe::Right && page == Page::Main) {
+  // The other page comes in from the right the way a phone's does: dragged onto
+  // the glass leftward, and pushed back off it the way it came.
+  if (swipe == Swipe::Left && page == Page::Main) {
     turnTo(Page::Info);
-  } else if (swipe == Swipe::Left && page == Page::Info) {
+  } else if (swipe == Swipe::Right && page == Page::Info) {
     turnTo(Page::Main);
   }
 
