@@ -247,16 +247,18 @@ void poll(const char *token) {
   }
 
   misses = 0;
+  resetAt[0] = deadlineOf(hoursOn);
+  resetAt[1] = deadlineOf(weekOn);
   if (!ready || hours != session || week != weekly) {
-    Serial.printf("usage: five hour %u%%, seven day %u%%\n", hours, week);
+    Serial.printf("usage: five hour %u%% for another %lus, seven day %u%% for another %lus\n",
+                  hours, (unsigned long)(leftOn(resetAt[0]) / 1000), week,
+                  (unsigned long)(leftOn(resetAt[1]) / 1000));
     still = 0;
   } else if (still < 255) {
     still++;
   }
   session = hours;
   weekly = week;
-  resetAt[0] = deadlineOf(hoursOn);
-  resetAt[1] = deadlineOf(weekOn);
   ready = true;
 }
 
