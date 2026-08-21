@@ -200,9 +200,13 @@ uint16_t batteryColour(const BatteryState &battery, bool blink) {
 
 // Where the bars fall. Anything at all is the dot, and each ring above it is
 // roughly another dozen decibels of margin - a room away, and a floor away.
+//
+// With nothing joined they fill outward and start over instead, because the
+// radio is still scanning and this is the only thing on the glass that says
+// so. A still icon there reads as having given up.
 uint8_t wifiBars(bool online) {
   if (!online) {
-    return 0;
+    return (uint8_t)((millis() / 350) % 4);
   }
   int rssi = wifiRssi();
   if (rssi >= -60) {
