@@ -14,3 +14,6 @@ bool wifiConnected();
 
 // The network it is on, or nullptr.
 const char *wifiNetwork();
+
+// Its address on that network, or nullptr.
+const char *wifiAddress();

@@ -1,7 +1,16 @@
 #pragma once
 
-// Reads the BQ27220 gauge once and logs what it says. There is nothing to draw
-// with it - it is here because a board that will not power on from PWR looks
-// exactly the same whether the battery is flat, unplugged, or fine, and PWR
-// itself is a power-path switch this chip cannot see.
-void batteryReport();
+#include <stdint.h>
+
+struct BatteryState {
+  uint16_t millivolts;
+  uint8_t percent;
+  bool charging;
+  bool present;
+};
+
+void batteryBegin();
+
+// Cached. The gauge is on the same I2C bus as the touch controller and neither
+// of them needs asking thirty times a second.
+BatteryState batteryRead();

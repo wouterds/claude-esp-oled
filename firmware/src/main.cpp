@@ -3,6 +3,7 @@
 
 #include "battery.h"
 #include "board.h"
+#include "status.h"
 #include "touch.h"
 #include "wifi.h"
 #include "face.h"
@@ -42,7 +43,7 @@ void setup() {
       delay(1000);
     }
   }
-  batteryReport();
+  batteryBegin();
   touchBegin();
   wifiBegin();
   faceBegin();
@@ -67,6 +68,7 @@ void loop() {
   faceDraw(boardFramebuffer(), &from, &to);
   uint32_t t1 = micros();
   boardFlushRows(from, to);
+  statusDraw(boardFramebuffer());
   uint32_t t2 = micros();
 
   // Where the frame actually goes. Guessing at this is how you optimise the

@@ -17,12 +17,14 @@ constexpr uint8_t COUNT = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
 WiFiMulti multi;
 volatile bool joined = false;
 char onNetwork[33] = {0};
+char onAddress[16] = {0};
 
 void wifiTask(void *) {
   for (;;) {
     if (WiFi.status() == WL_CONNECTED) {
       if (!joined) {
         strncpy(onNetwork, WiFi.SSID().c_str(), sizeof(onNetwork) - 1);
+        strncpy(onAddress, WiFi.localIP().toString().c_str(), sizeof(onAddress) - 1);
         Serial.printf("wifi: on %s, %d dBm, %s\n", onNetwork, WiFi.RSSI(),
                       WiFi.localIP().toString().c_str());
         joined = true;
@@ -35,6 +37,7 @@ void wifiTask(void *) {
       Serial.println("wifi: dropped");
       joined = false;
       onNetwork[0] = '\0';
+      onAddress[0] = '\0';
     }
     // Blocks for as long as it takes to scan and associate, which is why none
     // of this is on the core drawing the face.
@@ -75,3 +78,5 @@ void wifiBegin() {
 bool wifiConnected() { return joined; }
 
 const char *wifiNetwork() { return joined ? onNetwork : nullptr; }
+
+const char *wifiAddress() { return joined ? onAddress : nullptr; }

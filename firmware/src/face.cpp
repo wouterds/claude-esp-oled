@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include "board.h"
-#include "text.h"
 
 // Every shape here is a signed distance rather than a span of pixels, so a
 // pixel's coverage falls out of the distance and the curves come out smooth
@@ -59,31 +58,12 @@ struct State {
   uint8_t next;        // which expression comes round next
   float paintedX, paintedY;  // where the eyes were last drawn, so only that
                              // much of the panel has to be put back to black
-  char label[12];      // what the typewriter has put on the panel so far
   float lookX, lookY;      // where it is looking, eased
   float lookTX, lookTY;    // and where it has decided to look next
   float lookIn;            // seconds until it looks somewhere else
   float blinkIn;       // seconds until the next blink
   float blinking;      // seconds left of this one
 };
-
-const char *moodName(Mood mood) {
-  switch (mood) {
-    case Mood::Happy:
-      return "HAPPY";
-    case Mood::Surprised:
-      return "SURPRISED";
-    case Mood::Angry:
-      return "ANGRY";
-    case Mood::Dead:
-      return "DEAD";
-    case Mood::Tired:
-      return "TIRED";
-    case Mood::Neutral:
-    default:
-      return "NEUTRAL";
-  }
-}
 
 State me;
 
@@ -520,28 +500,6 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
             boardColour((uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3)));
       }
     }
-  }
-
-  // The label is redrawn only when it says something new, so a settled face
-  // leaves those rows alone and the flush never has to carry them.
-  char wanted[12] = {0};
-  {
-    const char *name = moodName(me.mood);
-    // One letter every twentieth of a second, so the name arrives as it is
-    // typed rather than all at once under a face that is still changing.
-    uint8_t shown = (uint8_t)(me.held / 0.05f);
-    uint8_t i = 0;
-    while (i < shown && i < sizeof(wanted) - 1 && name[i]) {
-      wanted[i] = name[i];
-      i++;
-    }
-  }
-  if (strncmp(wanted, me.label, sizeof(wanted)) != 0) {
-    clearBox(fb, 0.0f, 292.0f, SCREEN_W - 1, 312.0f);
-    textDraw(fb, wanted, (int16_t)SCREEN_R, 296, 2, boardColour(0xFFFF));
-    memcpy(me.label, wanted, sizeof(wanted));
-    if (292.0f < dirtyTop) dirtyTop = 292.0f;
-    if (312.0f > dirtyBottom) dirtyBottom = 312.0f;
   }
 
   // Screen rows run the other way to framebuffer rows, so the band is flipped
