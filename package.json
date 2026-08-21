@@ -15,8 +15,9 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "firmware:build": "pio run -d firmware",
-    "firmware:flash": "pio run -d firmware -t upload",
-    "firmware:monitor": "pio device monitor -d firmware"
+    "firmware:flash": "./firmware/flash.sh",
+    "firmware:monitor": "pio device monitor -d firmware",
+    "firmware:flash:test": "./firmware/flash.sh selftest"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
