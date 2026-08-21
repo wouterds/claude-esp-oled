@@ -5,6 +5,7 @@
 #include <WiFiClientSecure.h>
 #include <string.h>
 
+#include "audio.h"
 #include "portal.h"
 #include "wifi.h"
 
@@ -244,6 +245,14 @@ void poll(const char *token) {
       org[0] = '\0';
     }
     return;
+  }
+
+  // A window only ever fills, so the one time either number falls is the one
+  // time it rolled over - which is the whole of what there is to be pleased
+  // about here.
+  if (ready && (hours < session || week < weekly)) {
+    Serial.println("usage: a window rolled over");
+    audioCheered();
   }
 
   misses = 0;
