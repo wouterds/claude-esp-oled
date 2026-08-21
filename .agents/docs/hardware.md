@@ -3,9 +3,8 @@
 A Waveshare **ESP32-S3-Touch-LCD-1.85B**: an **ESP32-S3R8** - 16MB of flash and
 8MB of octal PSRAM - behind a 1.85" **round** 360x360 IPS panel in a machined
 aluminium case. The panel is a **ST77916** on QSPI. A **CST816S** touch
-controller, a **QMI8658** IMU, **ES8311**/**ES7210** audio, a **PCF85063** clock
-and a **BQ27220** battery gauge are also on it, all on one I2C bus, and nothing
-here talks to any of them.
+controller, a **BQ27220** battery gauge, a **QMI8658** IMU, **ES8311**/**ES7210**
+audio and a **PCF85063** clock are also on it, all on one I2C bus.
 
 **Not the same board as the ESP32-S3-Touch-LCD-1.85.** Same size, same panel,
 same QSPI pins - and on the non-B, LCD reset is behind a TCA9554 IO expander
@@ -29,7 +28,8 @@ read.
 ## Building and flashing
 
 PlatformIO, installed however you like as long as **pip is in the same
-environment**. Installed with `uv tool install platformio` alone, PlatformIO
+environment**. `pio` lands in `~/.platformio/penv/bin` and a non-interactive
+shell will not have it on `PATH`. Installed with `uv tool install platformio` alone, PlatformIO
 cannot install esptool's python dependencies and the build dies on
 `MissingPackageManifestError` a long way from the cause:
 
@@ -80,18 +80,10 @@ over USB while running perfectly well.
 holding whatever was last in its RAM and shows that to the room for as long as
 it takes to reach the first flush.
 
-**The official `espressif32` platform is still on Arduino core 2.x.**
-Arduino_GFX's ESP32 backend includes `esp32-hal-periman.h`, which only exists
-from core 3.0, so the build dies inside the library's own headers with nothing
-pointing at the core version as the cause. `platformio.ini` pins the
-**pioarduino** fork instead.
-
-## The panel is round
-
-360x360 of framebuffer, but the glass is a circle. The corners are not clipped,
-they are simply not there - anything drawn outside the inscribed circle is
-rendered, paid for and never seen. Scenes keep themselves inside it, which is
-what the balls bounce off.
+**The official `espressif32` platform is still on Arduino core 2.x.** Anything
+expecting core 3.0 dies inside its own headers with nothing pointing at the core
+version as the cause - `esp32-hal-periman.h` not existing is the usual shape of
+it. `platformio.ini` pins the **pioarduino** fork instead.
 
 ## When the port disappears
 

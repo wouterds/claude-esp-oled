@@ -1,24 +1,19 @@
 # AGENTS.md
 
-A 360x360 round LCD on an ESP32-S3, driven directly. It is not told anything and
-it does not ask - what it draws is on the board, and right now that is nine
-half-opacity balls bouncing off the inside of the glass over a grid.
+Firmware for a round 360x360 LCD on an ESP32-S3, driven straight from the chip.
+Everything runs on the board and there is no host software, so every change
+costs a reflash rather than a restart.
 
-| | |
-| --- | --- |
-| `firmware/src/board.*` | the panel: QSPI bring-up, the framebuffer, the flush |
-| `firmware/src/scene.*` | what is drawn: the balls, the bounce, the grid |
-| `firmware/src/main.cpp` | setup, the button, and frame pacing |
-| `firmware/src/esp_lcd_st77916.*` | Waveshare's panel driver, vendored |
-| `firmware/src/st77916_waveshare.h` | their init tables, verbatim |
+Do not turn this file, or the guides under `.agents/`, into a description of
+what the code does - that rots the moment anything is edited and then it lies.
+They say how to work here and what will bite; the code says what it does.
 
 ## Stack
 
 Arduino via PlatformIO, on the **pioarduino** fork of the ESP32 platform - the
 official one is still on Arduino core 2.x. The panel goes through ESP-IDF's
 `esp_lcd` rather than a graphics library, because none of them drive this glass
-correctly. There is no host software: npm is here for the commit hooks and to
-wrap two commands.
+correctly. npm is here for the commit hooks and to wrap the three commands.
 
 ## Commands
 
@@ -27,6 +22,9 @@ wrap two commands.
 | `npm run firmware:build` | compile |
 | `npm run firmware:flash` | compile, flash, reset, and print the boot log |
 | `npm run firmware:monitor` | watch the serial log |
+
+`pio` is on `PATH` in a login shell and often not in a non-interactive one; it
+is at `~/.platformio/penv/bin/pio`, with its python beside it.
 
 ## Rules
 
@@ -49,12 +47,12 @@ wrap two commands.
 Invisible in the code until they are broken.
 
 - **Everything is on the board.** A 360x360 frame at 16 bits is 253KB and no
-  serial link streams that thirty times a second, so the scene and its timing
-  live on the S3 and changing either costs a reflash rather than a restart
+  serial link streams that thirty times a second, so what is drawn and what
+  paces it both live on the S3
 - **The panel is round.** 360x360 of framebuffer, but the corners are not
   clipped - they are not there. Anything drawn outside the inscribed circle is
-  rendered, paid for and never seen, which is why the balls reflect about the
-  radius rather than off a wall
+  rendered, paid for and never seen, and anything near the edge has to be placed
+  against the circle rather than against a row of pixels
 - **Black is never black.** It is an IPS LCD: black is the crystal blocking a
   backlight that is always on, and it never blocks all of it. A pixel cannot be
   off. The backlight duty is the only control over how black black looks, and it
@@ -66,6 +64,9 @@ Invisible in the code until they are broken.
 - **The framebuffer is in PSRAM and the SPI DMA cannot reach it.** Every band is
   copied down into internal RAM on its way out, and that copy is also where the
   bytes get swapped, which this panel wants
+- **Partial flushes only clear what they redraw.** Whatever owns a band of rows
+  clears and sends that band itself, so a band sized wider than the thing being
+  written takes a bite out of whatever else lives in those rows
 - **The power button is not wired to the chip.** It switches the power path,
   supports no custom function, and cannot be read, intercepted or stood in for -
   so there is no firmware answer to "turn it off", only a deep sleep. It is the
@@ -74,3 +75,9 @@ Invisible in the code until they are broken.
   in the bootloader**, and **opening the serial port resets it**. All three
   present as a dead or possessed board and none of them says so; see the
   hardware guide before suspecting anything in here
+- **The account's session token is on the device, not in the repo.** It is typed
+  into the portal and kept in NVS, and
+  `esptool read-flash 0x9000 0x5000 nvs.bin` with `strings` is how to read it
+  back for debugging. claude.ai answers the board but puts curl from a laptop
+  behind a Cloudflare challenge unless it is asked with browser headers and
+  `--compressed`
