@@ -63,10 +63,6 @@ struct State {
   float lookX, lookY;      // where it is looking, eased
   float lookTX, lookTY;    // and where it has decided to look next
   float lookIn;            // seconds until it looks somewhere else
-  uint8_t taps;        // taps inside the current window
-  float tapWindow;     // when that window opened
-  float crazy;         // seconds left of losing it, zero the rest of the time
-  float flip;          // seconds until the next expression while it is loose
   float blinkIn;       // seconds until the next blink
   float blinking;      // seconds left of this one
 };
@@ -300,10 +296,6 @@ void faceBegin() {
   me.next = 1;  // neutral is where it starts, so a tap moves it on
   me.lookX = me.lookY = me.lookTX = me.lookTY = 0.0f;
   me.lookIn = 1.0f;
-  me.taps = 0;
-  me.tapWindow = 0.0f;
-  me.crazy = 0.0f;
-  me.flip = 0.0f;
   me.blinkIn = 2.0f;
   me.blinking = 0.0f;
   pickTarget();
@@ -315,41 +307,9 @@ void faceStep(float dt) {
 
   me.held += dt;
 
-  if (me.crazy > 0.0f) {
-    me.crazy -= dt;
-    me.flip -= dt;
-    if (me.flip <= 0.0f) {
-      // Snapped rather than morphed. A third of a second of easing between two
-      // shapes is a long time when the whole point is that it cannot settle.
-      me.flip = 0.10f;
-      // From the set that is actually in use. Reaching across the whole enum
-      // drags back the two expressions that were taken out of it.
-      me.mood = CYCLE[random(0, CYCLE_COUNT)];
-      me.was = me.mood;
-      me.blend = 1.0f;
-      me.held = 1.0f;
-    }
-    if (me.crazy <= 0.0f) {
-      // And then it is over, and it is embarrassed about it.
-      me.crazy = 0.0f;
-      // The window starts again from here, so calming down and being set off
-      // by the next single tap cannot happen.
-      me.tapWindow = me.clock;
-      me.taps = 0;
-      me.was = me.mood;
-      me.mood = Mood::Neutral;
-      me.next = 1;
-      me.blend = 0.0f;
-      me.held = 0.0f;
-      pickTarget();
-    }
-  }
-
   // A critically damped spring: it arrives without ringing, and the stiffness
   // alone is the difference between drifting over and darting.
-  // Flung about while it is loose, and it changes its mind about where before
-  // it ever arrives.
-  const float k = me.crazy > 0.0f ? 70.0f : 9.0f;
+  const float k = 9.0f;
   const float damping = 2.0f * sqrtf(k);
   me.vx += ((me.tx - me.x) * k - me.vx * damping) * dt;
   me.vy += ((me.ty - me.y) * k - me.vy * damping) * dt;
@@ -358,7 +318,7 @@ void faceStep(float dt) {
 
   float dx = me.tx - me.x;
   float dy = me.ty - me.y;
-  if (dx * dx + dy * dy < (me.crazy > 0.0f ? 900.0f : 16.0f)) {
+  if (dx * dx + dy * dy < 16.0f) {
     pickTarget();
   }
 
@@ -369,11 +329,7 @@ void faceStep(float dt) {
   me.lookIn -= dt;
   if (me.lookIn <= 0.0f) {
     long roll = random(0, 100);
-    if (me.crazy > 0.0f) {
-      me.lookTX = frand(-24.0f, 24.0f);
-      me.lookTY = frand(-13.0f, 13.0f);
-      me.lookIn = frand(0.05f, 0.14f);
-    } else if (me.mood == Mood::Tired) {
+    if (me.mood == Mood::Tired) {
       // Down and not far. Eyes that keep casting about are not sleepy ones.
       me.lookTX = frand(-6.0f, 6.0f);
       me.lookTY = frand(1.0f, 5.5f);
@@ -423,27 +379,6 @@ void faceStep(float dt) {
 }
 
 void faceProd() {
-  // Nothing gets through while it is loose. Counting taps during a tantrum only
-  // ever extends it, and letting one land would step the expression underneath
-  // the flickering where it would not be seen anyway.
-  if (me.crazy > 0.0f) {
-    return;
-  }
-
-  // Five taps inside five seconds and it loses it. The window is rolling rather
-  // than fixed, so a slow prod every four seconds never adds up to a tantrum.
-  if (me.clock - me.tapWindow > 5.0f) {
-    me.tapWindow = me.clock;
-    me.taps = 0;
-  }
-  me.taps++;
-  if (me.taps >= 5) {
-    me.taps = 0;
-    me.crazy = 4.5f;
-    me.flip = 0.0f;
-    return;
-  }
-
   me.was = me.mood;
   me.blend = 0.0f;
   me.held = 0.0f;
@@ -460,13 +395,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   float centreY = me.y + floatY;
 
   float squeeze = 1.0f;
-  if (me.crazy > 0.0f) {
-    // Shaking with it, on two frequencies that do not divide into one another
-    // so it never falls into a rhythm.
-    centreX += sinf(me.clock * 47.0f) * 7.0f + sinf(me.clock * 31.0f) * 4.0f;
-    centreY += sinf(me.clock * 53.0f) * 6.0f + sinf(me.clock * 29.0f) * 3.5f;
-  }
-  if (me.mood == Mood::Tired && me.crazy <= 0.0f) {
+  if (me.mood == Mood::Tired) {
     // Losing the argument with sleep: the lids sink, catch themselves twice on
     // the way down and lose a little more each time, and then it jolts awake in
     // a quarter of a second and starts again. An even slide down and back reads
@@ -597,7 +526,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // leaves those rows alone and the flush never has to carry them.
   char wanted[12] = {0};
   {
-    const char *name = me.crazy > 0.0f ? "AAAAAA" : moodName(me.mood);
+    const char *name = moodName(me.mood);
     // One letter every twentieth of a second, so the name arrives as it is
     // typed rather than all at once under a face that is still changing.
     uint8_t shown = (uint8_t)(me.held / 0.05f);
