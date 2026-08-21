@@ -27,11 +27,12 @@ constexpr int16_t MIDDLE = 34;
 constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
-constexpr int16_t ADDRESS_Y = 310;
+constexpr int16_t ADDRESS_Y = 314;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
-constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
+constexpr int16_t BOTTOM_TO = ADDRESS_Y + 9;
 
 constexpr uint16_t WHITE = 0xFFFF;
+constexpr uint16_t GREY = 0x8410;
 constexpr uint16_t GREEN = 0x07E0;
 constexpr uint16_t YELLOW = 0xFFE0;
 constexpr uint16_t ORANGE = 0xFC00;
@@ -254,13 +255,15 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       typing[typed] = '\0';
       // Centred on where the whole address will be, so it does not slide left
       // as it arrives.
-      // Twice size. It is the smallest whole multiple that carries across a
-      // desk, and whole multiples are the only ones that stay legible.
-      constexpr int16_t SCALE = 2;
+      // The font at its own size. Whole multiples are the only ones that stay
+      // legible, so one and two are the whole of the choice and this is the
+      // small one - seven pixels tall, and grey, because it is the least
+      // interesting thing on the glass and should not outshout the face.
+      constexpr int16_t SCALE = 1;
       int16_t step = textStep(SCALE);
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, SCALE,
-               boardColour(WHITE));
+               boardColour(GREY));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }
