@@ -27,9 +27,9 @@ constexpr int16_t MIDDLE = 34;
 constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
-constexpr int16_t ADDRESS_Y = 314;
+constexpr int16_t ADDRESS_Y = 310;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
-constexpr int16_t BOTTOM_TO = ADDRESS_Y + 11;
+constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREEN = 0x07E0;
@@ -253,10 +253,12 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       typing[typed] = '\0';
       // Centred on where the whole address will be, so it does not slide left
       // as it arrives.
-      constexpr int16_t QUARTERS = 5;
-      int16_t step = textStep(QUARTERS);
+      // Twice size. It is the smallest whole multiple that carries across a
+      // desk, and whole multiples are the only ones that stay legible.
+      constexpr int16_t SCALE = 2;
+      int16_t step = textStep(SCALE);
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
-      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, QUARTERS,
+      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, SCALE,
                boardColour(WHITE));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
