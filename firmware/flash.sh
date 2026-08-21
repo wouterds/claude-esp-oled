@@ -49,6 +49,6 @@ while time.time() < end:
         buf += d.decode(errors='replace')
 s.close()
 for line in buf.splitlines():
-    if any(k in line.lower() for k in ('panel', 'backlight', 'display', 'boot:', 'framebuffer')):
+    if any(k in line.lower() for k in ('panel', 'backlight', 'battery', 'reset:', 'boot:', 'framebuffer')):
         print(' ', line)
 PYEOF

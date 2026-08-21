@@ -1,59 +1,52 @@
 #include <Arduino.h>
+#include <esp_system.h>
 
+#include "battery.h"
 #include "board.h"
 #include "scene.h"
 
-// BOOT is the only button the S3 can see. PWR switches the power path itself
-// and is not wired to the chip at all, so nothing here can read it or stand in
-// for it. Held low at reset BOOT traps the ROM in the bootloader; once running
-// it is an ordinary input with a pull-up, and a short press is safe.
-static constexpr int BUTTON = 0;
-static constexpr uint32_t DEBOUNCE_MS = 40;
 static constexpr uint32_t FRAME_MS = 16;
 
-static bool showing = true;
-static bool held = false;
-static uint32_t settled = 0;
 static uint32_t lastFrame = 0;
 
-static void pollButton(uint32_t now) {
-  bool down = digitalRead(BUTTON) == LOW;
-  if (down == held || (now - settled) < DEBOUNCE_MS) {
-    return;
+// Neither button is wired to anything here. PWR switches the power path and the
+// chip cannot see it; BOOT can be read, but it is the strapping pin that traps
+// the ROM in the bootloader when it is low at reset, and PWR already does the
+// only thing worth asking of a button. What the reset reason is good for is
+// telling the two apart: a real power cut comes back POWERON, everything else
+// does not.
+static const char *why(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:
+      return "power on";
+    case ESP_RST_DEEPSLEEP:
+      return "woke from deep sleep";
+    case ESP_RST_SW:
+      return "software reset";
+    case ESP_RST_PANIC:
+      return "panic";
+    case ESP_RST_BROWNOUT:
+      return "brownout";
+    default:
+      return "other";
   }
-  settled = now;
-  held = down;
-  if (!down) {
-    return;
-  }
-  showing = !showing;
-  boardDisplay(showing);
-  Serial.printf("display: %s\n", showing ? "on" : "off");
 }
 
 void setup() {
   Serial.begin(115200);
+  Serial.printf("reset: %s\n", why(esp_reset_reason()));
   if (!boardBegin()) {
     while (true) {
       delay(1000);
     }
   }
-  pinMode(BUTTON, INPUT_PULLUP);
+  batteryReport();
   sceneBegin();
   lastFrame = millis();
 }
 
 void loop() {
   uint32_t now = millis();
-  pollButton(now);
-  if (!showing) {
-    // Nothing is drawn while it is off, and the clock starts again on the way
-    // back so nothing moves the width of the pause in one frame.
-    lastFrame = now;
-    delay(30);
-    return;
-  }
-
   float dt = (float)(now - lastFrame) * 0.001f;
   lastFrame = now;
   if (dt > 0.05f) {

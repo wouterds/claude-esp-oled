@@ -16,8 +16,3 @@ bool boardBegin();
 // The offscreen framebuffer. Scenes draw here and boardFlush() sends it.
 uint16_t *boardFramebuffer();
 void boardFlush();
-
-// Blanks the panel and its backlight together, or brings both back. Not sleep:
-// the board stays awake, because the only switch that cuts power is wired to
-// the power path and not to the S3.
-void boardDisplay(bool on);
