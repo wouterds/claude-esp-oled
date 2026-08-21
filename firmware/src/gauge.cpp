@@ -121,18 +121,32 @@ float sdArc(float px, float py, const Arc &a) {
 // fill takes one colour off this: the bar says how much by how long it is, and
 // says it again by what colour it is, rather than fading along its own length.
 uint16_t colourAt(float percent) {
-  constexpr float STOPS[3][3] = {
-      {0.0f, 255.0f, 170.0f}, {255.0f, 145.0f, 0.0f}, {255.0f, 48.0f, 64.0f}};
-  float t = clamp01(percent / 100.0f) * 2.0f;
-  int lo = t < 1.0f ? 0 : 1;
-  float k = t - (float)lo;
-  float r = STOPS[lo][0] + (STOPS[lo + 1][0] - STOPS[lo][0]) * k;
-  float g = STOPS[lo][1] + (STOPS[lo + 1][1] - STOPS[lo][1]) * k;
-  float b = STOPS[lo][2] + (STOPS[lo + 1][2] - STOPS[lo][2]) * k;
+  // The stops are not evenly spaced, because the reading is not: a bar at a
+  // seventh of its window has plenty of room and should look like it, and the
+  // teal it starts at is the one the battery goes when it is charging. Amber
+  // does not arrive until four fifths, where there is something to say.
+  struct Stop {
+    float at, r, g, b;
+  };
+  constexpr Stop RAMP[] = {{0.0f, 0.0f, 255.0f, 180.0f},
+                           {0.5f, 60.0f, 255.0f, 120.0f},
+                           {0.8f, 255.0f, 168.0f, 0.0f},
+                           {1.0f, 255.0f, 48.0f, 64.0f}};
+  constexpr uint8_t COUNT = sizeof(RAMP) / sizeof(RAMP[0]);
+
+  float t = clamp01(percent / 100.0f);
+  uint8_t lo = 0;
+  while (lo + 2 < COUNT && t > RAMP[lo + 1].at) {
+    lo++;
+  }
+  float k = (t - RAMP[lo].at) / (RAMP[lo + 1].at - RAMP[lo].at);
+  k = clamp01(k);
+  float r = RAMP[lo].r + (RAMP[lo + 1].r - RAMP[lo].r) * k;
+  float g = RAMP[lo].g + (RAMP[lo + 1].g - RAMP[lo].g) * k;
+  float b = RAMP[lo].b + (RAMP[lo + 1].b - RAMP[lo].b) * k;
   // Pinned back to the top of the range. Mixing two colours channel by channel
-  // dips through something duller than either of them - a third of the way from
-  // teal to amber is an olive - and on a panel whose black is a lit backlight,
-  // dull is the one thing a colour cannot afford to be.
+  // dips through something duller than either of them, and on a panel whose
+  // black is a lit backlight, dull is the one thing a colour cannot afford.
   float most = r > g ? (r > b ? r : b) : (g > b ? g : b);
   if (most > 1.0f) {
     float lift = 255.0f / most;
