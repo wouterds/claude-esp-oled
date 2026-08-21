@@ -12,11 +12,10 @@ constexpr uint8_t REG_VOLTAGE = 0x08;
 constexpr uint8_t REG_CURRENT = 0x0C;
 constexpr uint8_t REG_CHARGE = 0x2C;
 constexpr uint32_t EVERY_MS = 2000;
-// Not discharging is the useful question, not whether charge is going in. A
-// full pack on a charger draws nothing and would read as running on battery,
-// which is the one time you most want to see that it is plugged in. On battery
-// the board pulls a hundred milliamps and more, so the two are never close.
-constexpr int16_t DISCHARGING_MA = -20;
+// Charge actually going into the pack, not merely being plugged in. A full pack
+// on a charger draws nothing and is not charging, so it reads as what it is:
+// full. Well clear of the gauge's own wandering about zero.
+constexpr int16_t CHARGING_MA = 20;
 
 BatteryState cached = {0, 0, false, false};
 uint32_t nextRead = 0;
@@ -53,7 +52,7 @@ void sample() {
   cached.millivolts = millivolts;
   cached.percent = percent > 100 ? 100 : (uint8_t)percent;
   // Current is signed, and out of the pack is negative.
-  cached.charging = (int16_t)current > DISCHARGING_MA;
+  cached.charging = (int16_t)current > CHARGING_MA;
   // A gauge with nothing on its terminals still answers; it just reads flat.
   cached.present = millivolts >= 2500;
 }
@@ -69,7 +68,7 @@ void batteryBegin() {
     return;
   }
   Serial.printf("battery: %u mV, %u%%, %s\n", cached.millivolts, cached.percent,
-                cached.charging ? "external power" : "on battery");
+                cached.charging ? "charging" : "not charging");
 }
 
 BatteryState batteryRead() {
