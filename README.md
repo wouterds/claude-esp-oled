@@ -20,3 +20,5 @@ backlight leaking through liquid crystal rather than a pixel that is off.
 See [AGENTS.md](AGENTS.md) for the layout and
 [.agents/docs/hardware.md](.agents/docs/hardware.md) for the board - including
 the things that each present as a dead board and none of which say so.
+
+<img width="4032" height="3024" alt="IMG_2385" src="https://github.com/user-attachments/assets/a7326e64-50d3-4f40-8865-e39214a26606" />
