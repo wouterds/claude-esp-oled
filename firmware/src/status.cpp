@@ -156,7 +156,10 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
 // It is next to a battery that says how it is doing by colour, so a colour is
 // already the language of that corner.
 void drawWifi(uint16_t *fb, uint8_t bars) {
-  constexpr float APERTURE = 0.72f;
+  // How far round each arc carries. Wider than it needs to be to read as an
+  // arc, because at a narrow sweep the three of them stack into a column of
+  // dashes rather than into something radiating.
+  constexpr float APERTURE = 0.95f;
   const float sinA = sinf(APERTURE);
   const float cosA = cosf(APERTURE);
   // Two arcs and a dot is three bars of signal. The ones the signal does not
