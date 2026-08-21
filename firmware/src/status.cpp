@@ -21,13 +21,15 @@ constexpr int16_t MIDDLE = 34;
 
 // The glass is a circle. At y=26 there are only 93 pixels either side of the
 // centre line, so everything here has to live between 87 and 273.
-// Either side of the middle, now that the icon says it on its own.
-constexpr int16_t BATTERY_X = 145;
-constexpr int16_t WIFI_X = 215;
+// The pair centred on the panel, wifi then battery. At this height the glass
+// gives about 93 pixels either side of the middle, and the two of them together
+// come to sixty-odd.
+constexpr int16_t WIFI_X = 160;
+constexpr int16_t BATTERY_X = 199;
 
-constexpr int16_t ADDRESS_Y = 298;
+constexpr int16_t ADDRESS_Y = 314;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
-constexpr int16_t BOTTOM_TO = ADDRESS_Y + 14;
+constexpr int16_t BOTTOM_TO = ADDRESS_Y + 11;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREEN = 0x07E0;
@@ -251,12 +253,10 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       typing[typed] = '\0';
       // Centred on where the whole address will be, so it does not slide left
       // as it arrives.
-      // Half again as big: readable across a desk without taking a third of
-      // the panel, which is what actual size did.
-      constexpr int16_t HALVES = 3;
-      int16_t step = textStep(HALVES);
+      constexpr int16_t QUARTERS = 5;
+      int16_t step = textStep(QUARTERS);
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
-      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, HALVES,
+      textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, QUARTERS,
                boardColour(WHITE));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));

@@ -60,21 +60,21 @@ inline const uint8_t *glyph(char c) {
 
 }  // namespace
 
-int16_t textStep(int16_t halves) { return (int16_t)(((GLYPH_W + 1) * halves + 1) / 2); }
+int16_t textStep(int16_t quarters) { return (int16_t)(((GLYPH_W + 1) * quarters + 3) / 4); }
 
-void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t halves,
+void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t quarters,
               uint16_t colour) {
   int16_t count = 0;
   for (const char *p = s; *p; p++) {
     count++;
   }
-  if (count == 0 || halves < 2) {
+  if (count == 0 || quarters < 4) {
     return;
   }
 
-  int16_t step = textStep(halves);
-  int16_t wide = (int16_t)((GLYPH_W * halves + 1) / 2);
-  int16_t tall = (int16_t)((GLYPH_H * halves + 1) / 2);
+  int16_t step = textStep(quarters);
+  int16_t wide = (int16_t)((GLYPH_W * quarters + 3) / 4);
+  int16_t tall = (int16_t)((GLYPH_H * quarters + 3) / 4);
   int16_t x = centreX - (count * step - (step - wide)) / 2;
 
   for (int16_t i = 0; i < count; i++) {
@@ -87,9 +87,9 @@ void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t
         continue;
       }
       uint16_t *line = boardRow(fb, at);
-      uint8_t row = (uint8_t)((dy * 2) / halves);
+      uint8_t row = (uint8_t)((dy * 4) / quarters);
       for (int16_t dx = 0; dx < wide; dx++) {
-        uint8_t col = (uint8_t)((dx * 2) / halves);
+        uint8_t col = (uint8_t)((dx * 4) / quarters);
         if (!(cols[col] & (1 << row))) {
           continue;
         }
