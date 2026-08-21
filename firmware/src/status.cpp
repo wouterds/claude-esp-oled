@@ -17,7 +17,7 @@ constexpr int16_t BAR_H = 16;
 constexpr int16_t BATTERY_X = 96;
 constexpr int16_t PERCENT_X = 134;
 constexpr int16_t WIFI_X = 246;
-constexpr int16_t ADDRESS_Y = 296;
+constexpr int16_t ADDRESS_Y = 298;
 
 constexpr int16_t TOP_FROM = BAR_Y - 2;
 constexpr int16_t TOP_TO = BAR_Y + BAR_H + 2;
