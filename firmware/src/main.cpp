@@ -10,6 +10,7 @@
 #include "face.h"
 #include "gauge.h"
 #include "info.h"
+#include "allowance.h"
 #include "portal.h"
 #include "usage.h"
 
@@ -17,9 +18,10 @@ static constexpr uint32_t FRAME_MS = 16;
 
 static uint32_t lastFrame = 0;
 
-// Two of them, a swipe apart. Only one is ever on the glass, and neither knows
-// the other exists - what turns the page is here.
-enum class Page : uint8_t { Main, Info };
+// Three of them, in a row and a swipe apart: the face, then what it is reacting
+// to, then what it is running on. None of them knows the others exist - what
+// turns the page is here.
+enum class Page : uint8_t { Main, Allowance, Info };
 static Page page = Page::Main;
 
 // Neither button is wired to anything here. PWR switches the power path and the
@@ -52,6 +54,11 @@ static void turnTo(Page to) {
   uint16_t *fb = boardFramebuffer();
   page = to;
   memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
+  if (to == Page::Allowance) {
+    allowanceForget();
+    allowanceStep(fb);
+    return;
+  }
   if (to == Page::Info) {
     infoForget();
     infoStep(fb);
@@ -96,16 +103,20 @@ void loop() {
 
   touchStep();
   Swipe swipe = touchSwiped();
-  // The other page comes in from the right the way a phone's does: dragged onto
-  // the glass leftward, and pushed back off it the way it came.
-  if (swipe == Swipe::Left && page == Page::Main) {
-    turnTo(Page::Info);
-  } else if (swipe == Swipe::Right && page == Page::Info) {
-    turnTo(Page::Main);
+  // The pages come in from the right the way a phone's do: dragged onto the
+  // glass leftward, and pushed back off it the way they came.
+  if (swipe == Swipe::Left && page != Page::Info) {
+    turnTo(page == Page::Main ? Page::Allowance : Page::Info);
+  } else if (swipe == Swipe::Right && page != Page::Main) {
+    turnTo(page == Page::Info ? Page::Allowance : Page::Main);
   }
 
-  if (page == Page::Info) {
-    infoStep(boardFramebuffer());
+  if (page != Page::Main) {
+    if (page == Page::Allowance) {
+      allowanceStep(boardFramebuffer());
+    } else {
+      infoStep(boardFramebuffer());
+    }
     uint32_t idle = millis() - now;
     if (idle < FRAME_MS) {
       delay(FRAME_MS - idle);
