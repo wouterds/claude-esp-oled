@@ -3,7 +3,7 @@
 
 #include "battery.h"
 #include "board.h"
-#include "scene.h"
+#include "face.h"
 
 static constexpr uint32_t FRAME_MS = 16;
 
@@ -41,7 +41,7 @@ void setup() {
     }
   }
   batteryReport();
-  sceneBegin();
+  faceBegin();
   lastFrame = millis();
 }
 
@@ -53,8 +53,8 @@ void loop() {
     dt = 0.05f;
   }
 
-  sceneStep(dt);
-  sceneDraw(boardFramebuffer());
+  faceStep(dt);
+  faceDraw(boardFramebuffer());
   boardFlush();
 
   // Sixty is past what the panel or the eye wants; the rest goes back.

@@ -1,0 +1,82 @@
+#include "text.h"
+
+#include "board.h"
+
+namespace {
+
+constexpr int16_t GLYPH_W = 5;
+constexpr int16_t GLYPH_H = 7;
+
+// Column-major, one byte per column, bit 0 at the top. Space first, then A-Z.
+const uint8_t GLYPHS[][GLYPH_W] = {
+    {0x00, 0x00, 0x00, 0x00, 0x00}, {0x7E, 0x11, 0x11, 0x11, 0x7E},
+    {0x7F, 0x49, 0x49, 0x49, 0x36}, {0x3E, 0x41, 0x41, 0x41, 0x22},
+    {0x7F, 0x41, 0x41, 0x22, 0x1C}, {0x7F, 0x49, 0x49, 0x49, 0x41},
+    {0x7F, 0x09, 0x09, 0x09, 0x01}, {0x3E, 0x41, 0x49, 0x49, 0x7A},
+    {0x7F, 0x08, 0x08, 0x08, 0x7F}, {0x00, 0x41, 0x7F, 0x41, 0x00},
+    {0x20, 0x40, 0x41, 0x3F, 0x01}, {0x7F, 0x08, 0x14, 0x22, 0x41},
+    {0x7F, 0x40, 0x40, 0x40, 0x40}, {0x7F, 0x02, 0x0C, 0x02, 0x7F},
+    {0x7F, 0x04, 0x08, 0x10, 0x7F}, {0x3E, 0x41, 0x41, 0x41, 0x3E},
+    {0x7F, 0x09, 0x09, 0x09, 0x06}, {0x3E, 0x41, 0x51, 0x21, 0x5E},
+    {0x7F, 0x09, 0x19, 0x29, 0x46}, {0x46, 0x49, 0x49, 0x49, 0x31},
+    {0x01, 0x01, 0x7F, 0x01, 0x01}, {0x3F, 0x40, 0x40, 0x40, 0x3F},
+    {0x1F, 0x20, 0x40, 0x20, 0x1F}, {0x3F, 0x40, 0x38, 0x40, 0x3F},
+    {0x63, 0x14, 0x08, 0x14, 0x63}, {0x07, 0x08, 0x70, 0x08, 0x07},
+    {0x61, 0x51, 0x49, 0x45, 0x43},
+};
+
+// Anything the font does not carry lands on the blank, which keeps a typo from
+// walking off the end of the table.
+inline const uint8_t *glyph(char c) {
+  if (c >= 'a' && c <= 'z') {
+    c = (char)(c - 'a' + 'A');
+  }
+  if (c >= 'A' && c <= 'Z') {
+    return GLYPHS[c - 'A' + 1];
+  }
+  return GLYPHS[0];
+}
+
+}  // namespace
+
+void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t top, int16_t scale,
+              uint16_t colour) {
+  int16_t count = 0;
+  for (const char *p = s; *p; p++) {
+    count++;
+  }
+  if (count == 0) {
+    return;
+  }
+
+  int16_t step = (GLYPH_W + 1) * scale;
+  int16_t x = centreX - (count * step - scale) / 2;
+
+  for (int16_t i = 0; i < count; i++) {
+    const uint8_t *cols = glyph(s[i]);
+    for (int16_t col = 0; col < GLYPH_W; col++) {
+      uint8_t bits = cols[col];
+      for (int16_t row = 0; row < GLYPH_H; row++) {
+        if (!(bits & (1 << row))) {
+          continue;
+        }
+        int16_t px = x + (col * scale);
+        int16_t py = top + (row * scale);
+        for (int16_t dy = 0; dy < scale; dy++) {
+          int16_t at = py + dy;
+          if (at < 0 || at >= SCREEN_H) {
+            continue;
+          }
+          uint16_t *line = fb + (int32_t)at * SCREEN_W;
+          for (int16_t dx = 0; dx < scale; dx++) {
+            int16_t ax = px + dx;
+            if (ax >= 0 && ax < SCREEN_W) {
+              line[ax] = colour;
+            }
+          }
+        }
+      }
+    }
+    x += step;
+  }
+}
