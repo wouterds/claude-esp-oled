@@ -15,7 +15,10 @@ port() { ls /dev | grep '^cu\.usbmodem' | head -1; }
 
 # The node renames itself between resets, so it is looked up every time rather
 # than once.
-p="$(port)"
+# Allowed to find nothing, which is the whole point of the next three lines -
+# under `set -e` a bare assignment from a failing grep takes the script out
+# before it can say what is wrong.
+p="$(port || true)"
 if [ -z "$p" ]; then
   echo "no board on USB - press PWR for 1s, and check it is not the hub" >&2
   exit 1
