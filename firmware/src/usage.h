@@ -22,3 +22,9 @@ uint8_t usageStill();
 // Percentages, as the web app shows them.
 uint8_t usageSession();
 uint8_t usageWeekly();
+
+// How long each window has left before it rolls over, in milliseconds off the
+// device's own clock. Nought when the last read did not say when - a window
+// nobody has spent anything in has no reset to give.
+uint32_t usageSessionResetsIn();
+uint32_t usageWeeklyResetsIn();

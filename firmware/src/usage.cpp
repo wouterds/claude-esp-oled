@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <string.h>
 
 #include "portal.h"
 #include "wifi.h"
@@ -23,12 +24,83 @@ volatile uint8_t session = 0;
 volatile uint8_t weekly = 0;
 volatile bool wake = false;
 volatile uint8_t still = 0;
+// When each window rolls over, as a deadline on the device's own clock. Nought
+// for one nobody has spent anything in, which is what the endpoint says by
+// giving no date at all.
+volatile uint32_t resetAt[2] = {0, 0};
+// What the endpoint said the time was, and when that was heard. The device has
+// no clock of its own and no reason to ask the network for one: the reply that
+// carries the deadlines carries the time they are measured against.
+uint32_t heard = 0;
+uint32_t heardAt = 0;
 int lastCode = 0;
 uint8_t misses = 0;
 // A token can be revoked, or simply expire. Three refusals in a row and the
 // device goes back to asking for a new one: the address returns, the numbers go
 // away and the bars come in.
 constexpr uint8_t GIVE_UP_AT = 3;
+
+// Days from the epoch to a civil date. No calendar library and no local time to
+// be wrong about - everything on this endpoint is UTC, and this is the whole of
+// what turning a date into a number takes.
+int32_t daysFrom(int32_t y, int32_t m, int32_t d) {
+  y -= m <= 2;
+  int32_t era = (y >= 0 ? y : y - 399) / 400;
+  int32_t yoe = y - era * 400;
+  int32_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  int32_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097 + doe - 719468;
+}
+
+uint32_t epochOf(int32_t y, int32_t mo, int32_t d, int32_t h, int32_t mi, int32_t s) {
+  // Through 64 bits on the way: a day count times eighty-six thousand runs off
+  // the end of a signed 32 in 2038, and the seconds themselves do not.
+  return (uint32_t)((int64_t)daysFrom(y, mo, d) * 86400 + h * 3600 + mi * 60 + s);
+}
+
+// "2026-08-21T22:30:00.191734+00:00". Read as far as the seconds: the fraction
+// is more than a countdown wants and the offset is always zero here.
+uint32_t whenOf(const String &iso) {
+  int y, mo, d, h, mi, s;
+  if (sscanf(iso.c_str(), "%d-%d-%dT%d:%d:%d", &y, &mo, &d, &h, &mi, &s) != 6) {
+    return 0;
+  }
+  return epochOf(y, mo, d, h, mi, s);
+}
+
+// "Fri, 21 Aug 2026 19:20:27 GMT", off the response's own Date header.
+uint32_t nowOf(const String &date) {
+  constexpr char MONTHS[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+  char name[4] = {0};
+  int d, y, h, mi, s;
+  if (sscanf(date.c_str(), "%*3s, %d %3s %d %d:%d:%d", &d, name, &y, &h, &mi, &s) != 6) {
+    return 0;
+  }
+  const char *at = strstr(MONTHS, name);
+  if (!at) {
+    return 0;
+  }
+  return epochOf(y, (int32_t)(at - MONTHS) / 3 + 1, d, h, mi, s);
+}
+
+// A date turned into the deadline it is on this device. One already past is one
+// the next read will have moved, so it counts as not knowing.
+uint32_t deadlineOf(uint32_t when) {
+  if (!when || !heard || when <= heard) {
+    return 0;
+  }
+  return heardAt + (when - heard) * 1000;
+}
+
+uint32_t leftOn(uint32_t deadline) {
+  if (!deadline) {
+    return 0;
+  }
+  uint32_t left = deadline - millis();
+  // Unsigned all the way round, so the count survives the millis wrap; a span
+  // this side of a fortnight is one the sign bit can still answer for.
+  return (int32_t)left > 0 ? left : 0;
+}
 
 // The web app's own headers, near enough. The endpoint is not documented and
 // answers a browser, so it is asked the way a browser asks.
@@ -58,12 +130,19 @@ bool get(const String &url, const char *token, String &out) {
     return false;
   }
   dress(http, token);
+  static const char *WANTED[] = {"Date"};
+  http.collectHeaders(WANTED, 1);
   int code = http.GET();
   lastCode = code;
   if (code != 200) {
     Serial.printf("usage: %d from %s\n", code, url.c_str());
     http.end();
     return false;
+  }
+  uint32_t said = nowOf(http.header("Date"));
+  if (said) {
+    heard = said;
+    heardAt = millis();
   }
   out = http.getString();
   http.end();
@@ -99,7 +178,7 @@ bool findOrg(const char *token) {
 // Every window in the document is an object with a utilization in it, so the
 // one wanted is found by name and read from there. No parser: the whole reply
 // is under two kilobytes and only two numbers of it matter.
-bool window(const String &body, const char *name, uint8_t &out) {
+bool window(const String &body, const char *name, uint8_t &out, uint32_t &reset) {
   int at = body.indexOf(String("\"") + name + "\":");
   if (at < 0) {
     return false;
@@ -117,6 +196,22 @@ bool window(const String &body, const char *name, uint8_t &out) {
   }
   float value = body.substring(start, end).toFloat();
   out = (uint8_t)(value < 0.0f ? 0.0f : (value > 100.0f ? 100.0f : value + 0.5f));
+
+  // Sat right behind the utilization inside the same object, so the first one
+  // past it is this window's. A window with nothing in it says null rather than
+  // a date, which is why the quote is looked for where it has to be rather than
+  // searched for - searched for, a null borrows the next window's.
+  reset = 0;
+  int stamp = body.indexOf("\"resets_at\":", found);
+  if (stamp >= 0) {
+    int opens = stamp + 12;
+    if (body.charAt(opens) == '"') {
+      int close = body.indexOf('"', opens + 1);
+      if (close > opens) {
+        reset = whenOf(body.substring(opens + 1, close));
+      }
+    }
+  }
   return true;
 }
 
@@ -124,9 +219,12 @@ void poll(const char *token) {
   String body;
   uint8_t hours = 0;
   uint8_t week = 0;
+  uint32_t hoursOn = 0;
+  uint32_t weekOn = 0;
   bool got = findOrg(token) &&
              get(String(HOST) + "/api/organizations/" + org + "/usage", token, body) &&
-             window(body, "five_hour", hours) && window(body, "seven_day", week);
+             window(body, "five_hour", hours, hoursOn) &&
+             window(body, "seven_day", week, weekOn);
 
   if (!got) {
     // Turned away outright is answer enough; anything else gets the benefit of
@@ -140,6 +238,8 @@ void poll(const char *token) {
       ready = false;
       still = 0;
       misses = 0;
+      resetAt[0] = 0;
+      resetAt[1] = 0;
       // A new token may belong to somebody else.
       org[0] = '\0';
     }
@@ -155,6 +255,8 @@ void poll(const char *token) {
   }
   session = hours;
   weekly = week;
+  resetAt[0] = deadlineOf(hoursOn);
+  resetAt[1] = deadlineOf(weekOn);
   ready = true;
 }
 
@@ -189,3 +291,7 @@ uint8_t usageStill() { return still; }
 uint8_t usageSession() { return session; }
 
 uint8_t usageWeekly() { return weekly; }
+
+uint32_t usageSessionResetsIn() { return leftOn(resetAt[0]); }
+
+uint32_t usageWeeklyResetsIn() { return leftOn(resetAt[1]); }
