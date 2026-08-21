@@ -44,16 +44,25 @@ npm run firmware:monitor
 ## The things that cost a day
 
 **Plugging in the USB-C does not turn the board on.** It has a battery gauge and
-a soft power path, so `PWR` is a power button and not a reset: **hold it 2s to
-toggle power, or press it for 1s to power on**. An unpowered board presents *no*
-USB device at all - not a broken one, none - so this reads as a dead cable or a
-dead board rather than as a board that is simply switched off. `ls /dev | grep
-cu.usbmodem` empty, and `ioreg -p IOUSB -w0 -l | grep 12346` finding nothing, is
-what it looks like.
+a soft power path, so the power button is a power button and not a reset:
+**press it for 1s to power on, hold it 2-3s to power off**. An unpowered board
+presents *no* USB device at all - not a broken one, none - so this reads as a
+dead cable or a dead board rather than as a board that is simply switched off.
+`ls /dev | grep cu.usbmodem` empty, and `ioreg -p IOUSB -w0 -l | grep 12346`
+finding nothing, is what it looks like.
+
+**The power button is the small one, beside the USB port.** Not the larger one
+next to it, whatever the schematic calls them: pressed short, for one second,
+and held for three, the large button did nothing observable on this unit while
+USB was connected, and no reset ever reached the log from it. The small one
+powers the board up and down on the timings above. Written down because it is
+the reverse of what the product page implies and it costs an evening to
+rediscover.
 
 **`boot:0x2 (DOWNLOAD(USB/UART0))` in the log means `GPIO0` was low at reset**,
-which almost always means `BOOT` is still being held. It will sit at `waiting for
-download` forever and never reach the sketch. Let go of the button.
+which means the boot strap was held down as the board came up. It will sit at
+`waiting for download` forever and never reach the sketch. Let go of the button
+and power it on again.
 
 **The flash header must say 16MB and the PSRAM must say octal.** There is no
 PlatformIO board definition for this module, so it is the generic S3 devkit
@@ -93,5 +102,8 @@ esptool has nothing to reflash through and it reads as a dead board. It is not.
 `ioreg -w0 -r -n "USB JTAG/serial debug unit" -l` shows the device present with
 no `IOUSBHostInterface` under it, which is the tell.
 
-A power cycle fixes it, and on this board that is the `PWR` button rather than
-the cable.
+A power cycle fixes it, and on this board that is the power button rather than
+the cable. Note also that **opening the serial port resets the board** - the log
+starts `rst:0x15 (USB_UART_CHIP_RESET)` every time something attaches to it - so
+a board that appears to come back when a button is pressed may only be the CDC
+re-enumerating.
