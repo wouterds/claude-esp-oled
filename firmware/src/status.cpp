@@ -278,10 +278,11 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       typing[typed] = '\0';
       // Centred on where the whole address will be, so it does not slide left
       // as it arrives.
-      // Grey rather than white: it should not outshout the face.
-      int16_t step = textStep();
-      int16_t left = (int16_t)(SCREEN_R - ((full - 1) * step) / 2);
-      textDraw(fb, typing, (int16_t)(left + ((typed - 1) * step) / 2), ADDRESS_Y, GREY);
+      // Placed by where the whole address will end up, so it does not slide
+      // left as it arrives. Grey rather than white: it should not outshout the
+      // face.
+      int16_t left = (int16_t)(SCREEN_R - textWidth(shown.address) / 2);
+      textDraw(fb, typing, left, ADDRESS_Y, GREY);
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }

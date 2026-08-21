@@ -9,7 +9,6 @@ namespace {
 // The stroke, and the box the glyphs are drawn in. Half a stroke either side of
 // a four-two half-height puts the digits just over nine pixels tall.
 constexpr float HALF_STROKE = 0.85f;
-constexpr int16_t STEP = 8;
 constexpr int16_t REACH_X = 5;
 constexpr int16_t REACH_Y = 6;
 
@@ -46,16 +45,20 @@ const Stroke G8[] = {{ARC, 0.0f, -2.0f, 1.9f, UP, ROUND}, {ARC, 0.0f, 2.05f, 2.0
 const Stroke G9[] = {{ARC, 0.0f, -1.7f, 2.15f, UP, ROUND}, {SEG, 2.1f, -1.5f, -0.9f, 3.9f}};
 const Stroke GDOT[] = {{SEG, 0.0f, 3.5f, 0.0f, 3.6f}};
 
+// The width each one is allowed, which is not the same for all of them: a full
+// stop is two pixels of ink and giving it a digit's room puts a hole in the
+// middle of every address.
 struct Glyph {
   const Stroke *strokes;
   uint8_t count;
+  int16_t advance;
 };
 
-#define GLYPH(g) \
-  { g, (uint8_t)(sizeof(g) / sizeof(Stroke)) }
-const Glyph DIGITS[] = {GLYPH(G0), GLYPH(G1), GLYPH(G2), GLYPH(G3), GLYPH(G4),
-                        GLYPH(G5), GLYPH(G6), GLYPH(G7), GLYPH(G8), GLYPH(G9)};
-const Glyph DOT = GLYPH(GDOT);
+#define GLYPH(g, w) \
+  { g, (uint8_t)(sizeof(g) / sizeof(Stroke)), w }
+const Glyph DIGITS[] = {GLYPH(G0, 7), GLYPH(G1, 7), GLYPH(G2, 7), GLYPH(G3, 7), GLYPH(G4, 7),
+                        GLYPH(G5, 7), GLYPH(G6, 7), GLYPH(G7, 7), GLYPH(G8, 7), GLYPH(G9, 7)};
+const Glyph DOT = GLYPH(GDOT, 4);
 #undef GLYPH
 
 inline float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
@@ -127,23 +130,26 @@ float distance(const Glyph *g, float px, float py) {
 
 }  // namespace
 
-int16_t textStep() { return STEP; }
-
-void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t centreY, uint16_t colour) {
-  int16_t count = 0;
+int16_t textWidth(const char *s) {
+  int16_t total = 0;
   for (const char *p = s; *p; p++) {
-    count++;
+    const Glyph *g = glyph(*p);
+    if (g) {
+      total = (int16_t)(total + g->advance);
+    }
   }
-  if (count == 0) {
-    return;
-  }
+  return total;
+}
 
-  int16_t at = (int16_t)(centreX - ((count - 1) * STEP) / 2);
-  for (int16_t i = 0; i < count; i++, at += STEP) {
-    const Glyph *g = glyph(s[i]);
+void textDraw(uint16_t *fb, const char *s, int16_t leftX, int16_t centreY, uint16_t colour) {
+  for (const char *p = s; *p; p++) {
+    const Glyph *g = glyph(*p);
     if (!g) {
       continue;
     }
+    int16_t at = (int16_t)(leftX + g->advance / 2);
+    leftX = (int16_t)(leftX + g->advance);
+
     for (int16_t y = centreY - REACH_Y; y <= centreY + REACH_Y; y++) {
       if (y < 0 || y >= SCREEN_H) {
         continue;

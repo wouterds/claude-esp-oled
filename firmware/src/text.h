@@ -7,7 +7,8 @@
 // distance, so the curves are curves and the edges are soft. A five by seven
 // blown up to twice size is legible and looks like a cheap clock; this is nine
 // pixels tall and looks drawn.
-void textDraw(uint16_t *fb, const char *s, int16_t centreX, int16_t centreY, uint16_t colour);
+// Drawn from its left edge, because the glyphs are not all the same width.
+void textDraw(uint16_t *fb, const char *s, int16_t leftX, int16_t centreY, uint16_t colour);
 
-// How far apart their centres sit.
-int16_t textStep();
+// What it will come to, for placing that left edge.
+int16_t textWidth(const char *s);
