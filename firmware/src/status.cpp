@@ -15,15 +15,16 @@ namespace {
 // draws, and that box starts at y=50 when it has drifted as high as it goes -
 // anything below this line gets wiped by it and, since status only redraws when
 // what it says changes, never comes back.
-constexpr int16_t BAR_TOP = 26;
-constexpr int16_t BAR_BOTTOM = 44;
-constexpr int16_t MIDDLE = 34;
+//
+// The band is the taller of the two icons plus a pixel, because a row of glyph
+// left outside it is a row that never gets cleared.
+constexpr int16_t MIDDLE = 29;
+constexpr int16_t BAR_TOP = MIDDLE - 10;
+constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 
-// The glass is a circle. At y=26 there are only 93 pixels either side of the
-// centre line, so everything here has to live between 87 and 273.
-// The pair centred on the panel, wifi then battery. At this height the glass
-// gives about 93 pixels either side of the middle, and the two of them together
-// come to sixty-odd.
+// The pair centred on the panel, wifi then battery. The glass is a circle: at
+// this height it gives about 80 pixels either side of the middle, and the two
+// of them together come to sixty-odd.
 constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
