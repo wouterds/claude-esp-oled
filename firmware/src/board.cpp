@@ -23,13 +23,13 @@ static constexpr int LCD_D3 = 41;
 static constexpr int LCD_RST = 3;
 static constexpr int LCD_BL = 5;
 
-// The backlight, driven as the vendor drives it, but dimmer. This is an IPS
-// panel: black is the crystal blocking the backlight rather than a pixel that
-// is off, and it never blocks all of it. The face is mostly black, so the
-// backlight is the only real control over how black that black looks.
+// The backlight, driven as the vendor drives it. This is an IPS panel: black is
+// the crystal blocking the backlight rather than a pixel that is off, and it
+// never blocks all of it - so this duty is the only control over how black the
+// black behind the scene looks, and it dims the scene with it.
 static constexpr int BL_FREQUENCY = 20000;
 static constexpr int BL_RESOLUTION = 10;
-static constexpr int BL_DUTY = 600;
+static constexpr int BL_DUTY = 1023;
 
 // The panel is fed a band at a time out of a buffer the DMA can actually read.
 // The framebuffer itself is 253KB and lives in PSRAM, which leaves it out of
@@ -169,10 +169,8 @@ bool boardBegin() {
   // Only now. The panel powers up holding whatever was last in its RAM, and
   // lighting it before the first black frame lands shows that to the room.
   //
-  // PWM at half duty rather than a pin held high, which is how the board's own
-  // driver runs it. Full brightness is where an IPS panel leaks most, and this
-  // face is mostly black - at 100% the leak and the panel's row structure come
-  // through the black as grey banding, which reads as a broken framebuffer.
+  // PWM rather than a pin held high, which is how the board's own driver runs
+  // it, and what makes the duty above adjustable at all.
   if (ledcAttach(LCD_BL, BL_FREQUENCY, BL_RESOLUTION)) {
     ledcWrite(LCD_BL, BL_DUTY);
     Serial.printf("backlight: pwm at %d/1023\n", BL_DUTY);
@@ -185,8 +183,6 @@ bool boardBegin() {
   }
   return true;
 }
-
-void boardBacklight(uint16_t duty) { ledcWrite(LCD_BL, duty); }
 
 void boardDisplay(bool on) {
   // Backlight last on the way up and first on the way down, for the same reason
