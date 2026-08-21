@@ -157,9 +157,10 @@ void drawWifi(uint16_t *fb, bool online) {
   for (int16_t y = MIDDLE - 9; y <= MIDDLE + 9; y++) {
     for (int16_t x = WIFI_X - 12; x <= WIFI_X + 12; x++) {
       // Measured from the bottom of the glyph, which is where the arcs and the
-      // dot are all centred.
+      // dot are all centred - a pixel above the middle line, so the icon sits
+      // level with the battery rather than hanging under it.
       float px = (float)x + 0.5f - WIFI_X;
-      float py = (float)y + 0.5f - (MIDDLE + 6.0f);
+      float py = (float)y + 0.5f - (MIDDLE + 5.0f);
 
       float d = sdArc(px, py, sinA, cosA, 11.0f, 1.6f);
       // Closer in than it looks like it should be. The gap that reads as right
