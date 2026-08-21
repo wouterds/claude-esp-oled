@@ -82,7 +82,7 @@ pointing at the core version as the cause. `platformio.ini` pins the
 360x360 of framebuffer, but the glass is a circle. The corners are not clipped,
 they are simply not there - anything drawn outside the inscribed circle is
 rendered, paid for and never seen. Scenes keep themselves inside it, which is
-what the roam radius in `buddy.cpp` is.
+what the balls bounce off.
 
 ## When the port disappears
 

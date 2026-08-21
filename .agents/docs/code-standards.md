@@ -43,21 +43,20 @@ after the first flush and not before).
 ## Testing
 
 There is no test runner. Nothing here can be proven without the panel, and the
-panel cannot be read back - so the self-test is the harness.
-
-`npm run firmware:flash:test` builds the `selftest` env, which draws shapes with
-no renderer behind them. That is what separates a fault in the panel from a
-fault in what is being drawn, and on this board it has been each of them in
-turn. When something looks wrong, reach for it before theorising:
+panel cannot be read back - so the way to find a fault is to draw something
+simpler than what is broken and see which half stops being wrong:
 
 - a solid fill that is not solid is the panel or its init
-- a solid fill that is clean, with the face still wrong, is the renderer
+- a solid fill that is clean, with the scene still wrong, is what draws it
 - colours in the wrong order is the byte swap
 - a picture that will not hold still is the flush racing its own DMA
 
-Arithmetic that can be checked without hardware - a distance function, a blend -
-is worth compiling on the host and printing, which costs a minute and has caught
-more than reasoning about it did.
+Draw it once and stop rather than in the loop. Half of what looked like a panel
+fault here turned out to be the next frame arriving.
+
+Arithmetic that can be checked without hardware - a distance, a blend - is worth
+compiling on the host and printing, which costs a minute and has caught more
+than reasoning about it did.
 
 ## Change Discipline
 

@@ -1,15 +1,14 @@
 # AGENTS.md
 
-A desk pet. A face that lives on a 360x360 round display on an ESP32-S3, and
-does nothing else - it is not told anything, it does not ask, and it has no
-menus. The whole of it is on the board.
+A 360x360 round LCD on an ESP32-S3, driven directly. It is not told anything and
+it does not ask - what it draws is on the board, and right now that is nine
+half-opacity balls bouncing off the inside of the glass over a grid.
 
 | | |
 | --- | --- |
 | `firmware/src/board.*` | the panel: QSPI bring-up, the framebuffer, the flush |
-| `firmware/src/face.*` | what a face is, as signed distances |
-| `firmware/src/buddy.*` | what it does: wander, dart, hop, look, giggle |
-| `firmware/src/main.cpp` | setup, frame pacing, and the self-test |
+| `firmware/src/scene.*` | what is drawn: the balls, the bounce, the grid |
+| `firmware/src/main.cpp` | setup, the button, and frame pacing |
 | `firmware/src/esp_lcd_st77916.*` | Waveshare's panel driver, vendored |
 | `firmware/src/st77916_waveshare.h` | their init tables, verbatim |
 
@@ -27,7 +26,6 @@ wrap two commands.
 | --- | --- |
 | `npm run firmware:build` | compile |
 | `npm run firmware:flash` | compile, flash, reset, and print the boot log |
-| `npm run firmware:flash:test` | the same, for the self-test |
 | `npm run firmware:monitor` | watch the serial log |
 
 ## Rules
@@ -50,27 +48,17 @@ wrap two commands.
 
 Invisible in the code until they are broken.
 
-- **The whole pet is on the board.** A 360x360 frame at 16 bits is 253KB and no
-  serial link streams that thirty times a second, so the scene, the timing and
-  the mood are all on the S3 and iterating on behaviour costs a reflash rather
-  than a restart. The resolution forced that rather than a preference
-- **A shape is a distance, not a span of pixels.** Every part of the face is a
-  signed distance field, so coverage falls out of the distance and the edges are
-  smooth without a second pass - and an eye becomes a squint, or a smile a
-  surprised o, by moving a number rather than branching to another shape. It is
-  also what makes it affordable: one probe at the centre of a tile bounds the
-  whole tile, which clears most of the panel without touching it
-- **Scenes are pure functions of time and state.** No scene carries anything
-  between frames, which is what lets the same `FaceParams` always draw the same
-  pixels and a face be something you can hold still and look at
+- **Everything is on the board.** A 360x360 frame at 16 bits is 253KB and no
+  serial link streams that thirty times a second, so the scene and its timing
+  live on the S3 and changing either costs a reflash rather than a restart
 - **The panel is round.** 360x360 of framebuffer, but the corners are not
   clipped - they are not there. Anything drawn outside the inscribed circle is
-  rendered, paid for and never seen, which is what the roam radius is for
+  rendered, paid for and never seen, which is why the balls reflect about the
+  radius rather than off a wall
 - **Black is never black.** It is an IPS LCD: black is the crystal blocking a
   backlight that is always on, and it never blocks all of it. A pixel cannot be
   off. The backlight duty is the only control over how black black looks, and it
-  dims the face with it - which is the whole trade on a face drawn in white on
-  black
+  dims everything else with it
 - **The flush waits on its own DMA.** `esp_lcd_panel_draw_bitmap` queues a
   transfer and returns, so refilling the band buffer walks over a transfer in
   flight and the panel shows bands from two frames at once. That reads as a
@@ -78,6 +66,9 @@ Invisible in the code until they are broken.
 - **The framebuffer is in PSRAM and the SPI DMA cannot reach it.** Every band is
   copied down into internal RAM on its way out, and that copy is also where the
   bytes get swapped, which this panel wants
+- **PWR is not wired to the chip.** It switches the power path, supports no
+  custom function, and cannot be read or stood in for. `BOOT` is the only button
+  firmware has, and it blanks the display
 - **The Type-C does not power the board on** and **BOOT held low traps it in the
   bootloader**. Both present as a dead board and neither says so; see the
   hardware guide before suspecting anything in here
