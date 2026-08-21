@@ -1,0 +1,171 @@
+#include "usage.h"
+
+#include <Arduino.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+
+#include "portal.h"
+#include "wifi.h"
+
+namespace {
+
+constexpr char HOST[] = "https://claude.ai";
+constexpr uint32_t EVERY_MS = 60000;
+constexpr uint32_t RETRY_MS = 15000;
+// While there is nothing to ask with or nothing to ask over. Short, because
+// this is the gap between the radio joining and the bars filling, and a retry
+// timer spent waiting on the handshake is fifteen seconds of empty track.
+constexpr uint32_t WAITING_MS = 400;
+
+char org[40] = {0};
+volatile bool ready = false;
+volatile uint8_t session = 0;
+volatile uint8_t weekly = 0;
+volatile bool wake = false;
+volatile uint8_t still = 0;
+
+// The web app's own headers, near enough. The endpoint is not documented and
+// answers a browser, so it is asked the way a browser asks.
+void dress(HTTPClient &http, const char *token) {
+  String cookie = "sessionKey=";
+  cookie += token;
+  http.addHeader("Cookie", cookie);
+  http.addHeader("Accept", "*/*");
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("anthropic-client-platform", "web_claude_ai");
+  http.addHeader("Referer", "https://claude.ai/new");
+  http.setUserAgent(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+      "Version/17.0 Safari/605.1.15");
+}
+
+bool get(const String &url, const char *token, String &out) {
+  WiFiClientSecure tls;
+  // No certificate store on the device, and the only thing being carried is a
+  // token going back to the host that issued it.
+  tls.setInsecure();
+
+  HTTPClient http;
+  http.setTimeout(12000);
+  if (!http.begin(tls, url)) {
+    Serial.println("usage: begin failed");
+    return false;
+  }
+  dress(http, token);
+  int code = http.GET();
+  if (code != 200) {
+    Serial.printf("usage: %d from %s\n", code, url.c_str());
+    http.end();
+    return false;
+  }
+  out = http.getString();
+  http.end();
+  return true;
+}
+
+// Which organisation the account is in, which the address of everything else
+// hangs off. Asked for rather than written down: it is not the same for
+// everybody and it does not belong in a public repository.
+bool findOrg(const char *token) {
+  if (org[0]) {
+    return true;
+  }
+  String body;
+  if (!get(String(HOST) + "/api/organizations", token, body)) {
+    return false;
+  }
+  int at = body.indexOf("\"uuid\"");
+  if (at < 0) {
+    Serial.println("usage: no organisation in the list");
+    return false;
+  }
+  int open = body.indexOf('"', body.indexOf(':', at) + 1);
+  int close = body.indexOf('"', open + 1);
+  if (open < 0 || close < 0 || close - open > (int)sizeof(org)) {
+    return false;
+  }
+  body.substring(open + 1, close).toCharArray(org, sizeof(org));
+  Serial.printf("usage: organisation %s\n", org);
+  return true;
+}
+
+// Every window in the document is an object with a utilization in it, so the
+// one wanted is found by name and read from there. No parser: the whole reply
+// is under two kilobytes and only two numbers of it matter.
+bool window(const String &body, const char *name, uint8_t &out) {
+  int at = body.indexOf(String("\"") + name + "\":");
+  if (at < 0) {
+    return false;
+  }
+  int found = body.indexOf("\"utilization\":", at);
+  if (found < 0) {
+    return false;
+  }
+  // Past the key and its colon, which is fourteen characters and not fifteen -
+  // one over and the leading digit of every number is thrown away.
+  int start = found + 14;
+  int end = body.indexOf(',', start);
+  if (end < 0) {
+    return false;
+  }
+  float value = body.substring(start, end).toFloat();
+  out = (uint8_t)(value < 0.0f ? 0.0f : (value > 100.0f ? 100.0f : value + 0.5f));
+  return true;
+}
+
+void poll(const char *token) {
+  if (!findOrg(token)) {
+    return;
+  }
+  String body;
+  if (!get(String(HOST) + "/api/organizations/" + org + "/usage", token, body)) {
+    return;
+  }
+  uint8_t hours = 0;
+  uint8_t week = 0;
+  if (!window(body, "five_hour", hours) || !window(body, "seven_day", week)) {
+    Serial.printf("usage: cannot read %u bytes of that\n", body.length());
+    return;
+  }
+  if (!ready || hours != session || week != weekly) {
+    Serial.printf("usage: five hour %u%%, seven day %u%%\n", hours, week);
+    still = 0;
+  } else if (still < 255) {
+    still++;
+  }
+  session = hours;
+  weekly = week;
+  ready = true;
+}
+
+void task(void *) {
+  for (;;) {
+    uint32_t wait = WAITING_MS;
+    const char *token = portalToken();
+    if (wifiConnected() && token) {
+      poll(token);
+      wait = ready ? EVERY_MS : RETRY_MS;
+    }
+    for (uint32_t slept = 0; slept < wait; slept += 250) {
+      vTaskDelay(pdMS_TO_TICKS(250));
+      if (wake) {
+        wake = false;
+        break;
+      }
+    }
+  }
+}
+
+}  // namespace
+
+void usageBegin() { xTaskCreatePinnedToCore(task, "usage", 12288, nullptr, 1, nullptr, 0); }
+
+void usageWake() { wake = true; }
+
+bool usageReady() { return ready; }
+
+uint8_t usageStill() { return still; }
+
+uint8_t usageSession() { return session; }
+
+uint8_t usageWeekly() { return weekly; }

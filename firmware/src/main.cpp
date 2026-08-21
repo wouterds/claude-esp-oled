@@ -8,6 +8,8 @@
 #include "wifi.h"
 #include "face.h"
 #include "gauge.h"
+#include "portal.h"
+#include "usage.h"
 
 static constexpr uint32_t FRAME_MS = 16;
 
@@ -47,12 +49,14 @@ void setup() {
   batteryBegin();
   touchBegin();
   wifiBegin();
+  portalBegin();
+  usageBegin();
   faceBegin();
   gaugeBegin();
-  // Once, whole. Every frame after this only flushes the rows the face moved
-  // through, which is not where most of the bars are.
-  gaugeDraw(boardFramebuffer());
-  boardFlush();
+  // Empty, and on the glass straight away. They have nothing to say until the
+  // first read comes back, but an empty track says that better than nothing at
+  // all does.
+  gaugeReveal();
   lastFrame = millis();
 }
 
@@ -67,8 +71,16 @@ void loop() {
   uint32_t t0 = micros();
   int16_t from = 0;
   int16_t to = SCREEN_H - 1;
+  // Two taps close together and the numbers come up; two more and they go. A
+  // single tap is what a sleeve does, so it is not asked to mean anything.
+  static uint32_t firstTap = 0;
   if (touchTapped()) {
-    faceProd();
+    if (firstTap != 0 && now - firstTap < 400) {
+      gaugeFigures();
+      firstTap = 0;
+    } else {
+      firstTap = now;
+    }
   }
   gaugeStep(boardFramebuffer(), now);
   faceStep(dt);

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "board.h"
+#include "usage.h"
 
 // Every shape here is a signed distance rather than a span of pixels, so a
 // pixel's coverage falls out of the distance and the curves come out smooth
@@ -21,11 +22,10 @@ constexpr float GLOW_GAIN = 0.5f;
 // How far from its home the face may drift.
 constexpr float ROAM = 26.0f;
 constexpr float EYE_GAP = 46.0f;
-// A tenth of the panel below where it used to sit, which leaves the top of the
-// glass to the icons. The drift is small because the panel is round: with the
+// Below the middle, which leaves the top of the glass to the icons. The drift is small because the panel is round: with the
 // mouth below the eyes the face reaches 129 pixels from its own centre, and 180
 // is where the glass stops.
-constexpr float HOME_Y = 192.0f;
+constexpr float HOME_Y = 174.0f;
 constexpr float EYE_RISE = 28.0f;
 constexpr float MOUTH_DROP = 52.0f;
 
@@ -42,9 +42,17 @@ struct Trig {
 Trig trig;
 
 // What a tap steps through, neutral included so there is a way back to it.
-constexpr Mood CYCLE[] = {Mood::Neutral, Mood::Happy,  Mood::Surprised,
-                          Mood::Angry,   Mood::Tired,  Mood::Dead};
-constexpr uint8_t CYCLE_COUNT = sizeof(CYCLE) / sizeof(CYCLE[0]);
+// Where the expressions come from. The face does not have moods of its own any
+// more - it reads the two gauges, and these are the marks on them.
+constexpr uint8_t DEAD_AT = 95;
+constexpr uint8_t CROSS_AT = 80;
+constexpr uint8_t EASY_UNDER = 40;
+constexpr uint8_t STILL_POLLS = 5;
+constexpr float PLEASED_S = 4.0f;
+constexpr float BETWEEN_S = 6.0f;
+// A window rolling over does not creep back down, it falls.
+constexpr uint8_t A_RESET = 10;
+constexpr float RELIEF_S = 12.0f;
 
 struct State {
   float x, y;          // where the eyes are
@@ -52,10 +60,13 @@ struct State {
   float vx, vy;
   float clock;         // seconds since boot, for the float and the jitter
   float held;          // seconds the current mood has been worn
+  uint8_t seen[2];     // what the gauges last said
+  bool read;           // and whether they have ever said anything
+  float relief;        // seconds of good cheer owed by a window rolling over
+  float pleased;       // where it is in the pleased-then-neutral round
   float blend;         // 0 while settled, counts up through a change
   Mood mood;
   Mood was;
-  uint8_t next;        // which expression comes round next
   float paintedX, paintedY;  // where the eyes were last drawn, so only that
                              // much of the panel has to be put back to black
   float lookX, lookY;      // where it is looking, eased
@@ -270,10 +281,13 @@ void faceBegin() {
   me.vx = me.vy = 0.0f;
   me.clock = 0.0f;
   me.held = 0.0f;
+  me.seen[0] = me.seen[1] = 0;
+  me.read = false;
+  me.relief = 0.0f;
+  me.pleased = 0.0f;
   me.blend = 1.0f;
   me.mood = Mood::Neutral;
   me.was = Mood::Neutral;
-  me.next = 1;  // neutral is where it starts, so a tap moves it on
   me.lookX = me.lookY = me.lookTX = me.lookTY = 0.0f;
   me.lookIn = 1.0f;
   me.blinkIn = 2.0f;
@@ -281,7 +295,56 @@ void faceBegin() {
   pickTarget();
 }
 
+// What the numbers add up to. Worst of the two decides it, because a face that
+// reports the better half of bad news is not worth reading.
+void settle(float dt) {
+  if (!usageReady()) {
+    return;
+  }
+  uint8_t a = usageSession();
+  uint8_t b = usageWeekly();
+  if (me.read && (a + A_RESET <= me.seen[0] || b + A_RESET <= me.seen[1])) {
+    me.relief = RELIEF_S;
+  }
+  me.seen[0] = a;
+  me.seen[1] = b;
+  me.read = true;
+  if (me.relief > 0.0f) {
+    me.relief -= dt;
+  }
+
+  uint8_t worst = a > b ? a : b;
+  Mood want;
+  if (worst >= DEAD_AT) {
+    want = Mood::Dead;
+  } else if (worst >= CROSS_AT) {
+    want = Mood::Angry;
+  } else if (usageStill() >= STILL_POLLS) {
+    want = Mood::Tired;
+  } else if (me.relief > 0.0f) {
+    want = Mood::Happy;
+  } else if (a < EASY_UNDER && b < EASY_UNDER) {
+    // Pleased in bursts rather than grinning without pause, which stops being
+    // an expression and becomes a face.
+    me.pleased += dt;
+    while (me.pleased > PLEASED_S + BETWEEN_S) {
+      me.pleased -= PLEASED_S + BETWEEN_S;
+    }
+    want = me.pleased < PLEASED_S ? Mood::Happy : Mood::Neutral;
+  } else {
+    want = Mood::Neutral;
+  }
+
+  if (want != me.mood) {
+    me.was = me.mood;
+    me.blend = 0.0f;
+    me.held = 0.0f;
+    me.mood = want;
+  }
+}
+
 void faceStep(float dt) {
+  settle(dt);
   me.clock += dt;
   me.blend = clamp01(me.blend + dt / BLEND_SECONDS);
 
@@ -358,13 +421,7 @@ void faceStep(float dt) {
   }
 }
 
-void faceProd() {
-  me.was = me.mood;
-  me.blend = 0.0f;
-  me.held = 0.0f;
-  me.mood = CYCLE[me.next];
-  me.next = (uint8_t)((me.next + 1) % CYCLE_COUNT);
-}
+
 
 void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // The float: a slow rise and fall that never quite repeats, plus a shiver

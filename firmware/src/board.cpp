@@ -162,6 +162,14 @@ bool boardBegin() {
   if (rc != ESP_OK) {
     return false;
   }
+  // A quarter turn, done by the panel rather than by the drawing. MADCTL's MV
+  // bit swaps the controller's own axes, so the address window a flush asks for
+  // is transposed with everything else and a band of rows lands as a band of
+  // columns - which is the only reason a partial flush survives this. The panel
+  // is square, so nothing has to be reshaped to fit.
+  esp_lcd_panel_swap_xy(panel, true);
+  esp_lcd_panel_mirror(panel, false, true);
+
   rc = esp_lcd_panel_disp_on_off(panel, true);
   Serial.printf("panel on: %s\n", esp_err_to_name(rc));
 

@@ -7,6 +7,7 @@
 #include "battery.h"
 #include "board.h"
 #include "text.h"
+#include "usage.h"
 #include "wifi.h"
 
 namespace {
@@ -18,7 +19,7 @@ namespace {
 //
 // The band is the taller of the two icons plus a pixel, because a row of glyph
 // left outside it is a row that never gets cleared.
-constexpr int16_t MIDDLE = 20;
+constexpr int16_t MIDDLE = 17;
 constexpr int16_t BAR_TOP = MIDDLE - 10;
 constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 
@@ -38,7 +39,8 @@ constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x630C;
-constexpr uint16_t GREEN = 0x07E0;
+// The same teal the gauges start at, so one green means one thing here.
+constexpr uint16_t GREEN = 0x07F6;
 constexpr uint16_t YELLOW = 0xFFE0;
 constexpr uint16_t ORANGE = 0xFC00;
 constexpr uint16_t RED = 0xF800;
@@ -46,6 +48,9 @@ constexpr uint16_t RED = 0xF800;
 // to block a backlight that is always on, so anything under about a third
 // sinks into it and the ring may as well not have been drawn.
 constexpr uint16_t DIM = 0x738E;
+// What a ring lights up to while it is still looking. Grey rather than white,
+// because white is what being on a network looks like.
+constexpr uint16_t SEEKING = 0xA534;
 
 constexpr uint8_t YELLOW_AT = 30;
 constexpr uint8_t ORANGE_AT = 20;
@@ -160,7 +165,7 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
 // Offline it is the same glyph in a dark grey rather than a struck-through one.
 // It is next to a battery that says how it is doing by colour, so a colour is
 // already the language of that corner.
-void drawWifi(uint16_t *fb, uint8_t bars) {
+void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
   // How far round each arc carries. Wider than it needs to be to read as an
   // arc, because at a narrow sweep the three of them stack into a column of
   // dashes rather than into something radiating.
@@ -170,9 +175,10 @@ void drawWifi(uint16_t *fb, uint8_t bars) {
   // Two arcs and a dot is three bars of signal. The ones the signal does not
   // reach are drawn dim rather than left out, so it is the fill that says how
   // much and the glyph keeps the same shape however weak it gets.
-  uint16_t outer = bars >= 3 ? WHITE : DIM;
-  uint16_t middle = bars >= 2 ? WHITE : DIM;
-  uint16_t centre = bars >= 1 ? WHITE : DIM;
+  uint16_t lit = online ? WHITE : SEEKING;
+  uint16_t outer = bars >= 3 ? lit : DIM;
+  uint16_t middle = bars >= 2 ? lit : DIM;
+  uint16_t centre = bars >= 1 ? lit : DIM;
 
   for (int16_t y = MIDDLE - 9; y <= MIDDLE + 9; y++) {
     for (int16_t x = WIFI_X - 12; x <= WIFI_X + 12; x++) {
@@ -231,8 +237,10 @@ uint8_t wifiBars(bool online) {
 
 void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   BatteryState battery = batteryRead();
-  const char *address = wifiAddress();
-  uint8_t bars = wifiBars(address != nullptr);
+  // Only worth the room while somebody still has to type the token into it.
+  const char *address = usageReady() ? nullptr : wifiAddress();
+  bool online = wifiConnected();
+  uint8_t bars = wifiBars(online);
   bool blink = battery.percent <= RED_AT && !battery.charging
                    ? ((millis() / 450) & 1) != 0
                    : false;
@@ -244,7 +252,11 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   topChanged |= overlaps(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP), faceFrom, faceTo);
 
   const char *want = address ? address : "";
-  if (strncmp(want, shown.address, sizeof(shown.address)) != 0) {
+  // An address going away is a change like any other, and the only one where
+  // nothing new is typed - so it has to say so itself, or the old one is left
+  // sitting there with no clock running to wipe it.
+  bool rewrite = strncmp(want, shown.address, sizeof(shown.address)) != 0;
+  if (rewrite) {
     strncpy(shown.address, want, sizeof(shown.address) - 1);
     shown.address[sizeof(shown.address) - 1] = '\0';
     typed = 0;
@@ -257,7 +269,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // of nowhere every eleven seconds.
   uint32_t steps = (millis() - typedAt) / 45;
   uint8_t reveal = steps >= full ? full : (uint8_t)steps;
-  bool bottomChanged = reveal != typed;
+  bool bottomChanged = reveal != typed || rewrite;
   bottomChanged |= overlaps(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM), faceFrom, faceTo);
 
   if (!topChanged && !bottomChanged) {
@@ -271,7 +283,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       // The bar inside it already says how much, so the number said it twice.
       drawBattery(fb, battery.percent, batteryColour(battery, blink));
     }
-    drawWifi(fb, bars);
+    drawWifi(fb, bars, online);
     boardFlushRows(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP));
     shown.percent = battery.percent;
     shown.charging = battery.charging;
@@ -293,7 +305,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       int16_t step = textStep(SCALE);
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, SCALE,
-               boardColour(GREY));
+               boardColour(WHITE));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }

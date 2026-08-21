@@ -54,8 +54,12 @@ void sample() {
 
   cached.millivolts = millivolts;
   cached.percent = percent > 100 ? 100 : (uint8_t)percent;
-  // Current is signed, and out of the pack is negative.
-  cached.charging = (int16_t)current > DISCHARGING_MA;
+  // Current is signed, and out of the pack is negative. A flat zero is the
+  // gauge not having measured yet rather than a pack sitting perfectly still,
+  // and reading that as not-discharging turns the icon green at every boot.
+  if (current != 0) {
+    cached.charging = (int16_t)current > DISCHARGING_MA;
+  }
   // A gauge with nothing on its terminals still answers; it just reads flat.
   cached.present = millivolts >= 2500;
 }

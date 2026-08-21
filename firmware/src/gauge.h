@@ -8,6 +8,13 @@
 // to wipe them, and its own flush is the only cheap chance to repair them.
 void gaugeBegin();
 
+// Brings them onto the glass. They stay off it until the intro is done, then
+// fade up empty before anything sends them anywhere.
+void gaugeReveal();
+
+// Shows or hides the two numbers, which are off until somebody asks.
+void gaugeFigures();
+
 // Rolls one of them onto a new value when its turn comes round, and puts that
 // bar on the panel itself.
 void gaugeStep(uint16_t *fb, uint32_t now);
