@@ -18,7 +18,7 @@ namespace {
 //
 // The band is the taller of the two icons plus a pixel, because a row of glyph
 // left outside it is a row that never gets cleared.
-constexpr int16_t MIDDLE = 29;
+constexpr int16_t MIDDLE = 24;
 constexpr int16_t BAR_TOP = MIDDLE - 10;
 constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 
