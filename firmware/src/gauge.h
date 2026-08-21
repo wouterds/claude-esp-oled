@@ -15,6 +15,10 @@ void gaugeReveal();
 // Shows or hides the two numbers, which are off until somebody asks.
 void gaugeFigures();
 
+// Whether they are up, for whoever else has something to say only while the
+// question they answer is being asked.
+bool gaugeFiguresShown();
+
 // Rolls one of them onto a new value when its turn comes round, and puts that
 // bar on the panel itself.
 void gaugeStep(uint16_t *fb, uint32_t now);

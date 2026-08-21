@@ -373,6 +373,8 @@ void gaugeFigures() {
   figuresMoved = true;
 }
 
+bool gaugeFiguresShown() { return figures; }
+
 void gaugeDraw(uint16_t *fb) {
   for (uint8_t side = 0; side < 2; side++) {
     const Pixel *p = pixels + side * SIDE_PIXELS;

@@ -6,6 +6,7 @@
 
 #include "battery.h"
 #include "board.h"
+#include "gauge.h"
 #include "text.h"
 #include "usage.h"
 #include "wifi.h"
@@ -52,6 +53,10 @@ constexpr uint16_t DIM = 0x738E;
 // because white is what being on a network looks like.
 constexpr uint16_t SEEKING = 0xA534;
 
+// Where a window has nothing left to give. The endpoint rounds to whole
+// percent, so this is the whole of what being out looks like from here.
+constexpr uint8_t SPENT = 100;
+
 constexpr uint8_t YELLOW_AT = 30;
 constexpr uint8_t ORANGE_AT = 20;
 constexpr uint8_t RED_AT = 10;
@@ -66,6 +71,17 @@ struct Shown {
 };
 
 Shown shown = {255, 255, false, false, false, {0}};
+
+// HH:MM:SS.MS. The hours run as wide as they have to rather than rolling into
+// days: a week out is a hundred and sixty-odd of them, and one field growing a
+// glyph reads better than three fields that mean different things depending on
+// how far away the reset is.
+void clockOf(char *out, size_t size, uint32_t ms) {
+  uint32_t hundredths = ms / 10;
+  snprintf(out, size, "%02u:%02u:%02u.%02u", (unsigned)(hundredths / 360000),
+           (unsigned)((hundredths / 6000) % 60), (unsigned)((hundredths / 100) % 60),
+           (unsigned)(hundredths % 100));
+}
 
 // The address arrives a letter at a time, the way the mood used to.
 char typing[16] = {0};
@@ -251,7 +267,21 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // Whatever the face just painted over is gone, whether it changed or not.
   topChanged |= overlaps(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP), faceFrom, faceTo);
 
-  const char *want = address ? address : "";
+  // The countdown stands where the address does, which costs nothing: the
+  // address is only up until a token is, and the figures have nothing to say
+  // before that, so the two are never both wanted. It is the session window
+  // that is counted down - the week only takes it over once the week is the
+  // one that has run out.
+  char clock[16] = {0};
+  if (gaugeFiguresShown()) {
+    uint32_t left = usageWeekly() >= SPENT ? usageWeeklyResetsIn() : usageSessionResetsIn();
+    if (left > 0) {
+      clockOf(clock, sizeof(clock), left);
+    }
+  }
+  bool ticking = clock[0] != '\0';
+
+  const char *want = ticking ? clock : (address ? address : "");
   // An address going away is a change like any other, and the only one where
   // nothing new is typed - so it has to say so itself, or the old one is left
   // sitting there with no clock running to wipe it.
@@ -268,7 +298,9 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // hundred and fifty-six steps, which is a whole address retyping itself out
   // of nowhere every eleven seconds.
   uint32_t steps = (millis() - typedAt) / 45;
-  uint8_t reveal = steps >= full ? full : (uint8_t)steps;
+  // A clock is not typed out. It rewrites itself every frame, and a reveal that
+  // starts over with it would never get past its first glyph.
+  uint8_t reveal = ticking || steps >= full ? full : (uint8_t)steps;
   bool bottomChanged = reveal != typed || rewrite;
   bottomChanged |= overlaps(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM), faceFrom, faceTo);
 
