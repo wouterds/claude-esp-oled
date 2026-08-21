@@ -28,7 +28,7 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 constexpr int16_t WIFI_X = 160;
 constexpr int16_t BATTERY_X = 199;
 
-constexpr int16_t ADDRESS_Y = 320;
+constexpr int16_t ADDRESS_Y = 310;
 // What the longest address could take: fifteen glyphs at twice size. The glass
 // narrows fast down here and this is what has to fit inside it.
 constexpr int16_t ADDRESS_X0 = 88;
