@@ -70,6 +70,7 @@ void loop() {
   if (touchTapped()) {
     faceProd();
   }
+  gaugeStep(boardFramebuffer(), now);
   faceStep(dt);
   faceDraw(boardFramebuffer(), &from, &to);
   // The face clears a box wide enough to reach both bars, so they go back in

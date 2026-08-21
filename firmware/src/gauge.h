@@ -8,6 +8,10 @@
 // to wipe them, and its own flush is the only cheap chance to repair them.
 void gaugeBegin();
 
+// Rolls one of them onto a new value when its turn comes round, and puts that
+// bar on the panel itself.
+void gaugeStep(uint16_t *fb, uint32_t now);
+
 // Puts them back into the framebuffer. Cheap: a blit of the pixels gaugeBegin
 // worked out, not the shapes again.
 void gaugeDraw(uint16_t *fb);

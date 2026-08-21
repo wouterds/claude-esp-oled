@@ -25,18 +25,25 @@ constexpr int16_t BOX_Y1 = 318;
 
 constexpr uint16_t TRACK = 0x528A;
 
-// What is left when the shapes have been resolved: every pixel either bar puts
-// on the glass, with the colour it ends up. Roughly five and a half thousand of
-// them, and the cap is only there so a mistake cannot run away with PSRAM.
+// One bar changes every this often, so each of them lands on a new value every
+// five seconds and they never move together.
+constexpr uint32_t TURN_MS = 2500;
+
+// What is left when the shapes have been resolved: every pixel a bar puts on
+// the glass, with the colour it ends up. About twenty-four hundred each, and
+// the cap is only there so a mistake cannot run away with PSRAM. A side has its
+// own half of the buffer because either of them can be rebuilt on its own.
 struct Pixel {
   int16_t x;
   int16_t y;
   uint16_t colour;
 };
-constexpr uint16_t MAX_PIXELS = 12000;
+constexpr uint16_t SIDE_PIXELS = 6000;
 
 Pixel *pixels = nullptr;
-uint16_t count = 0;
+uint16_t count[2] = {0, 0};
+uint32_t nextTurn = 0;
+uint8_t turn = 0;
 
 inline float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
@@ -82,15 +89,17 @@ uint16_t shade(uint16_t colour, float coverage) {
   return boardColour((uint16_t)((r << 11) | (g << 5) | b));
 }
 
-void add(int16_t x, int16_t y, uint16_t colour) {
-  if (count < MAX_PIXELS) {
-    pixels[count++] = {x, y, colour};
+void add(uint8_t side, int16_t x, int16_t y, uint16_t colour) {
+  if (count[side] < SIDE_PIXELS) {
+    pixels[side * SIDE_PIXELS + count[side]++] = {x, y, colour};
   }
 }
 
 // The fill grows from the bottom end upward, so its own arc is the piece
 // between the bottom end and however far along it has got.
-void build(bool right, uint8_t percent) {
+void build(uint8_t side, uint8_t percent) {
+  bool right = side == 1;
+  count[side] = 0;
   uint16_t filled = colourAt(percent);
   float fraction = clamp01(percent / 100.0f);
   float bisector = SWEEP - SWEEP * fraction;
@@ -111,7 +120,7 @@ void build(bool right, uint8_t percent) {
       if (coverage <= 0.02f) {
         continue;
       }
-      add(right ? (int16_t)(SCREEN_W - 1 - x) : x, y, shade(colour, clamp01(coverage)));
+      add(side, right ? (int16_t)(SCREEN_W - 1 - x) : x, y, shade(colour, clamp01(coverage)));
     }
   }
 }
@@ -119,21 +128,35 @@ void build(bool right, uint8_t percent) {
 }  // namespace
 
 void gaugeBegin() {
-  pixels = (Pixel *)heap_caps_malloc(sizeof(Pixel) * MAX_PIXELS, MALLOC_CAP_SPIRAM);
+  pixels = (Pixel *)heap_caps_malloc(sizeof(Pixel) * SIDE_PIXELS * 2, MALLOC_CAP_SPIRAM);
   if (!pixels) {
     Serial.println("gauges: no room");
     return;
   }
-  uint8_t left = (uint8_t)(esp_random() % 101);
-  uint8_t right = (uint8_t)(esp_random() % 101);
-  build(false, left);
-  build(true, right);
-  Serial.printf("gauges: %u%% and %u%%, %u pixels\n", left, right, count);
+  build(0, (uint8_t)(esp_random() % 101));
+  build(1, (uint8_t)(esp_random() % 101));
+  nextTurn = millis() + TURN_MS;
+  Serial.printf("gauges: %u and %u pixels\n", count[0], count[1]);
+}
+
+// The rows the bars live in are nowhere near the ones the face moves through,
+// so a bar that has just changed has to put itself on the panel.
+void gaugeStep(uint16_t *fb, uint32_t now) {
+  if (!pixels || (int32_t)(now - nextTurn) < 0) {
+    return;
+  }
+  nextTurn = now + TURN_MS;
+  build(turn, (uint8_t)(esp_random() % 101));
+  turn ^= 1;
+  gaugeDraw(fb);
+  boardFlushRows((int16_t)(SCREEN_H - 1 - BOX_Y1), (int16_t)(SCREEN_H - 1 - BOX_Y0));
 }
 
 void gaugeDraw(uint16_t *fb) {
-  for (uint16_t i = 0; i < count; i++) {
-    const Pixel &p = pixels[i];
-    boardRow(fb, p.y)[boardX(p.x)] = p.colour;
+  for (uint8_t side = 0; side < 2; side++) {
+    const Pixel *p = pixels + side * SIDE_PIXELS;
+    for (uint16_t i = 0; i < count[side]; i++) {
+      boardRow(fb, p[i].y)[boardX(p[i].x)] = p[i].colour;
+    }
   }
 }
