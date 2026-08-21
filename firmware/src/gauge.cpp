@@ -54,10 +54,6 @@ constexpr float FADE_S = 0.35f;
 // Under this and it is there. Without it a bar rebuilds itself for ever over
 // hundredths of a percent nobody can see.
 constexpr float ARRIVED = 0.15f;
-// How far in the ends have to be before the bottom of the glass counts as
-// given up. Not nought: the last of the ease is a pixel or two moving slowly,
-// and waiting the whole way out reads as a delay rather than as a handover.
-constexpr float SETTLED = 0.1f;
 
 // What is left when the shapes have been resolved: every pixel a bar puts on
 // the glass, with the colour it ends up. About twenty-four hundred each, and
@@ -378,7 +374,7 @@ void gaugeFigures() {
   figuresMoved = true;
 }
 
-bool gaugeFiguresSettled() { return figures && reach < SETTLED; }
+float gaugeReach() { return reach; }
 
 void gaugeDraw(uint16_t *fb) {
   for (uint8_t side = 0; side < 2; side++) {

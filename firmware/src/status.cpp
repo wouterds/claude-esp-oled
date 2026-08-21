@@ -32,9 +32,6 @@ constexpr int16_t BATTERY_X = 199;
 
 constexpr int16_t ADDRESS_Y = 310;
 constexpr int16_t BOTTOM_SCALE = 2;
-// How long the countdown takes to come up, which is what the bars take to go
-// down - it is the same handover seen from the other end.
-constexpr uint32_t FADE_MS = 350;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
@@ -90,8 +87,6 @@ uint32_t typedAt = 0;
 // Half the width of what was last put down there, so a shorter line still takes
 // the longer one it replaces off the glass.
 int16_t wiped = 0;
-// When the countdown started, since it comes up rather than appearing.
-uint32_t tickingFrom = 0;
 
 // Framebuffer rows run the other way to screen rows.
 inline int16_t bandFrom(int16_t screenTo) { return (int16_t)(SCREEN_H - 1 - screenTo); }
@@ -280,19 +275,18 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // before that, so the two are never both wanted. It is the session window
   // that is counted down - the week only takes it over once the week is the
   // one that has run out.
+  // It comes up as the bars go in and goes out as they come back, which is the
+  // same movement read from the other end - and it is why this is not a state
+  // but a level.
   char clock[16] = {0};
-  if (gaugeFiguresSettled()) {
+  float up = 1.0f - gaugeReach();
+  if (up > 0.02f) {
     uint32_t left = usageWeekly() >= SPENT ? usageWeeklyResetsIn() : usageSessionResetsIn();
     if (left > 0) {
       clockOf(clock, sizeof(clock), left);
     }
   }
   bool ticking = clock[0] != '\0';
-  if (!ticking) {
-    tickingFrom = 0;
-  } else if (tickingFrom == 0) {
-    tickingFrom = millis();
-  }
 
   const char *want = ticking ? clock : (address ? address : "");
   // An address going away is a change like any other, and the only one where
@@ -356,14 +350,8 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       // Centred on where the whole line will be, so it does not slide left as
       // it arrives.
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
-      float up = 1.0f;
-      if (ticking) {
-        uint32_t since = millis() - tickingFrom;
-        up = since >= FADE_MS ? 1.0f : (float)since / (float)FADE_MS;
-        up = up * up * (3.0f - 2.0f * up);
-      }
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, BOTTOM_SCALE,
-               boardColour(fade(WHITE, up)));
+               boardColour(fade(WHITE, ticking ? up : 1.0f)));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }

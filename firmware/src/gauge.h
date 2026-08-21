@@ -15,10 +15,11 @@ void gaugeReveal();
 // Shows or hides the two numbers, which are off until somebody asks.
 void gaugeFigures();
 
-// Whether the numbers are up and the bars have finished pulling back in behind
-// them. Anything else that wants the bottom of the glass waits for this rather
-// than for the tap: the bars are still lying across it on the way in.
-bool gaugeFiguresSettled();
+// How much of the bottom of the glass the bars are still using: one at full
+// length, nought once they have pulled back in behind the figures. Anything
+// else that wants those rows rides this rather than the tap, so the two of them
+// are one handover rather than a swap with a delay in it.
+float gaugeReach();
 
 // Rolls one of them onto a new value when its turn comes round, and puts that
 // bar on the panel itself.
