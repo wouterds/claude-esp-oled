@@ -21,6 +21,9 @@ read.
 | LCD reset | **`GPIO3`** - straight off the S3, no expander |
 | LCD backlight | `GPIO5`, PWM capable |
 | I2C - touch, IMU, audio, gauge, clock | `SDA GPIO11`, `SCL GPIO10` |
+| Audio clocks | `MCLK GPIO2`, `BCLK GPIO48`, `LRCK GPIO38` |
+| Audio data | **playback out `GPIO47`**, microphones in `GPIO39` |
+| Amplifier enable | `GPIO9` |
 | Touch | `CST816S` at `0x15`, reset `GPIO1`, interrupt `GPIO4` |
 | USB | native, `D- GPIO19`, `D+ GPIO20` |
 | BOOT button | `GPIO0`, pulled up, low when pressed |
@@ -58,6 +61,18 @@ USB was connected, and no reset ever reached the log from it. The small one
 powers the board up and down on the timings above. Written down because it is
 the reverse of what the product page implies and it costs an evening to
 rediscover.
+
+**The audio pins are named from both ends, one line apart.** Waveshare's summary
+line gives `DOUT=GPIO47, DIN=GPIO39` from the *codec's* point of view; the pin
+table directly beneath it gives `GPIO47 I2S_DOUT - playback data output` from
+the *MCU's*. Take the summary at face value and playback is wired into the
+microphone input. Nothing errors: every codec register still acknowledges, the
+I2S peripheral still reports every byte written, and the amplifier still comes
+up - so what you get is hiss and no sound, which reads as a dead speaker.
+
+**Start I2S before configuring the codec.** The ES8311's clock manager is set up
+against an MCLK that has to already be arriving. Configured in silence it takes
+every register write, acknowledges all of them, and does nothing with them.
 
 **`boot:0x2 (DOWNLOAD(USB/UART0))` in the log means `GPIO0` was low at reset**,
 which means the boot strap was held down as the board came up. It will sit at
