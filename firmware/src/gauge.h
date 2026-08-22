@@ -15,11 +15,16 @@ void gaugeReveal();
 // Shows or hides the two numbers, which are off until somebody asks.
 void gaugeFigures();
 
-// How much of the bottom of the glass the bars are still using: one at full
-// length, nought once they have pulled back in behind the figures. Anything
-// else that wants those rows rides this rather than the tap, so the two of them
-// are one handover rather than a swap with a delay in it.
-float gaugeReach();
+// How far the numbers are onto the glass: nought with them off, one with them
+// up and the bars pulled in behind them. Anything else that wants the bottom of
+// the glass rides this rather than the tap, so the two are one handover rather
+// than a swap with a delay in it.
+//
+// Not the same as how short the bars are, though they move together: the bars
+// are also short before there is anything to show them, and something riding
+// that comes up the instant the first reading lands and fades out again as they
+// grow.
+float gaugeFiguresLevel();
 
 // Rolls one of them onto a new value when its turn comes round, and puts that
 // bar on the panel itself.

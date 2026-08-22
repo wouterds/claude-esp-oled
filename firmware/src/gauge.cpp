@@ -79,6 +79,11 @@ float alpha = 0.0f;
 // the middle of it.
 float reachT = 0.0f;
 float reach = 0.0f;
+// The numbers' own way onto the glass, kept the same way and for the same
+// reason - and kept apart from the bars' because the two only agree once there
+// is something to show.
+float figuresT = 0.0f;
+float figuresLevel = 0.0f;
 // How much of their length they are currently allowed. Only ever below one
 // while they are arriving.
 float grow = 0.0f;
@@ -324,6 +329,14 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
   }
   bool reshape = figuresMoved;
   figuresMoved = false;
+
+  float onto = figures ? 1.0f : 0.0f;
+  if (figuresT != onto) {
+    float by = dt / REACH_S;
+    figuresT = onto > figuresT ? (figuresT + by > onto ? onto : figuresT + by)
+                               : (figuresT - by < onto ? onto : figuresT - by);
+    figuresLevel = figuresT * figuresT * (3.0f - 2.0f * figuresT);
+  }
   float wanted = usageReady() && !figures ? 1.0f : 0.0f;
   if (reachT != wanted) {
     float by = dt / REACH_S;
@@ -374,7 +387,7 @@ void gaugeFigures() {
   figuresMoved = true;
 }
 
-float gaugeReach() { return reach; }
+float gaugeFiguresLevel() { return figuresLevel; }
 
 void gaugeDraw(uint16_t *fb) {
   for (uint8_t side = 0; side < 2; side++) {

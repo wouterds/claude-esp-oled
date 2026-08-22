@@ -279,7 +279,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // same movement read from the other end - and it is why this is not a state
   // but a level.
   char clock[16] = {0};
-  float up = 1.0f - gaugeReach();
+  float up = gaugeFiguresLevel();
   if (up > 0.02f) {
     uint32_t left = usageWeekly() >= SPENT ? usageWeeklyResetsIn() : usageSessionResetsIn();
     if (left > 0) {
