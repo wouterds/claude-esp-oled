@@ -85,7 +85,6 @@ void setup() {
   // first read comes back, but an empty track says that better than nothing at
   // all does.
   gaugeReveal();
-  audioHello();
   lastFrame = millis();
 }
 

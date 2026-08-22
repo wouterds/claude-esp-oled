@@ -247,9 +247,8 @@ void poll(const char *token) {
     return;
   }
 
-  // A window only ever fills, so the one time either number falls is the one
-  // time it rolled over - which is the whole of what there is to be pleased
-  // about here.
+  // A window only ever fills while it is open, so the one time either number
+  // falls is the one time it rolled over.
   if (ready && (hours < session || week < weekly)) {
     Serial.println("usage: a window rolled over");
     audioCheered();
