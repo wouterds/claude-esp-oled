@@ -16,10 +16,13 @@ constexpr uint8_t CODEC = 0x18;
 constexpr int PIN_MCLK = 2;
 constexpr int PIN_BCLK = 48;
 constexpr int PIN_LRCK = 38;
-// The codec's input, which is this end's output. The other direction is the
-// microphones and nothing here asks them anything.
-constexpr int PIN_DOUT = 39;
-constexpr int PIN_DIN = 47;
+// Playback out on 47 and the microphones in on 39, which is the way round the
+// board's own pin table has it - the summary line above that table calls them
+// DOUT and DIN from the codec's point of view instead, and taking that at face
+// value sends the sound to the microphones. That reads as an amplifier with
+// nothing arriving at it, which is to say: hiss.
+constexpr int PIN_DOUT = 47;
+constexpr int PIN_DIN = 39;
 // The amplifier is only awake while there is something to say. Left on it puts
 // a hiss on a board whose whole point is sitting quietly on a desk.
 constexpr int PIN_PA = 9;
@@ -29,9 +32,9 @@ constexpr int PIN_PA = 9;
 // per sample, which is the row every ordinary rate has in Espressif's table.
 constexpr uint32_t RATE = 16000;
 // A part of full scale, done in the samples rather than in the codec. The
-// part's own volume register is in half decibels, so a percentage mapped
-// straight onto it is a percentage of nothing anybody can hear - thirty of them
-// lands at -58dB, which is silence with a bill attached.
+// part's own volume register is in half decibels, so a percentage written
+// straight into it is a percentage of nothing anybody can hear - a third of the
+// way up that register is -58dB, which is silence with a bill attached.
 constexpr uint8_t VOLUME = 30;
 // Short of the rails even at full volume. A sine that reaches them is a sine
 // that clips into something buzzing the moment anything is added to it.
@@ -40,24 +43,39 @@ constexpr float PEAK = 26000.0f;
 // How long a note takes to come up, and how much of its tail it spends going
 // away. Neither is taste: a note that starts at full amplitude clicks, and one
 // that stops there clicks louder.
-constexpr float ATTACK_MS = 6.0f;
-constexpr float RELEASE = 0.45f;
-// Between notes, so an arpeggio is heard as notes rather than as a slide.
-constexpr uint16_t GAP_MS = 18;
+constexpr float ATTACK_MS = 4.0f;
+constexpr float RELEASE = 0.3f;
+
+// A pulse rather than a sine, because that is the sound this is meant to be,
+// and rounded off afterwards, because a square edge through a speaker this size
+// is the difference between a chiptune and a smoke alarm. The coefficient puts
+// the corner near 3kHz: above every note here and below most of what a square
+// stacks on top of one.
+constexpr float DUTY = 0.5f;
+constexpr float ROUND = 0.7f;
 
 struct Note {
   uint16_t hz;
   uint16_t ms;
+  // Silence after it. Nought where notes are meant to run together, which is
+  // how one voice pretends to be a chord.
+  uint16_t gap;
 };
 
-// A major arpeggio, ending where it started an octave up. It is four notes
-// because three is a doorbell and five is a tune.
-constexpr Note HELLO[] = {{1047, 85}, {1319, 85}, {1568, 85}, {2093, 190}};
+// Two notes to set it going, then the chord it lands on - played the way a
+// machine with one voice plays a chord, an octave at a time and fast enough to
+// be heard as one sound. It ends where it has been climbing to rather than
+// somewhere new, which is the whole of why it is satisfying and not a nag.
+constexpr Note HELLO[] = {
+    {523, 70, 10},  {784, 70, 10},  {1047, 80, 25}, {1047, 28, 0}, {1319, 28, 0},
+    {1568, 28, 0},  {2093, 28, 0},  {1047, 28, 0},  {1319, 28, 0}, {1568, 28, 0},
+    {2093, 28, 0},  {2093, 300, 0},
+};
 // Two notes and done - this one happens with a hand still on the cable.
-constexpr Note PLUGGED[] = {{1568, 70}, {2093, 130}};
+constexpr Note PLUGGED[] = {{1568, 60, 0}, {2093, 130, 0}};
 // Pleased with itself: up, a skip back, and up again to land.
-constexpr Note CHEERED[] = {{1047, 80}, {1319, 80}, {1568, 80},
-                            {1319, 80}, {1568, 80}, {2093, 240}};
+constexpr Note CHEERED[] = {{1047, 70, 10}, {1319, 70, 10}, {1568, 70, 10},
+                            {1319, 70, 10}, {1568, 70, 10}, {2093, 260, 0}};
 
 I2SClass i2s;
 bool ready = false;
@@ -102,17 +120,24 @@ bool codecBegin() {
   put(0x12, 0x00);
   put(0x13, 0x10);
   put(0x1C, 0x6A);
+  // Not muted. The two bits mean it, and nothing else here would say so.
+  put(0x31, 0x00);
   put(0x37, 0x08);
   // Nought decibels: neither cutting nor lifting what it is handed, so what
   // comes out is what was written.
   return put(0x32, 0xBF);
 }
 
+// Carried across notes rather than started fresh in each: the whole point of it
+// is that nothing in the output jumps, and a filter that restarts at nought is
+// itself a jump.
+float rounded = 0.0f;
+
 void note(const Note &n) {
   uint32_t total = (uint32_t)n.ms * RATE / 1000;
   uint32_t attack = (uint32_t)(ATTACK_MS * RATE / 1000.0f);
   uint32_t held = (uint32_t)(total * (1.0f - RELEASE));
-  float step = 2.0f * (float)M_PI * (float)n.hz / (float)RATE;
+  float step = (float)n.hz / (float)RATE;
   float phase = 0.0f;
 
   for (uint32_t done = 0; done < total;) {
@@ -130,14 +155,19 @@ void note(const Note &n) {
         // Squared on the way out, so it fades rather than ramps.
         level *= level;
       }
-      chunk[i] = (int16_t)(sinf(phase) * PEAK * (VOLUME / 100.0f) * level);
+      float pulse = phase < DUTY ? 1.0f : -1.0f;
+      rounded += (pulse - rounded) * ROUND;
+      chunk[i] = (int16_t)(rounded * PEAK * (VOLUME / 100.0f) * level);
       phase += step;
+      if (phase >= 1.0f) {
+        phase -= 1.0f;
+      }
     }
     i2s.write((uint8_t *)chunk, take * sizeof(chunk[0]));
     done += take;
   }
 
-  uint32_t quiet = (uint32_t)GAP_MS * RATE / 1000;
+  uint32_t quiet = (uint32_t)n.gap * RATE / 1000;
   memset(chunk, 0, sizeof(chunk));
   while (quiet > 0) {
     uint32_t take = quiet > sizeof(chunk) / sizeof(chunk[0]) ? sizeof(chunk) / sizeof(chunk[0])
@@ -186,14 +216,19 @@ void audioBegin() {
   pinMode(PIN_PA, OUTPUT);
   digitalWrite(PIN_PA, LOW);
 
-  if (!codecBegin()) {
-    Serial.println("audio: ES8311 not answering");
-    return;
-  }
-
+  // The clocks first. The codec's own clock manager is set up against an MCLK
+  // that has to already be arriving - configured in silence it takes the
+  // settings and does nothing with them, which sounds exactly like a part that
+  // is not there.
   i2s.setPins(PIN_BCLK, PIN_LRCK, PIN_DOUT, PIN_DIN, PIN_MCLK);
   if (!i2s.begin(I2S_MODE_STD, RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
     Serial.println("audio: no I2S");
+    return;
+  }
+  delay(10);
+
+  if (!codecBegin()) {
+    Serial.println("audio: ES8311 not answering");
     return;
   }
   ready = true;
