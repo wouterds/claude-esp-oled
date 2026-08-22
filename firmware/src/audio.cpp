@@ -44,15 +44,15 @@ constexpr float PEAK = 26000.0f;
 // away. Neither is taste: a note that starts at full amplitude clicks, and one
 // that stops there clicks louder.
 constexpr float ATTACK_MS = 4.0f;
-constexpr float RELEASE = 0.3f;
+// Most of the note is its own tail. What makes a short sound cute rather than
+// abrupt is that it stops by fading, not by ending.
+constexpr float RELEASE = 0.65f;
 
-// A pulse rather than a sine, because that is the sound this is meant to be,
-// and rounded off afterwards, because a square edge through a speaker this size
-// is the difference between a chiptune and a smoke alarm. The coefficient puts
-// the corner near 3kHz: above every note here and below most of what a square
-// stacks on top of one.
-constexpr float DUTY = 0.5f;
-constexpr float ROUND = 0.7f;
+// A triangle. A square was the honest chiptune answer and it is horrible out of
+// a speaker this size: its harmonics fall off half as fast, so at these pitches
+// what reaches the ear is mostly the ones above the note. A triangle's fall off
+// as the square of them, and the filter takes what is left of the corners off.
+constexpr float ROUND = 0.85f;
 
 struct Note {
   uint16_t hz;
@@ -62,26 +62,21 @@ struct Note {
   uint16_t gap;
 };
 
-// Two notes to set it going, then the chord it lands on - played the way a
-// machine with one voice plays a chord, an octave at a time and fast enough to
-// be heard as one sound. It ends where it has been climbing to rather than
-// somewhere new, which is the whole of why it is satisfying and not a nag.
-constexpr Note HELLO[] = {
-    {523, 70, 10},  {784, 70, 10},  {1047, 80, 25}, {1047, 28, 0}, {1319, 28, 0},
-    {1568, 28, 0},  {2093, 28, 0},  {1047, 28, 0},  {1319, 28, 0}, {1568, 28, 0},
-    {2093, 28, 0},  {2093, 300, 0},
-};
-// Two notes and done - this one happens with a hand still on the cable.
-constexpr Note PLUGGED[] = {{1568, 60, 0}, {2093, 130, 0}};
-// Pleased with itself: up, a skip back, and up again to land.
-constexpr Note CHEERED[] = {{1047, 70, 10}, {1319, 70, 10}, {1568, 70, 10},
-                            {1319, 70, 10}, {1568, 70, 10}, {2093, 260, 0}};
+// A blip and the note it lands on, a fifth up. Two notes is the shortest thing
+// that can still go somewhere, and going up is the whole of why it reads as
+// pleased. This one happens with a hand still on the cable, so it is the
+// shorter of the two.
+constexpr Note PLUGGED[] = {{1319, 45, 0}, {1760, 120, 0}};
+// The same shape, said twice. The gap between them is what makes it two of
+// something rather than a run of four: shorter and it is a tune, longer and it
+// is two things that happened to happen.
+constexpr Note CHEERED[] = {{1047, 55, 0}, {1568, 165, 70}, {1047, 55, 0}, {1568, 175, 0}};
 
 I2SClass i2s;
 bool ready = false;
 volatile uint8_t wanted = 0;
 // One note's worth at a time rather than a whole sound: a sixteenth of a second
-// of samples is a kilobyte, and the whole of HELLO would be sixteen.
+// of samples is a kilobyte, and a whole sound would be several.
 int16_t chunk[512];
 
 bool put(uint8_t reg, uint8_t value) {
@@ -155,8 +150,8 @@ void note(const Note &n) {
         // Squared on the way out, so it fades rather than ramps.
         level *= level;
       }
-      float pulse = phase < DUTY ? 1.0f : -1.0f;
-      rounded += (pulse - rounded) * ROUND;
+      float triangle = 4.0f * fabsf(phase - 0.5f) - 1.0f;
+      rounded += (triangle - rounded) * ROUND;
       chunk[i] = (int16_t)(rounded * PEAK * (VOLUME / 100.0f) * level);
       phase += step;
       if (phase >= 1.0f) {
@@ -193,16 +188,10 @@ void task(void *) {
     uint8_t want = wanted;
     if (want != 0) {
       wanted = 0;
-      switch (want) {
-        case 1:
-          play(HELLO, sizeof(HELLO) / sizeof(HELLO[0]));
-          break;
-        case 2:
-          play(PLUGGED, sizeof(PLUGGED) / sizeof(PLUGGED[0]));
-          break;
-        default:
-          play(CHEERED, sizeof(CHEERED) / sizeof(CHEERED[0]));
-          break;
+      if (want == 1) {
+        play(PLUGGED, sizeof(PLUGGED) / sizeof(PLUGGED[0]));
+      } else {
+        play(CHEERED, sizeof(CHEERED) / sizeof(CHEERED[0]));
       }
     }
     vTaskDelay(pdMS_TO_TICKS(20));
@@ -238,20 +227,14 @@ void audioBegin() {
   xTaskCreatePinnedToCore(task, "audio", 4096, nullptr, 1, nullptr, 0);
 }
 
-void audioHello() {
+void audioPlugged() {
   if (ready) {
     wanted = 1;
   }
 }
 
-void audioPlugged() {
-  if (ready) {
-    wanted = 2;
-  }
-}
-
 void audioCheered() {
   if (ready) {
-    wanted = 3;
+    wanted = 2;
   }
 }
