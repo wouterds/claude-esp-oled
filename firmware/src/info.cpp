@@ -162,7 +162,11 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour, uint8_
       float cavity = sdRoundBox(px, py, CAVITY_HW, CAVITY_HH, CELL_R * 0.5f);
       if (ghost > battery.percent) {
         float rising = sdRoundBox(px, py - comingY, CAVITY_HW, comingHH, CELL_R * 0.5f);
-        plot(fb, x, y, (0.5f - (rising > cavity ? rising : cavity)) * GHOST, colour);
+        // Held to what a pixel can be before it is dimmed. Dimming the distance
+        // instead only touches the pixels near an edge - everything inside is
+        // still over the top after it and clips back to full, which comes out
+        // as a bar at full brightness wearing a dark border.
+        plot(fb, x, y, clamp01(0.5f - (rising > cavity ? rising : cavity)) * GHOST, colour);
       }
       float charge = sdRoundBox(px, py - chargeY, CAVITY_HW, chargeHH, CELL_R * 0.5f);
       plot(fb, x, y, 0.5f - (charge > cavity ? charge : cavity), colour);

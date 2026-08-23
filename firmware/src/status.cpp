@@ -195,7 +195,8 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour, uint8_t ghost) 
       // never lands on top of the real charge.
       if (ghost > percent && px > fillTo && px <= comingTo) {
         float inside = sdRoundBox(px, py, HW - 3.0f, HH - 3.0f, R * 0.5f);
-        plot(fb, x, y, (0.5f - inside) * GHOST, colour);
+        // Clamped before it is dimmed, or only the edges of it are.
+        plot(fb, x, y, clamp01(0.5f - inside) * GHOST, colour);
       }
     }
   }
