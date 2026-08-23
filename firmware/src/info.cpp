@@ -44,6 +44,14 @@ constexpr int16_t LINE_SCALE = 2;
 // both sides of the circle.
 constexpr uint8_t LINE_GLYPHS = 24;
 
+// The charge that is not there yet, rising from the one that is and starting
+// over. Dimmer than the real level rather than a different colour: it is the
+// same charge, one that has not arrived. Two dozen steps over a second and a
+// half is slow enough to read as filling rather than as flashing.
+constexpr uint8_t RISE_STEPS = 24;
+constexpr uint32_t RISE_MS = 60;
+constexpr float GHOST = 0.4f;
+
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x8410;
 constexpr uint16_t FAINT = 0x4A49;
@@ -65,11 +73,12 @@ struct Shown {
   uint8_t percent;
   bool charging;
   bool present;
+  uint8_t rise;
   char network[33];
   char address[16];
 };
 
-Shown shown = {255, false, false, {0}, {0}};
+Shown shown = {255, false, false, 0, {0}, {0}};
 bool fresh = true;
 
 float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
@@ -114,7 +123,7 @@ uint16_t chargeColour(const BatteryState &battery) {
   return WHITE;
 }
 
-void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour) {
+void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour, uint8_t ghost) {
   constexpr float CAVITY_HW = CELL_HW - WALL - GAP;
   constexpr float CAVITY_HH = CELL_HH - WALL - GAP;
   // Down the screen is up the cell: the charge stands on the bottom of it and
@@ -125,6 +134,11 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour) {
   float top = CAVITY_HH - 2.0f * CAVITY_HH * (battery.percent / 100.0f);
   float chargeHH = (CAVITY_HH - top) * 0.5f;
   float chargeY = (CAVITY_HH + top) * 0.5f;
+  // The part on its way in sits between the level that is there and the level
+  // it is climbing to, so it never draws over the real charge.
+  float coming = CAVITY_HH - 2.0f * CAVITY_HH * (ghost / 100.0f);
+  float comingHH = (top - coming) * 0.5f;
+  float comingY = (top + coming) * 0.5f;
 
   for (int16_t y = (int16_t)(CELL_Y - CELL_HH - NUB_HH * 2 - 2);
        y <= (int16_t)(CELL_Y + CELL_HH + 2); y++) {
@@ -144,6 +158,10 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour) {
       // Cut to the cavity, or what is left at a few percent is a full-width
       // sliver hanging out past the rounded bottom of the space holding it.
       float cavity = sdRoundBox(px, py, CAVITY_HW, CAVITY_HH, CELL_R * 0.5f);
+      if (ghost > battery.percent) {
+        float rising = sdRoundBox(px, py - comingY, CAVITY_HW, comingHH, CELL_R * 0.5f);
+        plot(fb, x, y, (0.5f - (rising > cavity ? rising : cavity)) * GHOST, colour);
+      }
       float charge = sdRoundBox(px, py - chargeY, CAVITY_HW, chargeHH, CELL_R * 0.5f);
       plot(fb, x, y, 0.5f - (charge > cavity ? charge : cavity), colour);
     }
@@ -175,11 +193,36 @@ void infoStep(uint16_t *fb) {
   const char *wants = network ? network : "OFFLINE";
   const char *at = address ? address : "";
 
+  // Where the charge on its way in has got to. Nought unless the cable is in,
+  // so a battery simply sitting there compares equal every frame and this page
+  // goes on costing nothing.
+  uint8_t rise = battery.charging ? (uint8_t)((millis() / RISE_MS) % RISE_STEPS) : 0;
+  uint8_t ghost = battery.charging
+                      ? (uint8_t)(battery.percent +
+                                  (100 - battery.percent) * rise / RISE_STEPS)
+                      : battery.percent;
+
   bool changed = fresh || battery.percent != shown.percent ||
                  battery.charging != shown.charging || battery.present != shown.present ||
                  strncmp(wants, shown.network, sizeof(shown.network)) != 0 ||
                  strncmp(at, shown.address, sizeof(shown.address)) != 0;
+  if (!changed && rise == shown.rise) {
+    return;
+  }
+  shown.rise = rise;
+
+  // Only the cell moved, so only the cell is redrawn and only its rows are
+  // sent. The rest of the page is words that have not changed, and sending the
+  // whole panel for a rising fill is most of a frame spent on the part that
+  // stood still.
   if (!changed) {
+    constexpr int16_t TOP = (int16_t)(CELL_Y - CELL_HH - NUB_HH * 2 - 2);
+    constexpr int16_t BOTTOM = (int16_t)(CELL_Y + CELL_HH + 2);
+    for (int16_t y = TOP; y <= BOTTOM; y++) {
+      memset(boardRow(fb, y), 0, (size_t)SCREEN_W * 2);
+    }
+    drawCell(fb, battery, chargeColour(battery), ghost);
+    boardFlushRows((int16_t)(SCREEN_H - 1 - BOTTOM), (int16_t)(SCREEN_H - 1 - TOP));
     return;
   }
   fresh = false;
@@ -195,7 +238,7 @@ void infoStep(uint16_t *fb) {
 
   uint16_t colour = chargeColour(battery);
   if (battery.present) {
-    drawCell(fb, battery, colour);
+    drawCell(fb, battery, colour, ghost);
     char said[6];
     snprintf(said, sizeof(said), "%u%%", (unsigned)battery.percent);
     textDraw(fb, said, (int16_t)SCREEN_R, PERCENT_TOP, PERCENT_SCALE, boardColour(colour));
