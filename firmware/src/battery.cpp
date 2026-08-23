@@ -3,10 +3,10 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "bus.h"
+
 namespace {
 
-constexpr int I2C_SDA = 11;
-constexpr int I2C_SCL = 10;
 constexpr uint8_t GAUGE = 0x55;
 constexpr uint8_t REG_VOLTAGE = 0x08;
 constexpr uint8_t REG_CURRENT = 0x0C;
@@ -32,18 +32,17 @@ uint32_t nextRead = 0;
 // Every register on this part is a little-endian pair, and a read is a write of
 // the address followed by a read without releasing the bus.
 bool readWord(uint8_t reg, uint16_t &out) {
+  busTake();
   Wire.beginTransmission(GAUGE);
   Wire.write(reg);
-  if (Wire.endTransmission(false) != 0) {
-    return false;
+  bool got = Wire.endTransmission(false) == 0 && Wire.requestFrom((int)GAUGE, 2) == 2;
+  if (got) {
+    uint8_t low = Wire.read();
+    uint8_t high = Wire.read();
+    out = (uint16_t)((high << 8) | low);
   }
-  if (Wire.requestFrom((int)GAUGE, 2) != 2) {
-    return false;
-  }
-  uint8_t low = Wire.read();
-  uint8_t high = Wire.read();
-  out = (uint16_t)((high << 8) | low);
-  return true;
+  busGive();
+  return got;
 }
 
 void sample() {
@@ -70,7 +69,6 @@ void sample() {
 }  // namespace
 
 void batteryBegin() {
-  Wire.begin(I2C_SDA, I2C_SCL);
   sample();
   nextRead = millis() + EVERY_MS;
   if (!cached.present) {

@@ -5,10 +5,10 @@
 #include <Wire.h>
 #include <math.h>
 
+#include "bus.h"
+
 namespace {
 
-constexpr int I2C_SDA = 11;
-constexpr int I2C_SCL = 10;
 // Seven bits. The board's own documentation gives 0x30, which is the same
 // address written for a bus that counts the read/write bit as part of it.
 constexpr uint8_t CODEC = 0x18;
@@ -80,10 +80,13 @@ volatile uint8_t wanted = 0;
 int16_t chunk[512];
 
 bool put(uint8_t reg, uint8_t value) {
+  busTake();
   Wire.beginTransmission(CODEC);
   Wire.write(reg);
   Wire.write(value);
-  return Wire.endTransmission() == 0;
+  bool sent = Wire.endTransmission() == 0;
+  busGive();
+  return sent;
 }
 
 // Espressif's own sequence for this part, with the clock dividers resolved for
@@ -201,7 +204,6 @@ void task(void *) {
 }  // namespace
 
 void audioBegin() {
-  Wire.begin(I2C_SDA, I2C_SCL);
   pinMode(PIN_PA, OUTPUT);
   digitalWrite(PIN_PA, LOW);
 
