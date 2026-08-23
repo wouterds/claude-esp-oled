@@ -134,11 +134,13 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour, uint8_
   float top = CAVITY_HH - 2.0f * CAVITY_HH * (battery.percent / 100.0f);
   float chargeHH = (CAVITY_HH - top) * 0.5f;
   float chargeY = (CAVITY_HH + top) * 0.5f;
-  // The part on its way in sits between the level that is there and the level
-  // it is climbing to, so it never draws over the real charge.
+  // The charge on its way in stands on the bottom of the cell like the real one
+  // does, and the real one is drawn over it. Given only the gap between the two
+  // levels it would be a second pill with its own rounded ends, and the two of
+  // them read as a broken column rather than as one that is filling.
   float coming = CAVITY_HH - 2.0f * CAVITY_HH * (ghost / 100.0f);
-  float comingHH = (top - coming) * 0.5f;
-  float comingY = (top + coming) * 0.5f;
+  float comingHH = (CAVITY_HH - coming) * 0.5f;
+  float comingY = (CAVITY_HH + coming) * 0.5f;
 
   for (int16_t y = (int16_t)(CELL_Y - CELL_HH - NUB_HH * 2 - 2);
        y <= (int16_t)(CELL_Y + CELL_HH + 2); y++) {
