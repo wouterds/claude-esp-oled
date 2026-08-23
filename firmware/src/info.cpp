@@ -19,8 +19,10 @@ namespace {
 // The block sits a little above the middle of the glass rather than on it. Hung
 // on its own full height it reads as low - the cell is what the eye takes as
 // the middle of the page, and the three lines under it weigh almost nothing.
+// The commit hangs further back than the spacing wants, because it is the one
+// line here that is tapped rather than read.
 constexpr float CELL_X = 180.0f;
-constexpr float CELL_Y = 116.0f;
+constexpr float CELL_Y = 104.0f;
 constexpr float CELL_HW = 34.0f;
 constexpr float CELL_HH = 60.0f;
 constexpr float CELL_R = 14.0f;
@@ -31,11 +33,11 @@ constexpr float GAP = 7.0f;
 constexpr float NUB_HW = 13.0f;
 constexpr float NUB_HH = 5.0f;
 
-constexpr int16_t PERCENT_TOP = 194;
+constexpr int16_t PERCENT_TOP = 186;
 constexpr int16_t PERCENT_SCALE = 4;
-constexpr int16_t NETWORK_TOP = 240;
-constexpr int16_t ADDRESS_TOP = 262;
-constexpr int16_t COMMIT_TOP = 290;
+constexpr int16_t NETWORK_TOP = 238;
+constexpr int16_t ADDRESS_TOP = 260;
+constexpr int16_t COMMIT_TOP = 304;
 constexpr int16_t LINE_SCALE = 2;
 // What fits between the edges of the glass down there, in glyphs. A network can
 // be called anything up to thirty-two characters and the ones that long run off
