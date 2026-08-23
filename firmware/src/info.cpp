@@ -48,7 +48,11 @@ constexpr uint16_t FAINT = 0x4A49;
 // The same colours the small battery uses at the same thresholds, so a colour
 // means one thing whichever side of the glass it is on.
 constexpr uint16_t GREEN = 0x07F6;
-constexpr uint16_t YELLOW = 0xFFE0;
+// Warmed off pure yellow and given a little blue. Full red and full green with
+// none at all is an acid colour on a panel that is lit from behind - it reads
+// as a warning when this level is only a notice, and it is the one colour on
+// here that has to sit next to white without looking broken.
+constexpr uint16_t YELLOW = 0xFE48;
 constexpr uint16_t ORANGE = 0xFC00;
 constexpr uint16_t RED = 0xF800;
 constexpr uint8_t YELLOW_AT = 30;

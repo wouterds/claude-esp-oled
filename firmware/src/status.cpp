@@ -39,7 +39,11 @@ constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x630C;
 // The same teal the gauges start at, so one green means one thing here.
 constexpr uint16_t GREEN = 0x07F6;
-constexpr uint16_t YELLOW = 0xFFE0;
+// Warmed off pure yellow and given a little blue. Full red and full green with
+// none at all is an acid colour on a panel that is lit from behind - it reads
+// as a warning when this level is only a notice, and it is the one colour on
+// here that has to sit next to white without looking broken.
+constexpr uint16_t YELLOW = 0xFE48;
 constexpr uint16_t ORANGE = 0xFC00;
 constexpr uint16_t RED = 0xF800;
 // Not as dark as it looks like it should be. Black here is a crystal failing
