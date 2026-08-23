@@ -36,7 +36,6 @@ TaskHandle_t reader = nullptr;
 bool down = false;
 bool fired = false;
 int16_t fromAlong = 0;
-int16_t fromAcross = 0;
 uint32_t lastReport = 0;
 
 volatile bool tapped = false;
@@ -65,8 +64,6 @@ void look() {
   uint8_t fingers = 0;
   uint8_t high = 0;
   uint8_t low = 0;
-  uint8_t acrossHigh = 0;
-  uint8_t acrossLow = 0;
 
   busTake();
   Wire.beginTransmission(TOUCH);
@@ -77,8 +74,8 @@ void look() {
     fingers = Wire.read();
     high = Wire.read();
     low = Wire.read();
-    acrossHigh = Wire.read();
-    acrossLow = Wire.read();
+    Wire.read();
+    Wire.read();
   }
   busGive();
   if (!got) {
@@ -91,9 +88,6 @@ void look() {
   // the glass rather than across it - so it is read as a distance from the top,
   // turned the way everything drawn here is turned.
   int16_t along = (int16_t)(SCREEN_W - 1 - (((high & 0x0F) << 8) | low));
-  // And the other one, which runs across the glass. Both come in the same five
-  // bytes; only one of them used to be worth reading.
-  int16_t across = (int16_t)(((acrossHigh & 0x0F) << 8) | acrossLow);
 
   if (fingers == 0) {
     if (down) {
@@ -105,7 +99,6 @@ void look() {
     down = true;
     fired = false;
     fromAlong = along;
-    fromAcross = across;
     return;
   }
   if (fired) {
@@ -115,18 +108,12 @@ void look() {
   // Reported on the way past rather than on the way off: the page turns under
   // the finger that asked for it, which is both what a swipe feels like
   // everywhere else and one less thing to depend on the controller mentioning.
-  // Whichever way it went furthest is the way it went. A finger crossing the
-  // glass moves on both axes and only the larger of the two was meant.
-  int16_t byAlong = (int16_t)(along - fromAlong);
-  int16_t byAcross = (int16_t)(across - fromAcross);
-  int16_t reach = byAlong < 0 ? (int16_t)-byAlong : byAlong;
-  int16_t sideways = byAcross < 0 ? (int16_t)-byAcross : byAcross;
-
-  if (reach >= CROSSED && reach >= sideways) {
-    went = byAlong > 0 ? Swipe::Down : Swipe::Up;
+  int16_t by = (int16_t)(along - fromAlong);
+  if (by >= CROSSED) {
+    went = Swipe::Down;
     fired = true;
-  } else if (sideways >= CROSSED) {
-    went = byAcross > 0 ? Swipe::Right : Swipe::Left;
+  } else if (by <= -CROSSED) {
+    went = Swipe::Up;
     fired = true;
   }
 }
