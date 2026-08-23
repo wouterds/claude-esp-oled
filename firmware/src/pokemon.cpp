@@ -1,7 +1,6 @@
 #include "pokemon.h"
 
 #include <Arduino.h>
-#include <math.h>
 #include <string.h>
 
 #include "board.h"
@@ -10,101 +9,99 @@
 namespace {
 
 // Sprites are written out as the pictures they are, a character to a pixel, the
-// way the font a few files over is. Anything can be read off them by eye and
-// changed with a text editor, which is the whole point of a format for a thing
-// that is drawn by hand.
+// way the font a few files over is. They can be read by eye and changed in a
+// text editor, which is what a format for something drawn by hand is for.
 //
-//   .  nothing      K  outline      Y  yellow
-//   W  white        D  dark red     R  red
+//   .  nothing      K  black        Y  yellow
+//   W  white        D  brown        R  red
 //
-// PIKACHU is traced off a photograph of the sprite from the games rather than
-// drawn from nothing, so it is somebody else's shape - which is worth knowing
-// before this repository is anything more than one board on one desk.
+// Drawn for a panel whose black is the page behind them, which is the whole of
+// why they look the way they do: there is no outline round the outside of any
+// of these, because an outline in the background colour is not one. The
+// silhouette is where the colour stops. Black is used only well inside a shape,
+// where there is something either side of it - eyes, a mouth, the band across
+// the ball - and never at an edge. It is also why the ears end in brown rather
+// than the black they are usually drawn with: black tips on a black page are
+// ears that stop halfway.
 const char *const PIKACHU[] = {
-    ".............KK.............................",
-    "............KKK.............................",
-    "...........KKKK......KK.....................",
-    "...........KKKK...KKKKK.....................",
-    "..........KWKKK..KYKKKK.....................",
-    ".........KWWYKKKKKKKKK......................",
-    ".........KWYYYKYYKKKKK......................",
-    ".........KYYYYKYYKKKK.......................",
-    "........KYYYYKYYYYKKK.......................",
-    ".......KKYYYKWYYYYKK........................",
-    ".....KKYKKKKWYYYYYK.........................",
-    "....KDWWWWYYYYYYYKK....................KK...",
-    "....KWWWWYYYYYYYDKK.................KKKYYK..",
-    "....KWWWYYYYYYYDDDK...............KKYWYYYK..",
-    ".KKKWWYYYYYYYYYYYYK............K..KYYYYYYK..",
-    ".KWWYYYYYYYYYYYYYYYK........KKKYKKYYYYYYYK..",
-    ".KYYYYYYYYYYYYYYYYYK......KKYYYYYYYYYYYYYYK.",
-    "KYYYYYYYYYYYYYYYYYYYK.....KWYYYYYYYYYYYYYYYK",
-    "KYYYYYYYYYYYYYYYYYYYK......KYYYYYYYYYYYYYYYK",
-    "KYYYYYYYYYYYYYYYYYYYYK.....KYYYYYYYYYYYYYKKK",
-    ".KYYYYYYYYYYYYYYYYYYYK......KYYYYYYYYYYKK...",
-    ".KDDKYYYDDYYYYYYYYYYYK......KYYYYYKKKKK.....",
-    ".KDYKKYDDDDYYYYYYYYYYK.......KYYKK..........",
-    ".KKYYYYDDDDYYYYYYYYYYK.......KYK............",
-    ".KYYYYYDDDDYYYYYYYYYYK.......KYK............",
-    ".KYYYYYYDDYYYYYYYYYYYK.......KYYK...........",
-    "..KYYYYYYYYDYYYYYYYYYYK....KKKYYK...........",
-    "...KKKKKKDDYYYYYYYYYYYK..KKKYYKKK...........",
-    "...KKKKKYYYYYYYYYYYYYYK..KYYKK..............",
-    "...KYKYYYYYYYYYYYYYYYYK..KYYK...............",
-    "...KDDYYYYYYYYYYYYYYYYK...KYK...............",
-    "..KYDYYYYYYYYYYYYYYYYYK...KDK...............",
-    "..KYYYYYYYYYDYYYYYYYYYKKKKKDDK..............",
-    "..KKKYYYYYYYKDYYYYYYYYYKYYKKKK..............",
-    "..KKKKKKKKKKYYYYYYYYYYYKKKKKK...............",
-    ".KKKKYYYYYYYYYYYYYYYYYYK....................",
-    ".KYKYYYYYYYYYYYYYYYYYYK.....................",
-    ".KYYYYYYYYYYYYYYYYYYYK......................",
-    ".KYYYYYYYYYYYYYYYYYYK.......................",
-    "..KYKYYYYYYYYYYYYYYYK.......................",
-    "..KYKKYYYYYYYYYYYYKKK.......................",
-    "...KKKKKKKKKKKKKKK..........................",
+    ".....D...................D..................",
+    "...DDDD.................DDDD................",
+    ".DDDDDD.................DDDDDD..............",
+    "..DDDDDY...............YDDDDD...............",
+    "..DDDDYY...............YYDDDD...............",
+    "...YYYYYY.............YYYYYY..............Y.",
+    "...YYYYYY.............YYYYYY.............YY.",
+    "....YYYYYY..YYYYYYY..YYYYYY.............YYY.",
+    "....YYYYYYYYYYYYYYYYYYYYYYY...........YYYYY.",
+    ".....YYYYYYYYYYYYYYYYYYYYY...........YYYYYY.",
+    ".....YYYYYYYYYYYYYYYYYYYYY..........YYYYYYY.",
+    ".....YYYYYYYYYYYYYYYYYYYYY.........YYYYYYYY.",
+    ".....YYYYYYYYYYYYYYYYYYYYY........YYYYYYYYY.",
+    "....YYYYYKKKYYYYYYYKKKYYYYY......YYYYYYY....",
+    "....YYYYKKWWKYYYYYKKWWKYYYY.....YYYYYY......",
+    "....YYYYKKKWKYYYYYKKKWKYYYY...YYYYY.........",
+    "...YYYYYKKKKKYYYYYKKKKKYYYYY.YYYYYYY........",
+    "....YYYYYKKKYYYYYYYKKKYYYYY.YYYYYYYYY.......",
+    "....YRRRYYYYKYYYYKYYYYYRRRY..YYYYYYYY.......",
+    "....RRRRRYYYYKKKKYYYYYRRRRR...YYYYYYYY......",
+    "...RRRRRRRYYYYYYYYYYYRRRRRRR...YYYYYYYY.....",
+    "...RRRRRRRYYYYYYYYYYYRRRRRRR....YYYYY.......",
+    "....RRRRRYYYYYYYYYYYYYRRRRR......YYY........",
+    "....YRRRYYYYYYYYYYYYYYYRRRY.....YY..........",
+    "...YYYYYYYYYYYYYYYYYYYYYYYYY..YYY...........",
+    "...YYYYYYYYYYYYYYYYYYYYYYYYY.YY.............",
+    "...YYYYYYYYYYYYYYYYYYYYYYYYYYY..............",
+    "...YYYYYYYYYYYYYYYYYYYYYYYYY................",
+    "...YYYYYYYYYYYYYYYYYYYYYYYYY................",
+    "....YYYYYYYYYYYYYYYYYYYYYYY.................",
+    ".....Y..YYYYYYYYYYYYYYY..Y..................",
+    ".......YYYYYYYYYYYYYYYYY....................",
+    "......YYYYYYYYYYYYYYYYYYY...................",
+    "......YYYYYYYYYYYYYYYYYYY...................",
+    "......YYYYYYYY...YYYYYYYY...................",
+    ".......YYYYYY.....YYYYYY....................",
 };
 
 const char *const BALL[] = {
     "........................................",
-    "..............KKKKKKKKKKKK..............",
-    "...........KKKKKKKKKKKKKKKKKK...........",
-    "..........KKKKRRRRRRRRRRRRKKKK..........",
-    "........KKKKRRRRRRRRRRRRRRRRKKKK........",
-    ".......KKKRRRRRRRRRRRRRRRRRRRRKKK.......",
-    "......KKKRRRRRRRRRRRRRRRRRRRRRRKKK......",
-    ".....KKKRRRRRRRRRRRRRRRRRRRRRRRRKKK.....",
-    "....KKKRRRRRRRRRRRRRRRRRRRRRRRRRRKKK....",
-    "....KKRRRRRRRRRRRRRRRRRRRRRRRRRRRRKK....",
-    "...KKRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRKK...",
-    "..KKKRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRKKK..",
-    "..KKRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRKK..",
-    "..KKRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRKK..",
-    ".KKRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRKK.",
-    ".KKRRRRRRRRRRRRRRKKKKKKRRRRRRRRRRRRRRKK.",
-    ".KKRRRRRRRRRRRRRKKKKKKKKRRRRRRRRRRRRRKK.",
-    ".KKRRRRRRRRRRRRKKKWWWWKKKRRRRRRRRRRRRKK.",
+    "................RRRRRRRR................",
+    ".............RRRRRRRRRRRRRR.............",
+    "...........RRRRRRRRRRRRRRRRRR...........",
+    ".........RRRRRRRRRRRRRRRRRRRRRR.........",
+    "........RRRRRRRRRRRRRRRRRRRRRRRR........",
+    ".......RRRRRRRRRRRRRRRRRRRRRRRRRR.......",
+    "......RRRRRRRRRRRRRRRRRRRRRRRRRRRR......",
+    ".....RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR.....",
+    "....RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR....",
+    "....RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR....",
+    "...RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR...",
+    "...RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR...",
+    "..RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR..",
+    "..RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR..",
+    "..RRRRRRRRRRRRRRRKKKKKKRRRRRRRRRRRRRRR..",
+    ".RRRRRRRRRRRRRRRKKKKKKKKRRRRRRRRRRRRRRR.",
+    ".RRRRRRRRRRRRRRKKKWWWWKKKRRRRRRRRRRRRRR.",
     ".KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK.",
     ".KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK.",
     ".KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK.",
     ".KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK.",
-    ".KKWWWWWWWWWWWWKKKWWWWKKKWWWWWWWWWWWWKK.",
-    ".KKWWWWWWWWWWWWWKKKKKKKKWWWWWWWWWWWWWKK.",
-    ".KKWWWWWWWWWWWWWWKKKKKKWWWWWWWWWWWWWWKK.",
-    ".KKWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWKK.",
-    "..KKWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWKK..",
-    "..KKWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWKK..",
-    "..KKKWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWKKK..",
-    "...KKWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWKK...",
-    "....KKWWWWWWWWWWWWWWWWWWWWWWWWWWWWKK....",
-    "....KKKWWWWWWWWWWWWWWWWWWWWWWWWWWKKK....",
-    ".....KKKWWWWWWWWWWWWWWWWWWWWWWWWKKK.....",
-    "......KKKWWWWWWWWWWWWWWWWWWWWWWKKK......",
-    ".......KKKWWWWWWWWWWWWWWWWWWWWKKK.......",
-    "........KKKKWWWWWWWWWWWWWWWWKKKK........",
-    "..........KKKKWWWWWWWWWWWWKKKK..........",
-    "...........KKKKKKKKKKKKKKKKKK...........",
-    "..............KKKKKKKKKKKK..............",
+    ".WWWWWWWWWWWWWWKKKWWWWKKKWWWWWWWWWWWWWW.",
+    ".WWWWWWWWWWWWWWWKKKKKKKKWWWWWWWWWWWWWWW.",
+    "..WWWWWWWWWWWWWWWKKKKKKWWWWWWWWWWWWWWW..",
+    "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW..",
+    "..WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW..",
+    "...WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW...",
+    "...WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW...",
+    "....WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW....",
+    "....WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW....",
+    ".....WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.....",
+    "......WWWWWWWWWWWWWWWWWWWWWWWWWWWW......",
+    ".......WWWWWWWWWWWWWWWWWWWWWWWWWW.......",
+    "........WWWWWWWWWWWWWWWWWWWWWWWW........",
+    ".........WWWWWWWWWWWWWWWWWWWWWW.........",
+    "...........WWWWWWWWWWWWWWWWWW...........",
+    ".............WWWWWWWWWWWWWW.............",
+    "................WWWWWWWW................",
     "........................................",
 };
 
@@ -118,24 +115,15 @@ struct Sprite {
 // The ball first, because it is the lid on the rest of them.
 constexpr Sprite SPRITES[] = {
     {BALL, 40, 40, "POKEMON"},
-    {PIKACHU, 44, 42, "PIKACHU"},
+    {PIKACHU, 44, 36, "PIKACHU"},
 };
 constexpr uint8_t COUNT = sizeof(SPRITES) / sizeof(SPRITES[0]);
 
-// Four screen pixels to a sprite pixel. Five would fill more of the glass and
-// leave the window with a margin thin enough to read as a mistake.
-constexpr int16_t SCALE = 4;
-
-// The sprites are drawn with a black outline, and this panel's black is the
-// same black the page is - so on the page itself an outline is invisible and
-// the ears, which are solid black at the tips, simply stop existing. They are
-// put on something pale for the same reason they are in the games.
-constexpr int16_t PANE_X0 = 66;
-constexpr int16_t PANE_X1 = 294;
-constexpr int16_t PANE_Y0 = 44;
-constexpr int16_t PANE_Y1 = 252;
-constexpr float PANE_R = 18.0f;
-constexpr uint16_t PANE = 0xA5B6;
+// Five screen pixels to a sprite pixel. Six is wider than the glass is at the
+// height the ears reach, and what that costs is the tips of them.
+constexpr int16_t SCALE = 5;
+// Above the middle, to leave the name the bottom of the circle.
+constexpr int16_t MIDDLE = 150;
 
 constexpr int16_t NAME_TOP = 272;
 constexpr int16_t NAME_SCALE = 3;
@@ -149,50 +137,13 @@ uint16_t inkOf(char c) {
     case 'K':
       return 0x18E3;
     case 'Y':
-      return 0xFE40;
+      return 0xFE85;
     case 'W':
-      return 0xFFDF;
+      return 0xFFFF;
     case 'D':
-      return 0xA986;
+      return 0x9306;
     default:
-      return 0xE0C3;
-  }
-}
-
-float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
-
-float sdRoundBox(float px, float py, float hx, float hy, float r) {
-  float limit = hx < hy ? hx : hy;
-  if (r > limit) {
-    r = limit;
-  }
-  float qx = fabsf(px) - hx + r;
-  float qy = fabsf(py) - hy + r;
-  float ax = qx > 0.0f ? qx : 0.0f;
-  float ay = qy > 0.0f ? qy : 0.0f;
-  float inner = qx > qy ? qx : qy;
-  return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
-}
-
-void drawPane(uint16_t *fb) {
-  constexpr float CX = (PANE_X0 + PANE_X1) * 0.5f;
-  constexpr float CY = (PANE_Y0 + PANE_Y1) * 0.5f;
-  constexpr float HX = (PANE_X1 - PANE_X0) * 0.5f;
-  constexpr float HY = (PANE_Y1 - PANE_Y0) * 0.5f;
-
-  for (int16_t y = PANE_Y0 - 1; y <= PANE_Y1 + 1; y++) {
-    uint16_t *line = boardRow(fb, y);
-    for (int16_t x = PANE_X0 - 1; x <= PANE_X1 + 1; x++) {
-      float coverage = clamp01(0.5f - sdRoundBox((float)x + 0.5f - CX, (float)y + 0.5f - CY, HX,
-                                                 HY, PANE_R));
-      if (coverage <= 0.02f) {
-        continue;
-      }
-      uint16_t r = (uint16_t)(((PANE >> 11) & 0x1F) * coverage);
-      uint16_t g = (uint16_t)(((PANE >> 5) & 0x3F) * coverage);
-      uint16_t b = (uint16_t)((PANE & 0x1F) * coverage);
-      line[boardX(x)] = boardColour((uint16_t)((r << 11) | (g << 5) | b));
-    }
+      return 0xE1C7;
   }
 }
 
@@ -200,7 +151,7 @@ void drawPane(uint16_t *fb) {
 // drawn with. Smoothing a sprite is smoothing away the only thing it is.
 void drawSprite(uint16_t *fb, const Sprite &sprite) {
   int16_t left = (int16_t)(SCREEN_R - sprite.wide * SCALE / 2);
-  int16_t top = (int16_t)((PANE_Y0 + PANE_Y1) / 2 - sprite.tall * SCALE / 2);
+  int16_t top = (int16_t)(MIDDLE - sprite.tall * SCALE / 2);
 
   for (uint8_t row = 0; row < sprite.tall; row++) {
     const char *cells = sprite.rows[row];
@@ -247,7 +198,6 @@ void pokemonStep(uint16_t *fb) {
   fresh = false;
 
   memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
-  drawPane(fb);
   drawSprite(fb, SPRITES[showing]);
   textDraw(fb, SPRITES[showing].name, (int16_t)SCREEN_R, NAME_TOP, NAME_SCALE, boardColour(WHITE));
   boardFlush();
