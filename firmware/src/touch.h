@@ -19,6 +19,10 @@ void touchBegin();
 // Cleared by the asking.
 bool touchTapped();
 
+// How far down the glass that tap was. Only worth reading straight after
+// touchTapped() has said there was one.
+int16_t touchTappedAt();
+
 // A finger crossed the glass, reported while it was still down. Cleared by the
 // asking, so one swipe cannot be acted on twice.
 Swipe touchSwiped();

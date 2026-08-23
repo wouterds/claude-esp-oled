@@ -155,6 +155,11 @@ void line(uint16_t *fb, const char *s, int16_t top, uint16_t colour) {
 
 }  // namespace
 
+bool infoOnCommit(int16_t down) {
+  constexpr int16_t REACH = 16;
+  return down >= COMMIT_TOP - REACH && down <= COMMIT_TOP + 7 * LINE_SCALE + REACH;
+}
+
 void infoForget() { fresh = true; }
 
 void infoStep(uint16_t *fb) {

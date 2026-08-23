@@ -13,6 +13,7 @@
 #include "gauge.h"
 #include "info.h"
 #include "portal.h"
+#include "text.h"
 #include "usage.h"
 
 static constexpr uint32_t FRAME_MS = 16;
@@ -23,6 +24,34 @@ static uint32_t lastFrame = 0;
 // the other exists - what turns the page is here.
 enum class Page : uint8_t { Main, Info };
 static Page page = Page::Main;
+
+// The frame rate, put on the glass rather than into the log, for when the thing
+// being watched is what the drawing costs. Bright pink and across the top of
+// whatever is underneath: it is not part of any page and should not be taken
+// for one. It stays until it is asked to go, or until the board is restarted.
+static constexpr uint16_t PINK = 0xF8B2;
+static constexpr int16_t FPS_TOP = 8;
+static constexpr int16_t FPS_SCALE = 2;
+static constexpr int16_t FPS_HALF = 64;
+static bool counting = false;
+static float fps = 0.0f;
+
+static void countFrames(uint16_t *fb) {
+  char said[12];
+  snprintf(said, sizeof(said), "%u FPS", (unsigned)(fps + 0.5f));
+
+  // Cleared and written again every frame. Whatever is underneath has just
+  // drawn itself, and this has to be the last thing to reach the glass.
+  int16_t from = FPS_TOP - 2;
+  int16_t to = (int16_t)(FPS_TOP + 7 * FPS_SCALE + 1);
+  int16_t x0 = (int16_t)(SCREEN_R - FPS_HALF);
+  int16_t x1 = (int16_t)(SCREEN_R + FPS_HALF);
+  for (int16_t y = from; y <= to; y++) {
+    memset(boardRow(fb, y) + boardX(x1), 0, (size_t)(x1 - x0 + 1) * 2);
+  }
+  textDraw(fb, said, (int16_t)SCREEN_R, FPS_TOP, FPS_SCALE, boardColour(PINK));
+  boardFlushRows((int16_t)(SCREEN_H - 1 - to), (int16_t)(SCREEN_H - 1 - from));
+}
 
 // Neither button is wired to anything here. PWR switches the power path and the
 // chip cannot see it; BOOT can be read, but it is the strapping pin that traps
@@ -97,6 +126,11 @@ void loop() {
   if (dt > 0.05f) {
     dt = 0.05f;
   }
+  // Smoothed, or the number is unreadable: it lands somewhere new every frame
+  // and half of what it says is the frame it is being read on.
+  if (dt > 0.0f) {
+    fps = fps > 0.0f ? fps * 0.9f + (0.1f / dt) : 1.0f / dt;
+  }
 
   // The cable landing is worth a sound: it is the one thing that happens to
   // this board without anybody touching it.
@@ -116,8 +150,36 @@ void loop() {
     turnTo(Page::Main);
   }
 
+  // Two taps close together: on the face they put the numbers up, and on the
+  // commit they put the frame rate up. A single tap is what a sleeve does, so it
+  // is not asked to mean anything, and both taps have to land on the same thing.
+  static uint32_t firstTap = 0;
+  static int16_t firstAt = 0;
+  if (touchTapped()) {
+    int16_t at = touchTappedAt();
+    if (firstTap != 0 && now - firstTap < 400) {
+      if (page == Page::Main) {
+        gaugeFigures();
+      } else if (infoOnCommit(at) && infoOnCommit(firstAt)) {
+        counting = !counting;
+        // Whatever it was covering has to come back, and the page underneath is
+        // the only thing that knows what was there.
+        if (!counting) {
+          turnTo(page);
+        }
+      }
+      firstTap = 0;
+    } else {
+      firstTap = now;
+      firstAt = at;
+    }
+  }
+
   if (page == Page::Info) {
     infoStep(boardFramebuffer());
+    if (counting) {
+      countFrames(boardFramebuffer());
+    }
     uint32_t idle = millis() - now;
     if (idle < FRAME_MS) {
       delay(FRAME_MS - idle);
@@ -128,17 +190,6 @@ void loop() {
   uint32_t t0 = micros();
   int16_t from = 0;
   int16_t to = SCREEN_H - 1;
-  // Two taps close together and the numbers come up; two more and they go. A
-  // single tap is what a sleeve does, so it is not asked to mean anything.
-  static uint32_t firstTap = 0;
-  if (touchTapped()) {
-    if (firstTap != 0 && now - firstTap < 400) {
-      gaugeFigures();
-      firstTap = 0;
-    } else {
-      firstTap = now;
-    }
-  }
   gaugeStep(boardFramebuffer(), now);
   faceStep(dt);
   faceDraw(boardFramebuffer(), &from, &to);
@@ -148,6 +199,9 @@ void loop() {
   uint32_t t1 = micros();
   boardFlushRows(from, to);
   statusDraw(boardFramebuffer(), from, to);
+  if (counting) {
+    countFrames(boardFramebuffer());
+  }
   uint32_t t2 = micros();
 
   // Where the frame actually goes. Guessing at this is how you optimise the

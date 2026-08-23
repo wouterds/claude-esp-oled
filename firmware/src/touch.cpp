@@ -39,6 +39,7 @@ int16_t from = 0;
 uint32_t lastReport = 0;
 
 volatile bool tapped = false;
+volatile int16_t tappedAt = 0;
 volatile Swipe went = Swipe::None;
 
 void IRAM_ATTR onReport() {
@@ -52,6 +53,7 @@ void lift() {
   // and that was reported the moment it got far enough - so it is not also a
   // tap, however it ends.
   if (!fired) {
+    tappedAt = from;
     tapped = true;
   }
   down = false;
@@ -171,6 +173,8 @@ bool touchTapped() {
   tapped = false;
   return true;
 }
+
+int16_t touchTappedAt() { return tappedAt; }
 
 Swipe touchSwiped() {
   Swipe was = went;
