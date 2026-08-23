@@ -58,12 +58,11 @@ constexpr uint16_t SEEKING = 0xA534;
 // percent, so this is the whole of what being out looks like from here.
 constexpr uint8_t SPENT = 100;
 
-// The charge on its way in, rising from the level that is there and starting
-// over. The same rate and the same dimming as the big one on the other page, so
-// the two are one idea seen twice rather than two animations.
+// The fill climbing from the charge that is there to full and starting over,
+// while the cable is in. The same rate as the big one on the other page, so the
+// two are one idea seen twice rather than two animations.
 constexpr uint8_t RISE_STEPS = 24;
 constexpr uint32_t RISE_MS = 60;
-constexpr float GHOST = 0.4f;
 
 constexpr uint8_t YELLOW_AT = 30;
 constexpr uint8_t ORANGE_AT = 20;
@@ -163,13 +162,12 @@ float sdArc(float px, float py, float sinA, float cosA, float ra, float rb) {
   return fabsf(sqrtf(px * px + py * py) - ra) - rb;
 }
 
-void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour, uint8_t ghost) {
+void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
   constexpr float HW = 11.0f;
   constexpr float HH = 6.0f;
   constexpr float R = 3.0f;
   constexpr float WALL = 1.4f;
   float fillTo = -HW + 1.6f + (2.0f * HW - 3.2f) * (percent / 100.0f);
-  float comingTo = -HW + 1.6f + (2.0f * HW - 3.2f) * (ghost / 100.0f);
 
   for (int16_t y = MIDDLE - 8; y <= MIDDLE + 8; y++) {
     for (int16_t x = BATTERY_X - 14; x <= BATTERY_X + 16; x++) {
@@ -190,14 +188,6 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour, uint8_t ghost) 
       }
       float d = outline < charge ? outline : charge;
       plot(fb, x, y, 0.5f - d, colour);
-
-      // Between the level that is there and the one it is climbing to, so it
-      // never lands on top of the real charge.
-      if (ghost > percent && px > fillTo && px <= comingTo) {
-        float inside = sdRoundBox(px, py, HW - 3.0f, HH - 3.0f, R * 0.5f);
-        // Clamped before it is dimmed, or only the edges of it are.
-        plot(fb, x, y, clamp01(0.5f - inside) * GHOST, colour);
-      }
     }
   }
 }
@@ -286,7 +276,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
                    : false;
 
   uint8_t rise = battery.charging ? (uint8_t)((millis() / RISE_MS) % RISE_STEPS) : 0;
-  uint8_t ghost = battery.charging
+  uint8_t level = battery.charging
                       ? (uint8_t)(battery.percent + (100 - battery.percent) * rise / RISE_STEPS)
                       : battery.percent;
 
@@ -346,7 +336,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
     clearBand(fb, BAR_TOP, BAR_BOTTOM, WIFI_X - 14, BATTERY_X + 18);
     if (battery.present) {
       // The bar inside it already says how much, so the number said it twice.
-      drawBattery(fb, battery.percent, batteryColour(battery, blink), ghost);
+      drawBattery(fb, level, batteryColour(battery, blink));
     }
     drawWifi(fb, bars, online);
     boardFlushRows(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP));

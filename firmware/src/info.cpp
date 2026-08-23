@@ -44,13 +44,12 @@ constexpr int16_t LINE_SCALE = 2;
 // both sides of the circle.
 constexpr uint8_t LINE_GLYPHS = 24;
 
-// The charge that is not there yet, rising from the one that is and starting
-// over. Dimmer than the real level rather than a different colour: it is the
-// same charge, one that has not arrived. Two dozen steps over a second and a
+// While the cable is in, the fill itself climbs from the charge that is there
+// to full and starts over - the same fill, not a second one drawn behind it, so
+// what it looks like is the cell filling. Two dozen steps over a second and a
 // half is slow enough to read as filling rather than as flashing.
 constexpr uint8_t RISE_STEPS = 24;
 constexpr uint32_t RISE_MS = 60;
-constexpr float GHOST = 0.4f;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x8410;
@@ -123,7 +122,7 @@ uint16_t chargeColour(const BatteryState &battery) {
   return WHITE;
 }
 
-void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour, uint8_t ghost) {
+void drawCell(uint16_t *fb, uint8_t percent, uint16_t colour) {
   constexpr float CAVITY_HW = CELL_HW - WALL - GAP;
   constexpr float CAVITY_HH = CELL_HH - WALL - GAP;
   // Down the screen is up the cell: the charge stands on the bottom of it and
@@ -131,16 +130,9 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour, uint8_
   // cavity cut off at a line, so the top of it is as round as the bottom - and
   // as it empties the corners close on each other until what is left is a
   // lozenge rather than a sliver with square shoulders.
-  float top = CAVITY_HH - 2.0f * CAVITY_HH * (battery.percent / 100.0f);
+  float top = CAVITY_HH - 2.0f * CAVITY_HH * (percent / 100.0f);
   float chargeHH = (CAVITY_HH - top) * 0.5f;
   float chargeY = (CAVITY_HH + top) * 0.5f;
-  // The charge on its way in stands on the bottom of the cell like the real one
-  // does, and the real one is drawn over it. Given only the gap between the two
-  // levels it would be a second pill with its own rounded ends, and the two of
-  // them read as a broken column rather than as one that is filling.
-  float coming = CAVITY_HH - 2.0f * CAVITY_HH * (ghost / 100.0f);
-  float comingHH = (CAVITY_HH - coming) * 0.5f;
-  float comingY = (CAVITY_HH + coming) * 0.5f;
 
   for (int16_t y = (int16_t)(CELL_Y - CELL_HH - NUB_HH * 2 - 2);
        y <= (int16_t)(CELL_Y + CELL_HH + 2); y++) {
@@ -154,20 +146,12 @@ void drawCell(uint16_t *fb, const BatteryState &battery, uint16_t colour, uint8_
       float nub = sdRoundBox(px, py + CELL_HH + NUB_HH, NUB_HW, NUB_HH, 3.0f);
       plot(fb, x, y, 0.5f - (shell < nub ? shell : nub), colour);
 
-      if (battery.percent == 0) {
+      if (percent == 0) {
         continue;
       }
       // Cut to the cavity, or what is left at a few percent is a full-width
       // sliver hanging out past the rounded bottom of the space holding it.
       float cavity = sdRoundBox(px, py, CAVITY_HW, CAVITY_HH, CELL_R * 0.5f);
-      if (ghost > battery.percent) {
-        float rising = sdRoundBox(px, py - comingY, CAVITY_HW, comingHH, CELL_R * 0.5f);
-        // Held to what a pixel can be before it is dimmed. Dimming the distance
-        // instead only touches the pixels near an edge - everything inside is
-        // still over the top after it and clips back to full, which comes out
-        // as a bar at full brightness wearing a dark border.
-        plot(fb, x, y, clamp01(0.5f - (rising > cavity ? rising : cavity)) * GHOST, colour);
-      }
       float charge = sdRoundBox(px, py - chargeY, CAVITY_HW, chargeHH, CELL_R * 0.5f);
       plot(fb, x, y, 0.5f - (charge > cavity ? charge : cavity), colour);
     }
@@ -203,9 +187,8 @@ void infoStep(uint16_t *fb) {
   // so a battery simply sitting there compares equal every frame and this page
   // goes on costing nothing.
   uint8_t rise = battery.charging ? (uint8_t)((millis() / RISE_MS) % RISE_STEPS) : 0;
-  uint8_t ghost = battery.charging
-                      ? (uint8_t)(battery.percent +
-                                  (100 - battery.percent) * rise / RISE_STEPS)
+  uint8_t level = battery.charging
+                      ? (uint8_t)(battery.percent + (100 - battery.percent) * rise / RISE_STEPS)
                       : battery.percent;
 
   bool changed = fresh || battery.percent != shown.percent ||
@@ -227,7 +210,7 @@ void infoStep(uint16_t *fb) {
     for (int16_t y = TOP; y <= BOTTOM; y++) {
       memset(boardRow(fb, y), 0, (size_t)SCREEN_W * 2);
     }
-    drawCell(fb, battery, chargeColour(battery), ghost);
+    drawCell(fb, level, chargeColour(battery));
     boardFlushRows((int16_t)(SCREEN_H - 1 - BOTTOM), (int16_t)(SCREEN_H - 1 - TOP));
     return;
   }
@@ -244,7 +227,7 @@ void infoStep(uint16_t *fb) {
 
   uint16_t colour = chargeColour(battery);
   if (battery.present) {
-    drawCell(fb, battery, colour, ghost);
+    drawCell(fb, level, colour);
     char said[6];
     snprintf(said, sizeof(said), "%u%%", (unsigned)battery.percent);
     textDraw(fb, said, (int16_t)SCREEN_R, PERCENT_TOP, PERCENT_SCALE, boardColour(colour));
