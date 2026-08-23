@@ -12,7 +12,6 @@
 #include "face.h"
 #include "gauge.h"
 #include "info.h"
-#include "pokemon.h"
 #include "portal.h"
 #include "text.h"
 #include "usage.h"
@@ -21,10 +20,9 @@ static constexpr uint32_t FRAME_MS = 16;
 
 static uint32_t lastFrame = 0;
 
-// A stack of them, a swipe apart: the face, what it is running on, and a shelf
-// of bitmaps that is there because it is nice to have. None of them knows the
-// others exist - what turns the page is here.
-enum class Page : uint8_t { Main, Info, Pokemon };
+// Two of them, a swipe apart: the face, and what it is running on. Neither knows
+// the other exists - what turns the page is here.
+enum class Page : uint8_t { Main, Info };
 static Page page = Page::Main;
 
 // The frame rate, put on the glass rather than into the log, for when the thing
@@ -90,11 +88,6 @@ static void turnTo(Page to) {
     infoStep(fb);
     return;
   }
-  if (to == Page::Pokemon) {
-    pokemonOpen();
-    pokemonStep(fb);
-    return;
-  }
   // The bars are a blit of pixels already worked out, and status redraws both
   // its bands when it is told the whole panel was painted over - which it was.
   gaugeDraw(fb);
@@ -149,23 +142,12 @@ void loop() {
   wasCharging = charging;
 
   Swipe swipe = touchSwiped();
-  // Each page comes up from below, dragged onto the glass, and is pushed back
-  // down off it the way it came. Across the glass means something only where
-  // there is a row of things to go along, which is one page of the three.
-  if (swipe == Swipe::Up) {
-    if (page == Page::Main) {
-      turnTo(Page::Info);
-    } else if (page == Page::Info) {
-      turnTo(Page::Pokemon);
-    }
-  } else if (swipe == Swipe::Down) {
-    if (page == Page::Pokemon) {
-      turnTo(Page::Info);
-    } else if (page == Page::Info) {
-      turnTo(Page::Main);
-    }
-  } else if (swipe != Swipe::None && page == Page::Pokemon) {
-    pokemonTurn(swipe == Swipe::Right);
+  // The other page comes up from below, dragged onto the glass, and is pushed
+  // back down off it the way it came.
+  if (swipe == Swipe::Up && page == Page::Main) {
+    turnTo(Page::Info);
+  } else if (swipe == Swipe::Down && page == Page::Info) {
+    turnTo(Page::Main);
   }
 
   // Two taps close together: on the face they put the numbers up, and on the
@@ -178,7 +160,7 @@ void loop() {
     if (firstTap != 0 && now - firstTap < 400) {
       if (page == Page::Main) {
         gaugeFigures();
-      } else if (page == Page::Info && infoOnCommit(at) && infoOnCommit(firstAt)) {
+      } else if (infoOnCommit(at) && infoOnCommit(firstAt)) {
         counting = !counting;
         // Whatever it was covering has to come back, and the page underneath is
         // the only thing that knows what was there.
@@ -193,12 +175,8 @@ void loop() {
     }
   }
 
-  if (page != Page::Main) {
-    if (page == Page::Info) {
-      infoStep(boardFramebuffer());
-    } else {
-      pokemonStep(boardFramebuffer());
-    }
+  if (page == Page::Info) {
+    infoStep(boardFramebuffer());
     if (counting) {
       countFrames(boardFramebuffer());
     }
