@@ -77,9 +77,14 @@ constexpr uint8_t SPENT = 100;
 
 // The fill climbing from the charge that is there to full and starting over,
 // while the cable is in. The same rate as the big one on the other page, so the
-// two are one idea seen twice rather than two animations.
+// two are one idea seen twice rather than two animations. It says charge is on
+// its way in, so there has to be somewhere for it to go: at FULL there is not,
+// and a climb from full to full is a redraw every sixty milliseconds that
+// changes nothing. Topped up on the cable is a state rather than something in
+// progress, and it stands still and stays green.
 constexpr uint8_t RISE_STEPS = 24;
 constexpr uint32_t RISE_MS = 60;
+constexpr uint8_t FULL_AT = 100;
 
 constexpr uint8_t YELLOW_AT = 30;
 constexpr uint8_t ORANGE_AT = 20;
@@ -381,7 +386,8 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
                    ? ((millis() / 450) & 1) != 0
                    : false;
 
-  uint8_t rise = battery.charging ? (uint8_t)((millis() / RISE_MS) % RISE_STEPS) : 0;
+  bool topped = battery.percent >= FULL_AT;
+  uint8_t rise = battery.charging && !topped ? (uint8_t)((millis() / RISE_MS) % RISE_STEPS) : 0;
   uint8_t level = battery.charging
                       ? (uint8_t)(battery.percent + (100 - battery.percent) * rise / RISE_STEPS)
                       : battery.percent;
