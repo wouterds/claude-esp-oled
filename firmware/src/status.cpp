@@ -29,8 +29,8 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 // two icons above it and moves on a clock of its own - a minute, not a frame.
 //
 // It reaches further down than the note above suggests is safe, and that note is
-// the conservative one. The face's box is its centre less eighty, and the centre
-// stops climbing at HOME_Y - ROAM, so nothing of it is ever above y=72.
+// the conservative one: the face's box begins at HOME_Y - ROAM - 80, which is
+// well under this band.
 constexpr int16_t ALARM_Y = 58;
 constexpr int16_t ALARM_TOP = 43;
 constexpr int16_t ALARM_BOTTOM = 72;

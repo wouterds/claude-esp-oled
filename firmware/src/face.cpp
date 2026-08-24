@@ -23,10 +23,11 @@ constexpr float GLOW_GAIN = 0.5f;
 constexpr float ROAM = 26.0f;
 constexpr float EYE_GAP = 46.0f;
 // The clear box the face paints inside runs from 80 above this to 84 below it,
-// so the anchor sits two above the middle of the glass to put the face on it. The drift is small because the panel is round: with the
-// mouth below the eyes the face reaches 129 pixels from its own centre, and 180
-// is where the glass stops.
-constexpr float HOME_Y = 178.0f;
+// which is also what caps this at 197: the box's bottom is this plus ROAM plus
+// 84, and the bottom line of text starts at 307. The drift is small because the
+// panel is round: with the mouth below the eyes the face reaches 129 pixels from
+// its own centre, and 180 is where the glass stops.
+constexpr float HOME_Y = 196.0f;
 constexpr float EYE_RISE = 28.0f;
 constexpr float MOUTH_DROP = 52.0f;
 
