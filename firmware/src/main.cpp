@@ -40,11 +40,13 @@ static Page page = Page::Main;
 // is the same colour to the eye and a rounding error on paper.
 static constexpr uint16_t BADGE = 0xE808;
 static constexpr uint16_t BADGE_INK = 0xFFFF;
-// Around the figures. A row more above and below than either side, because the
-// glyphs are taller than they are wide and the same number all round reads as
-// tight at the top and loose at the ends.
-static constexpr int16_t FPS_PAD_X = 5;
-static constexpr int16_t FPS_PAD_Y = 6;
+// Around the figures, and half a pixel is a real amount here: the badge is a
+// distance rather than a span of pixels, so a fractional edge lands as a lighter
+// row rather than as nothing at all. Still more above and below than at the ends,
+// because the glyphs are taller than they are wide and the same number all round
+// reads as tight at the top and loose at the sides.
+static constexpr float FPS_PAD_X = 5.0f;
+static constexpr float FPS_PAD_Y = 5.5f;
 // Enough to read as rounded at this size without turning the thing into a
 // lozenge. The badge is 24 tall, and a corner much under this reads as a square
 // one that has been sanded.
@@ -73,8 +75,8 @@ static void countFrames(uint16_t *fb) {
   // The last glyph carries no gap after it, which is the one place this differs
   // from the count times the step.
   float ink = (float)(strlen(said) * textStep(FPS_SCALE) - FPS_SCALE);
-  float hx = ink * 0.5f + (float)FPS_PAD_X;
-  float hy = (float)(7 * FPS_SCALE) * 0.5f + (float)FPS_PAD_Y;
+  float hx = ink * 0.5f + FPS_PAD_X;
+  float hy = (float)(7 * FPS_SCALE) * 0.5f + FPS_PAD_Y;
   float mid = (float)FPS_MID;
   float cx = (float)FPS_X;
 
