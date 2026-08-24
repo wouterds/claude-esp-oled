@@ -104,6 +104,20 @@ void clockOf(char *out, size_t size, uint32_t ms) {
            (unsigned)(hundredths % 100));
 }
 
+// What the bottom line is about, as opposed to what it says. The typewriter is
+// keyed off this: a countdown rewrites itself every frame, and a reveal keyed off
+// the text restarts with it and never reaches a second glyph.
+enum class Line : uint8_t { Empty, Address, Clock, Alarm };
+Line line = Line::Empty;
+
+// One slot and two things worth putting in it, so they take turns - long enough
+// on the clock to watch it move, long enough on the outage to read it twice.
+constexpr uint32_t ALARM_MS = 5000;
+constexpr uint32_t ALARM_CYCLE_MS = 35000;
+// When the turn-taking started. Reset whenever the level moves, so a fresh
+// outage says so at once instead of sitting out the rest of the clock's turn.
+uint32_t alarmSince = 0;
+
 // The address arrives a letter at a time, the way the mood used to.
 char typing[16] = {0};
 uint8_t typed = 0;
@@ -348,6 +362,9 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
 
   Outage alarm = outageLevel();
   bool alarmChanged = (uint8_t)alarm != shown.alarm;
+  if (alarmChanged) {
+    alarmSince = millis();
+  }
   alarmChanged |= overlaps(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP), faceFrom, faceTo);
 
   // The countdown stands where the address does, which costs nothing: the
@@ -368,26 +385,47 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   }
   bool ticking = clock[0] != '\0';
 
-  const char *want = ticking ? clock : (address ? address : "");
-  // An address going away is a change like any other, and the only one where
-  // nothing new is typed - so it has to say so itself, or the old one is left
-  // sitting there with no clock running to wipe it.
+  // The outage takes the line off whatever has it, for five seconds in every
+  // thirty-five. It only asks while it is actually saying something.
+  bool sounding = alarm == Outage::Partial || alarm == Outage::Major;
+  bool alarmTurn = sounding && (millis() - alarmSince) % ALARM_CYCLE_MS < ALARM_MS;
+
+  Line subject = Line::Empty;
+  const char *want = "";
+  if (alarmTurn) {
+    subject = Line::Alarm;
+    // Fourteen glyphs at this size come to 86 either side of the middle, and the
+    // bars' bottom ends reach in to about 89 - so this is as long as the line
+    // can get before clearing it starts eating them.
+    want = alarm == Outage::Major ? "MAJOR OUTAGE" : "PARTIAL OUTAGE";
+  } else if (ticking) {
+    subject = Line::Clock;
+    want = clock;
+  } else if (address) {
+    subject = Line::Address;
+    want = address;
+  }
+
+  // A line going away is a change like any other, and the only one where nothing
+  // new is typed - so it has to say so itself, or the old one is left sitting
+  // there with nothing running to wipe it.
   bool rewrite = strncmp(want, shown.address, sizeof(shown.address)) != 0;
   if (rewrite) {
     strncpy(shown.address, want, sizeof(shown.address) - 1);
     shown.address[sizeof(shown.address) - 1] = '\0';
+  }
+  if (subject != line) {
+    line = subject;
     typed = 0;
     typedAt = millis();
   }
 
   uint8_t full = (uint8_t)strlen(shown.address);
   // Clamped before it is narrowed, not after. A byte of it wraps every two
-  // hundred and fifty-six steps, which is a whole address retyping itself out
-  // of nowhere every eleven seconds.
+  // hundred and fifty-six steps, which is a whole line retyping itself out of
+  // nowhere every eleven seconds.
   uint32_t steps = (millis() - typedAt) / 45;
-  // A clock is not typed out. It rewrites itself every frame, and a reveal that
-  // starts over with it would never get past its first glyph.
-  uint8_t reveal = ticking || steps >= full ? full : (uint8_t)steps;
+  uint8_t reveal = steps >= full ? full : (uint8_t)steps;
   bool bottomChanged = reveal != typed || rewrite;
   bottomChanged |= overlaps(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM), faceFrom, faceTo);
 
@@ -443,8 +481,11 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       // Centred on where the whole line will be, so it does not slide left as
       // it arrives.
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
+      // The outage line wears the triangle's own colour, so the two are one
+      // thing said twice rather than two things that happen to agree.
+      uint16_t ink = line == Line::Alarm ? alarmColour(alarm) : fade(WHITE, ticking ? up : 1.0f);
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, BOTTOM_SCALE,
-               boardColour(fade(WHITE, ticking ? up : 1.0f)));
+               boardColour(ink));
     }
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }
