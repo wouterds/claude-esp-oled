@@ -43,7 +43,6 @@ struct Trig {
 };
 Trig trig;
 
-// What a tap steps through, neutral included so there is a way back to it.
 // Where the expressions come from. The face does not have moods of its own any
 // more - it reads the two gauges, and these are the marks on them.
 constexpr uint8_t DEAD_AT = 95;
