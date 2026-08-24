@@ -290,9 +290,9 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
 void drawAlarm(uint16_t *fb, uint16_t colour) {
   // Getting on for a quarter of the height goes on the corners. Reach is HH + R
   // down and HW + R across, which is what the band and ALARM_HALF come from.
-  constexpr float HW = 7.5f;
-  constexpr float HH = 6.5f;
-  constexpr float R = 6.0f;
+  constexpr float HW = 8.5f;
+  constexpr float HH = 7.5f;
+  constexpr float R = 5.0f;
 
   for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
     for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {
