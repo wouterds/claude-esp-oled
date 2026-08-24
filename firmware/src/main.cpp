@@ -32,14 +32,18 @@ static Page page = Page::Main;
 // whatever is underneath: it is not part of any page and should not be taken
 // for one. It stays until it is asked to go, or until the board is restarted.
 static constexpr uint16_t PINK = 0xF8B2;
-// The outage triangle sits with its middle sixty-three rows down from the top,
-// so this puts the frame rate's middle sixty-three rows up from the bottom - the
-// same mark read from the other end. It clears the bottom line of text, which
-// starts at 307 on both pages, by a row and a half, and that is the whole of the
-// room down there.
-static constexpr int16_t FPS_TOP = 290;
+// Squarely on the bottom line of text, which is the commit on the details page
+// and the address on the face. It stands in for that line rather than sharing
+// the glass with it - the whole of the room down here is already spoken for, and
+// two things in it would be worse than either.
+static constexpr int16_t FPS_TOP = 308;
 static constexpr int16_t FPS_SCALE = 2;
-static constexpr int16_t FPS_HALF = 64;
+// Wide enough to take the line underneath with it. The commit runs to
+// twenty-four glyphs, which is 144 either side of the middle - further than the
+// glass goes at these rows, where the circle is down to about 127. Cleared any
+// narrower and the ends of that line stay lit either side of the frame rate,
+// which reads as a fault rather than as one thing covering another.
+static constexpr int16_t FPS_HALF = 128;
 static bool counting = false;
 static float fps = 0.0f;
 
