@@ -8,7 +8,11 @@
 set -euo pipefail
 
 PIO="$(command -v pio || echo "$HOME/.platformio/penv/bin/pio")"
-PY="$(dirname "$PIO")/python"
+# Not `dirname "$PIO"`/python. The pio on PATH is often a shim standing on its
+# own with no interpreter beside it, and what the boot log below needs is the
+# python that has pyserial - the venv's, wherever pio itself was found.
+PY="$HOME/.platformio/penv/bin/python"
+[ -x "$PY" ] || PY="$(dirname "$PIO")/python"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 port() { ls /dev | grep '^cu\.usbmodem' | head -1; }
