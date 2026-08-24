@@ -53,12 +53,18 @@ static constexpr float FPS_RADIUS = 6.0f;
 static constexpr int16_t FPS_X = 242;
 static constexpr int16_t FPS_MID = 63;
 static constexpr int16_t FPS_SCALE = 2;
+// What the loop is pacing for. FRAME_MS is a whole 16, which is 62.5 frames a
+// second rather than 60, so a board keeping up perfectly reads 62 or 63 - and
+// that is the pacing's rounding rather than headroom anybody can use. Shown
+// rather than measured: what is smoothed below stays honest.
+static constexpr unsigned FPS_CAP = 60;
 static bool counting = false;
 static float fps = 0.0f;
 
 static void countFrames(uint16_t *fb) {
   char said[12];
-  snprintf(said, sizeof(said), "%u FPS", (unsigned)(fps + 0.5f));
+  unsigned shown = (unsigned)(fps + 0.5f);
+  snprintf(said, sizeof(said), "%u FPS", shown > FPS_CAP ? FPS_CAP : shown);
 
   // The last glyph carries no gap after it, which is the one place this differs
   // from the count times the step.
