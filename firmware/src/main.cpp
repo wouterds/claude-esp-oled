@@ -43,12 +43,13 @@ static constexpr int16_t FPS_PAD = 5;
 // lozenge. The badge is 24 tall, and a corner much under this reads as a square
 // one that has been sanded.
 static constexpr float FPS_RADIUS = 6.0f;
-// Squarely on the bottom line of text, which is the commit on the details page
-// and the address on the face. It covers the middle of that line and leaves the
-// rest of it showing, which is the price of not touching anything else on these
-// rows - the gauge arcs cross them too, out at about a hundred and ten, and a
-// clear wide enough to take the whole line takes a bite out of the bars with it.
-static constexpr int16_t FPS_TOP = 308;
+// Level with the outage triangle, whose middle is 63 rows down, and in the gap
+// to the right of it. The triangle reaches x=195 and the gauge arc's inner edge
+// comes in to x=290 on the badge's top row, which leaves 95 pixels; the badge is
+// centred in them rather than pushed against either side, so it grows both ways
+// and stays clear of both however many figures it ends up holding.
+static constexpr int16_t FPS_X = 242;
+static constexpr int16_t FPS_MID = 63;
 static constexpr int16_t FPS_SCALE = 2;
 static bool counting = false;
 static float fps = 0.0f;
@@ -62,23 +63,22 @@ static void countFrames(uint16_t *fb) {
   float ink = (float)(strlen(said) * textStep(FPS_SCALE) - FPS_SCALE);
   float hx = ink * 0.5f + (float)FPS_PAD;
   float hy = (float)(7 * FPS_SCALE) * 0.5f + (float)FPS_PAD;
-  // The middle of the figures rather than their top, because the badge is drawn
-  // as a distance from its own centre.
-  float mid = (float)FPS_TOP + (float)(7 * FPS_SCALE) * 0.5f - 0.5f;
+  float mid = (float)FPS_MID;
+  float cx = (float)FPS_X;
 
   // Its own box and nothing wider. A pixel of margin either way for the edge to
   // fade into, and every row it touches is sent again below.
   int16_t from = (int16_t)(mid - hy) - 1;
   int16_t to = (int16_t)(mid + hy) + 1;
-  int16_t x0 = (int16_t)(SCREEN_R - hx) - 1;
-  int16_t x1 = (int16_t)(SCREEN_R + hx) + 1;
+  int16_t x0 = (int16_t)(cx - hx) - 1;
+  int16_t x1 = (int16_t)(cx + hx) + 1;
 
   for (int16_t y = from; y <= to; y++) {
     uint16_t *row = boardRow(fb, y);
     float py = (float)y + 0.5f - mid;
     // Turned, so the low index is the far edge and the walk stays in one row.
     for (int16_t x = x0; x <= x1; x++) {
-      float px = (float)x + 0.5f - SCREEN_R;
+      float px = (float)x + 0.5f - cx;
       // A signed distance rather than a span, so the corners come out round and
       // the edge comes out smooth without a second pass over it.
       float qx = fabsf(px) - (hx - FPS_RADIUS);
@@ -105,7 +105,9 @@ static void countFrames(uint16_t *fb) {
     }
   }
 
-  textDraw(fb, said, (int16_t)SCREEN_R, FPS_TOP, FPS_SCALE, boardColour(BADGE_INK));
+  // Its top, from the middle the badge is built around.
+  textDraw(fb, said, (int16_t)cx, (int16_t)(mid - (float)(7 * FPS_SCALE) * 0.5f), FPS_SCALE,
+           boardColour(BADGE_INK));
   boardFlushRows((int16_t)(SCREEN_H - 1 - to), (int16_t)(SCREEN_H - 1 - from));
 }
 
