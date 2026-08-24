@@ -6,6 +6,7 @@
 #include "battery.h"
 #include "board.h"
 #include "bus.h"
+#include "button.h"
 #include "status.h"
 #include "touch.h"
 #include "wifi.h"
@@ -107,6 +108,7 @@ void setup() {
   busBegin();
   batteryBegin();
   touchBegin();
+  buttonBegin();
   audioBegin();
   wifiBegin();
   portalBegin();
@@ -155,6 +157,11 @@ void loop() {
   // Two taps close together: on the face they put the numbers up, and on the
   // commit they put the frame rate up. A single tap is what a sleeve does, so it
   // is not asked to mean anything, and both taps have to land on the same thing.
+  // The numbers, off the one button the chip can read.
+  if (buttonPressed() && page == Page::Main) {
+    gaugeFigures();
+  }
+
   static uint32_t firstTap = 0;
   static int16_t firstAt = 0;
   if (touchTapped()) {
