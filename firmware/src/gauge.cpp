@@ -27,7 +27,10 @@ constexpr float HALF_THICK = 3.5f;
 constexpr float SWEEP_SHORT = 0.87f;
 constexpr float SWEEP_TOP = 1.13f;
 constexpr float SWEEP_BOTTOM = 1.13f;
-constexpr float REACH_S = 0.8f;
+// How long the bars take to pull in behind the numbers, and to come back out
+// again. Both ends of that ride this one figure, so they stay each other's
+// reverse rather than drifting apart.
+constexpr float REACH_S = 0.53f;
 
 constexpr int16_t BOX_X0 = 0;
 // Far enough in to hold the ends. An arc that reaches down to five past seven
