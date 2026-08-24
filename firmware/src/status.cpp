@@ -31,9 +31,9 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 // It reaches further down than the note above suggests is safe, and that note is
 // the conservative one: the face's box begins at HOME_Y - ROAM - 80, which is
 // well under this band.
-constexpr int16_t ALARM_Y = 58;
-constexpr int16_t ALARM_TOP = 44;
-constexpr int16_t ALARM_BOTTOM = 71;
+constexpr int16_t ALARM_Y = 63;
+constexpr int16_t ALARM_TOP = 49;
+constexpr int16_t ALARM_BOTTOM = 76;
 constexpr int16_t ALARM_HALF = 15;
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
