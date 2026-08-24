@@ -32,9 +32,9 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 // the conservative one: the face's box begins at HOME_Y - ROAM - 80, which is
 // well under this band.
 constexpr int16_t ALARM_Y = 58;
-constexpr int16_t ALARM_TOP = 43;
-constexpr int16_t ALARM_BOTTOM = 72;
-constexpr int16_t ALARM_HALF = 17;
+constexpr int16_t ALARM_TOP = 44;
+constexpr int16_t ALARM_BOTTOM = 71;
+constexpr int16_t ALARM_HALF = 15;
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
 // this height it gives about 80 pixels either side of the middle, and the two
@@ -290,9 +290,9 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
 void drawAlarm(uint16_t *fb, uint16_t colour) {
   // Getting on for a quarter of the height goes on the corners. Reach is HH + R
   // down and HW + R across, which is what the band and ALARM_HALF come from.
-  constexpr float HW = 8.5f;
-  constexpr float HH = 7.5f;
-  constexpr float R = 6.5f;
+  constexpr float HW = 7.5f;
+  constexpr float HH = 6.5f;
+  constexpr float R = 6.0f;
 
   for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
     for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {
@@ -300,8 +300,8 @@ void drawAlarm(uint16_t *fb, uint16_t colour) {
       float py = (float)y + 0.5f - ALARM_Y;
 
       float shell = sdTriangle(px, py, HW, HH) - R;
-      float bar = sdRoundBox(px, py + 1.5f, 1.7f, 3.2f, 1.7f);
-      float dot = sqrtf(px * px + (py - 7.8f) * (py - 7.8f)) - 1.8f;
+      float bar = sdRoundBox(px, py + 0.9f, 1.7f, 4.0f, 1.7f);
+      float dot = sqrtf(px * px + (py - 7.4f) * (py - 7.4f)) - 1.8f;
       float bang = bar < dot ? bar : dot;
       plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang), colour);
     }
