@@ -77,8 +77,12 @@ struct State {
   float blend;         // 0 while settled, counts up through a change
   Mood mood;
   Mood was;
-  float paintedX, paintedY;  // where the eyes were last drawn, so only that
-                             // much of the panel has to be put back to black
+  // The box the last frame actually painted, so exactly that much of the panel
+  // is put back to black - no more, and no less. A generous constant either
+  // wipes rows nothing was ever drawn on, or comes up short when a look far to
+  // one side carries an eye further out than the constant allowed for.
+  float paintedL, paintedT, paintedR, paintedB;
+  bool painted;
   float lookX, lookY;      // where it is looking, eased
   float lookTX, lookTY;    // and where it has decided to look next
   float lookIn;            // seconds until it looks somewhere else
@@ -371,6 +375,7 @@ void faceBegin() {
   me.warm = false;
   me.alarm = Outage::Unknown;
   me.blend = 1.0f;
+  me.painted = false;
   me.mood = Mood::Neutral;
   me.was = Mood::Neutral;
   me.lookX = me.lookY = me.lookTX = me.lookTY = 0.0f;
@@ -573,38 +578,6 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   const Mood mood = me.mood;
   const Mood before = me.was;
 
-  constexpr float REACH_X = 38.0f;
-  constexpr float REACH_Y = 42.0f;
-  constexpr float SPAN_X = 34.0f;   // the widest any eye gets
-  constexpr float SPAN_Y = 41.0f;   // and the tallest
-  constexpr float MOUTH_REACH_X = 22.0f;
-  constexpr float MOUTH_REACH_Y = 22.0f;
-  constexpr float MOUTH_SPAN_X = 19.0f;  // the widest the mouth gets
-  constexpr float MOUTH_SPAN_Y = 19.0f;  // and the tallest
-  constexpr float HALF_W = EYE_GAP + REACH_X + GLOW_RADIUS + 2.0f;
-
-  float top = centreY - EYE_RISE - REACH_Y - GLOW_RADIUS - 2.0f;
-  float bottom = centreY + MOUTH_DROP + MOUTH_REACH_Y + GLOW_RADIUS + 2.0f;
-
-  // Only what the last frame painted can be holding anything, and clearing that
-  // beats memsetting 253KB of PSRAM sixty times a second.
-  float wasTop = me.paintedY - EYE_RISE - REACH_Y - GLOW_RADIUS - 2.0f;
-  float wasBottom = me.paintedY + MOUTH_DROP + MOUTH_REACH_Y + GLOW_RADIUS + 2.0f;
-  float dirtyTop = wasTop < top ? wasTop : top;
-  float dirtyBottom = wasBottom > bottom ? wasBottom : bottom;
-  // One box over both positions rather than one for each. The face drifts a
-  // pixel or two a frame, so the two overlap almost exactly and clearing them
-  // separately does most of the same rows twice.
-  float leftMost = me.paintedX < centreX ? me.paintedX : centreX;
-  float rightMost = me.paintedX > centreX ? me.paintedX : centreX;
-  clearBox(fb, leftMost - HALF_W, dirtyTop, rightMost + HALF_W, dirtyBottom);
-  me.paintedX = centreX;
-  me.paintedY = centreY;
-
-  float eyeY = centreY - EYE_RISE + me.lookY * 0.5f;
-  // The two do not travel together: the eye on the side being looked toward
-  // carries a little more of the movement, and each carries a slow wobble of
-  // its own.
   // Whichever of the two shapes on the glass reaches furthest, since during a
   // change both of them are being drawn.
   Reach reach = eyeReach(mood);
@@ -615,16 +588,72 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
     reach.lid = reach.lid && other.lid;
     reach.slides = reach.slides || other.slides;
   }
-  // Where the ink can be on this row, and how far either side of that it goes.
+  // Where the ink can be on a row, and how far either side of that it goes.
   float lidHalf = reach.lid ? reach.y * squeeze : reach.y;
   float lidMid = reach.slides ? reach.y - lidHalf : 0.0f;
   float spanX = reach.x + GLOW_RADIUS;
 
-  for (float side = -1.0f; side < 2.0f; side += 2.0f) {
-    float eyeX = centreX + side * EYE_GAP + me.lookX * (0.5f + side * 0.12f) +
-                 sinf(me.clock * 2.3f + (side > 0.0f ? 1.7f : 0.0f)) * 1.1f;
-    int16_t x0 = (int16_t)(eyeX - spanX) - 1;
-    int16_t x1 = (int16_t)(eyeX + spanX) + 1;
+  // The mouth's own size, off the table it is drawn from rather than off the
+  // biggest entry in it. A neutral mouth is seven pixels tall where the widest
+  // is twenty-two, and the fifteen rows between them were being walked, cleared
+  // and sent every frame for nothing.
+  float mouthHX = MOUTHS[(uint8_t)mood].hx;
+  float mouthHY = MOUTHS[(uint8_t)mood].hy;
+  if (mix < 1.0f) {
+    if (MOUTHS[(uint8_t)before].hx > mouthHX) mouthHX = MOUTHS[(uint8_t)before].hx;
+    if (MOUTHS[(uint8_t)before].hy > mouthHY) mouthHY = MOUTHS[(uint8_t)before].hy;
+  }
+
+  float eyeY = centreY - EYE_RISE + me.lookY * 0.5f;
+  float mouthY = centreY + MOUTH_DROP;
+  // The two eyes do not travel together: the one on the side being looked toward
+  // carries a little more of the movement, and each carries a slow wobble of its
+  // own. Worked out here rather than in the loop, because where they land is
+  // what says how much of the glass this frame is about to touch.
+  float eyeX[2];
+  for (uint8_t i = 0; i < 2; i++) {
+    float side = i == 0 ? -1.0f : 1.0f;
+    eyeX[i] = centreX + side * EYE_GAP + me.lookX * (0.5f + side * 0.12f) +
+              sinf(me.clock * 2.3f + (side > 0.0f ? 1.7f : 0.0f)) * 1.1f;
+  }
+
+  // Exactly what this frame will paint, eyes and mouth together.
+  float left = (eyeX[0] < eyeX[1] ? eyeX[0] : eyeX[1]) - spanX - 1.0f;
+  float right = (eyeX[0] > eyeX[1] ? eyeX[0] : eyeX[1]) + spanX + 1.0f;
+  float top = eyeY + lidMid - lidHalf - GLOW_RADIUS - 1.0f;
+  float bottom = eyeY + lidMid + lidHalf + GLOW_RADIUS + 1.0f;
+  float mouthL = centreX - mouthHX - GLOW_RADIUS - 1.0f;
+  float mouthR = centreX + mouthHX + GLOW_RADIUS + 1.0f;
+  float mouthT = mouthY - mouthHY - GLOW_RADIUS - 1.0f;
+  float mouthB = mouthY + mouthHY + GLOW_RADIUS + 1.0f;
+  if (mouthL < left) left = mouthL;
+  if (mouthR > right) right = mouthR;
+  if (mouthT < top) top = mouthT;
+  if (mouthB > bottom) bottom = mouthB;
+
+  // Clear the union of that and whatever the last frame left behind. Nothing
+  // else owns these rows, so what is not cleared here stays on the glass.
+  float dirtyTop = top;
+  float dirtyBottom = bottom;
+  float dirtyLeft = left;
+  float dirtyRight = right;
+  if (me.painted) {
+    if (me.paintedT < dirtyTop) dirtyTop = me.paintedT;
+    if (me.paintedB > dirtyBottom) dirtyBottom = me.paintedB;
+    if (me.paintedL < dirtyLeft) dirtyLeft = me.paintedL;
+    if (me.paintedR > dirtyRight) dirtyRight = me.paintedR;
+  }
+  clearBox(fb, dirtyLeft, dirtyTop, dirtyRight, dirtyBottom);
+  me.paintedL = left;
+  me.paintedT = top;
+  me.paintedR = right;
+  me.paintedB = bottom;
+  me.painted = true;
+
+  for (uint8_t i = 0; i < 2; i++) {
+    float side = i == 0 ? -1.0f : 1.0f;
+    int16_t x0 = (int16_t)(eyeX[i] - spanX) - 1;
+    int16_t x1 = (int16_t)(eyeX[i] + spanX) + 1;
     int16_t y0 = (int16_t)(eyeY + lidMid - lidHalf - GLOW_RADIUS) - 1;
     int16_t y1 = (int16_t)(eyeY + lidMid + lidHalf + GLOW_RADIUS) + 1;
     if (x0 < 0) x0 = 0;
@@ -638,7 +667,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
       // The box is the shape's own now, so there is nothing left on the row or
       // in the span that a test here would throw away.
       for (int16_t x = x1; x >= x0; x--) {
-        float lx = (float)x + 0.5f - eyeX;
+        float lx = (float)x + 0.5f - eyeX[i];
         float v = clamp01(eyeCoverage(mood, before, lx, ly, side, squeeze, mix));
         if (v <= 0.004f) {
           continue;
@@ -650,12 +679,11 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
     }
   }
 
-  float mouthY = centreY + MOUTH_DROP;
   {
-    int16_t x0 = (int16_t)(centreX - MOUTH_REACH_X - GLOW_RADIUS);
-    int16_t x1 = (int16_t)(centreX + MOUTH_REACH_X + GLOW_RADIUS);
-    int16_t y0 = (int16_t)(mouthY - MOUTH_REACH_Y - GLOW_RADIUS);
-    int16_t y1 = (int16_t)(mouthY + MOUTH_REACH_Y + GLOW_RADIUS);
+    int16_t x0 = (int16_t)mouthL;
+    int16_t x1 = (int16_t)mouthR;
+    int16_t y0 = (int16_t)mouthT;
+    int16_t y1 = (int16_t)mouthB;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
     if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
@@ -663,15 +691,10 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
 
     for (int16_t y = y0; y <= y1; y++) {
       float ly = (float)y + 0.5f - mouthY;
-      if (fabsf(ly) - MOUTH_SPAN_Y > GLOW_RADIUS) {
-        continue;
-      }
       uint16_t *row = boardRow(fb, y);
+      // The box is the mouth's own now, so nothing here would be thrown away.
       for (int16_t x = x1; x >= x0; x--) {
         float lx = (float)x + 0.5f - centreX;
-        if (fabsf(lx) - MOUTH_SPAN_X > GLOW_RADIUS) {
-          continue;
-        }
         float v = clamp01(mouthCoverage(mood, before, lx, ly, mix));
         if (v <= 0.004f) {
           continue;
