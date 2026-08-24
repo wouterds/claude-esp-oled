@@ -116,15 +116,16 @@ Line line = Line::Empty;
 constexpr uint32_t ALARM_MS = 5000;
 constexpr uint32_t ALARM_CYCLE_MS = 35000;
 
-// Three quick dips and then five seconds steady, over and over. It has to catch
-// an eye that is not looking, and a shape that never stops blinking stops being
-// a warning after the first minute of an outage that runs for hours.
+// Five quick dips and then ten seconds steady, over and over. It has to catch an
+// eye that is not looking, and a shape that never stops blinking stops being a
+// warning after the first minute of an outage that runs for hours.
 //
 // A dip is three frames at the rate this panel actually runs. Much under that
 // and which frames it lands on starts to show as a stutter rather than a beat.
 constexpr uint32_t ALARM_DIP_MS = 120;
-constexpr uint32_t ALARM_DIPS = 3;
-constexpr uint32_t ALARM_BEAT_MS = ALARM_DIPS * 2 * ALARM_DIP_MS + 5000;
+constexpr uint32_t ALARM_DIPS = 5;
+constexpr uint32_t ALARM_STEADY_MS = 10000;
+constexpr uint32_t ALARM_BEAT_MS = ALARM_DIPS * 2 * ALARM_DIP_MS + ALARM_STEADY_MS;
 // When the turn-taking started. Reset whenever the level moves, so a fresh
 // outage says so at once instead of sitting out the rest of the clock's turn.
 uint32_t alarmSince = 0;
