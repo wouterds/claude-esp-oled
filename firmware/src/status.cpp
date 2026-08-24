@@ -31,10 +31,10 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 // It reaches further down than the note above suggests is safe, and that note is
 // the conservative one. The face's box is its centre less eighty, and the centre
 // stops climbing at HOME_Y - ROAM, so nothing of it is ever above y=72.
-constexpr int16_t ALARM_Y = 52;
-constexpr int16_t ALARM_TOP = 37;
-constexpr int16_t ALARM_BOTTOM = 62;
-constexpr int16_t ALARM_HALF = 16;
+constexpr int16_t ALARM_Y = 58;
+constexpr int16_t ALARM_TOP = 43;
+constexpr int16_t ALARM_BOTTOM = 72;
+constexpr int16_t ALARM_HALF = 17;
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
 // this height it gives about 80 pixels either side of the middle, and the two
@@ -177,14 +177,30 @@ float sdRoundBox(float px, float py, float hx, float hy, float r) {
   return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
 }
 
-// Apex up: the bottom edge, and the right one folded onto both sides. Exact
-// along the edges and a shade long outside the corners, which is a pixel of
-// antialiasing on a shape this size.
+// Apex up, and exact - which the max of the two half-planes is not. That is
+// only right along the edges; outside a corner it reads about half the true
+// distance, so subtracting a radius from it drew the apex out into a spike
+// instead of capping it. Rounding anything by this needs the real distance.
 float sdTriangle(float px, float py, float hx, float hy) {
-  float side = sqrtf(4.0f * hy * hy + hx * hx);
-  float edge = (2.0f * hy * fabsf(px) - hx * (py + hy)) / side;
-  float base = py - hy;
-  return edge > base ? edge : base;
+  px = fabsf(px);
+  // Outside, the nearest point on the right edge taken as a segment, so the
+  // apex and the corner answer for their own neighbourhoods.
+  float ex = hx;
+  float ey = 2.0f * hy;
+  float vx = px;
+  float vy = py + hy;
+  float t = (vx * ex + vy * ey) / (ex * ex + ey * ey);
+  t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+  float dx = vx - ex * t;
+  float dy = vy - ey * t;
+  float edge = sqrtf(dx * dx + dy * dy);
+  float bx = px > hx ? px - hx : 0.0f;
+  float by = py - hy;
+  float base = sqrtf(bx * bx + by * by);
+  // Inside, the half-planes are exact and cost less than picking a corner.
+  float slant = (2.0f * hy * px - hx * (py + hy)) / sqrtf(4.0f * hy * hy + hx * hx);
+  float inside = slant > by ? slant : by;
+  return inside < 0.0f ? inside : (edge < base ? edge : base);
 }
 
 // An arc opening by `aperture` either side of straight up, with rounded ends.
@@ -267,28 +283,28 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
   }
 }
 
-// The bang is taken out of the triangle rather than drawn on top of it: the
-// panel cannot switch a pixel off, so a black glyph over a lit shape comes out
-// grey, and cutting the shape away leaves the backlight to speak for it.
+// Drawn as an outline with the bang sitting inside it, which is what the
+// battery and the wifi beside it are - a filled sign next to two hollow ones
+// reads as a different kind of thing rather than as the same chrome.
 void drawAlarm(uint16_t *fb, uint16_t colour) {
-  // Offsetting by R rounds all three corners, but it also carries the apex out
-  // by R over the sine of its half-angle rather than by R - so what goes in is
-  // a good deal smaller than what lands. Equilateral keeps that tractable: the
-  // height comes to 2*HH + 3*R, which leaves R free to be worth seeing.
+  // The corners are the whole character of it, so the radius is most of the
+  // half-height. Reach is HH + R + WALL down and HW + R + WALL across, which is
+  // what the band and ALARM_HALF are sized from.
+  constexpr float HW = 8.0f;
+  constexpr float HH = 6.5f;
   constexpr float R = 5.5f;
-  constexpr float HH = 4.25f;
-  constexpr float HW = 4.91f;
+  constexpr float WALL = 1.5f;
 
   for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
     for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {
       float px = (float)x + 0.5f - SCREEN_R;
       float py = (float)y + 0.5f - ALARM_Y;
 
-      float shell = sdTriangle(px, py, HW, HH) - R;
-      float bar = sdRoundBox(px, py + 1.0f, 1.3f, 2.8f, 1.3f);
-      float dot = sqrtf(px * px + (py - 5.2f) * (py - 5.2f)) - 1.5f;
+      float shell = fabsf(sdTriangle(px, py, HW, HH) - R) - WALL;
+      float bar = sdRoundBox(px, py + 1.5f, 1.4f, 3.0f, 1.4f);
+      float dot = sqrtf(px * px + (py - 7.5f) * (py - 7.5f)) - 1.5f;
       float bang = bar < dot ? bar : dot;
-      plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang), colour);
+      plot(fb, x, y, 0.5f - (shell < bang ? shell : bang), colour);
     }
   }
 }
