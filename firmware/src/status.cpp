@@ -385,9 +385,11 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   }
   bool ticking = clock[0] != '\0';
 
-  // The outage takes the line off whatever has it, for five seconds in every
-  // thirty-five. It only asks while it is actually saying something.
-  bool sounding = alarm == Outage::Partial || alarm == Outage::Major;
+  // The outage borrows the line for five seconds in every thirty-five, and only
+  // while the clock is up to lend it. Off the clock there is nothing to hand it
+  // back to, so the turn would be a five second blink at an empty line - and
+  // when nobody has asked for the text, the triangle is what says so.
+  bool sounding = ticking && (alarm == Outage::Partial || alarm == Outage::Major);
   bool alarmTurn = sounding && (millis() - alarmSince) % ALARM_CYCLE_MS < ALARM_MS;
 
   Line subject = Line::Empty;
@@ -483,7 +485,8 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
       // The outage line wears the triangle's own colour, so the two are one
       // thing said twice rather than two things that happen to agree.
-      uint16_t ink = line == Line::Alarm ? alarmColour(alarm) : fade(WHITE, ticking ? up : 1.0f);
+      uint16_t ink = line == Line::Alarm ? fade(alarmColour(alarm), up)
+                                        : fade(WHITE, ticking ? up : 1.0f);
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, BOTTOM_SCALE,
                boardColour(ink));
     }
