@@ -283,28 +283,27 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
   }
 }
 
-// Drawn as an outline with the bang sitting inside it, which is what the
-// battery and the wifi beside it are - a filled sign next to two hollow ones
-// reads as a different kind of thing rather than as the same chrome.
+// Filled, with the bang taken out of it rather than laid over it. The panel
+// cannot switch a pixel off, so a black glyph on a lit shape comes out grey -
+// taking the shape away is the only black on offer here, and it leaves the
+// backlight to answer for it.
 void drawAlarm(uint16_t *fb, uint16_t colour) {
-  // The corners are the whole character of it, so the radius is most of the
-  // half-height. Reach is HH + R + WALL down and HW + R + WALL across, which is
-  // what the band and ALARM_HALF are sized from.
-  constexpr float HW = 8.0f;
-  constexpr float HH = 6.5f;
-  constexpr float R = 5.5f;
-  constexpr float WALL = 1.5f;
+  // Getting on for a quarter of the height goes on the corners. Reach is HH + R
+  // down and HW + R across, which is what the band and ALARM_HALF come from.
+  constexpr float HW = 8.5f;
+  constexpr float HH = 7.5f;
+  constexpr float R = 6.5f;
 
   for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
     for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {
       float px = (float)x + 0.5f - SCREEN_R;
       float py = (float)y + 0.5f - ALARM_Y;
 
-      float shell = fabsf(sdTriangle(px, py, HW, HH) - R) - WALL;
-      float bar = sdRoundBox(px, py + 1.5f, 1.4f, 3.0f, 1.4f);
-      float dot = sqrtf(px * px + (py - 7.5f) * (py - 7.5f)) - 1.5f;
+      float shell = sdTriangle(px, py, HW, HH) - R;
+      float bar = sdRoundBox(px, py + 1.5f, 1.7f, 3.2f, 1.7f);
+      float dot = sqrtf(px * px + (py - 7.8f) * (py - 7.8f)) - 1.8f;
       float bang = bar < dot ? bar : dot;
-      plot(fb, x, y, 0.5f - (shell < bang ? shell : bang), colour);
+      plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang), colour);
     }
   }
 }
