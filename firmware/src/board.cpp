@@ -53,7 +53,11 @@ static bool bandDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t *,
 
 static esp_lcd_panel_handle_t panel = nullptr;
 static uint16_t *framebuffer = nullptr;
-static uint16_t *band = nullptr;
+// Two of them, alternating. The copy out of PSRAM and the transfer out of the
+// buffer are the two halves of a flush and neither needs the other: filling the
+// next band while the panel is still taking the last one costs a second buffer
+// and hides whichever of the two is quicker behind the other.
+static uint16_t *band[2] = {nullptr, nullptr};
 
 static esp_lcd_panel_io_handle_t newPanelIo(uint32_t pclkHz) {
   esp_lcd_panel_io_spi_config_t io = {};
@@ -112,8 +116,9 @@ static void chooseInit(st77916_vendor_config_t &vendor) {
 bool boardBegin() {
   bandSent = xSemaphoreCreateBinary();
   framebuffer = (uint16_t *)heap_caps_malloc((size_t)SCREEN_W * SCREEN_H * 2, MALLOC_CAP_SPIRAM);
-  band = (uint16_t *)heap_caps_malloc(BAND_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-  if (!framebuffer || !band) {
+  band[0] = (uint16_t *)heap_caps_malloc(BAND_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+  band[1] = (uint16_t *)heap_caps_malloc(BAND_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+  if (!framebuffer || !band[0] || !band[1]) {
     Serial.println("no room for a framebuffer");
     return false;
   }
@@ -208,11 +213,25 @@ void boardFlushRows(int16_t from, int16_t to) {
   if (to > SCREEN_H - 1) {
     to = SCREEN_H - 1;
   }
+  // Fill, hand over, fill the other one while that one goes out. The wait moves
+  // to just before the next hand-over, which is the whole point: the copy for the
+  // band after this one has already happened by the time the panel is ready for
+  // it. Only ever one transfer outstanding, so the one semaphore still answers
+  // for it.
+  uint8_t slot = 0;
+  bool flying = false;
   for (int16_t y = from; y <= to; y += BAND_ROWS) {
     int16_t rows = (y + BAND_ROWS <= to + 1) ? BAND_ROWS : (to + 1 - y);
-    memcpy(band, framebuffer + (int32_t)y * SCREEN_W, (size_t)rows * SCREEN_W * 2);
-    esp_lcd_panel_draw_bitmap(panel, 0, y, SCREEN_W, y + rows, band);
-    // The buffer is not ours again until the transfer says so.
+    memcpy(band[slot], framebuffer + (int32_t)y * SCREEN_W, (size_t)rows * SCREEN_W * 2);
+    if (flying) {
+      xSemaphoreTake(bandSent, portMAX_DELAY);
+    }
+    esp_lcd_panel_draw_bitmap(panel, 0, y, SCREEN_W, y + rows, band[slot]);
+    flying = true;
+    slot ^= 1;
+  }
+  // The last one is still going, and the buffer is not ours again until it says.
+  if (flying) {
     xSemaphoreTake(bandSent, portMAX_DELAY);
   }
 }
