@@ -19,12 +19,14 @@ namespace {
 // edge is smaller than this number makes it look and is meant to be there.
 constexpr float RADIUS = 173.0f;
 constexpr float HALF_THICK = 3.5f;
-// Either side of the horizontal. Short is three quarters of the panel's height,
-// which is as far as an arc goes before its bottom end curves back in to where
-// the address is written. With the address gone there is nothing down there to
-// avoid, so both ends go out together and the bar stays symmetric about the
-// horizontal - which is what it looks like it ought to be.
-constexpr float SWEEP_SHORT = 0.87f;
+// Either side of the horizontal. Short reaches about three quarters of the way
+// down the panel: its bottom end lands on row 317, which is past where the
+// address and the clock are written, but by then the arc has curved in to a
+// hundred and six pixels off the middle and the longest line down there reaches
+// ninety - so it goes over those rows without going through anything. With the
+// address gone both ends go out together and the bar stays symmetric about the
+// horizontal, which is what it looks like it ought to be.
+constexpr float SWEEP_SHORT = 0.91f;
 constexpr float SWEEP_TOP = 1.13f;
 constexpr float SWEEP_BOTTOM = 1.13f;
 // How long the bars take to pull in behind the numbers, and to come back out
