@@ -48,12 +48,12 @@ constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
 
 constexpr uint16_t WHITE = 0xFFFF;
-// Only the triangle with nothing to report wears this, and it sits under the
-// floor DIM describes below - deliberately. That floor was written about the
-// wifi ring, which is arcs a pixel and a half thick; a filled shape this size
-// still reads at a quarter of full scale where a thin one would have sunk into
-// the backlight. Anything under this and it goes with it.
-constexpr uint16_t GREY = 0x4208;
+// Only the triangle with nothing to report wears this, and it sits well under
+// the floor DIM describes below. That floor was written about the wifi ring,
+// which is arcs a pixel and a half thick; a filled shape this size holds on a
+// good way further down. Exactly how far is a question for the glass rather
+// than for a number, and this is where looking at it left it.
+constexpr uint16_t GREY = 0x3186;
 // The same teal the gauges start at, so one green means one thing here.
 constexpr uint16_t GREEN = 0x07F6;
 // Warmed off pure yellow and given a little blue. Full red and full green with
