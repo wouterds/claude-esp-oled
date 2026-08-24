@@ -123,9 +123,12 @@ float sdArc(float px, float py, const Arc &a) {
   return fabsf(sqrtf(qx * qx + qy * qy) - RADIUS) - HALF_THICK;
 }
 
-// Teal at nothing, orange halfway, a warm rose red at full - all of them near
-// the top of what the panel can do, because they are being read off a backlight
-// that never fully goes out and a dull colour on that is a grey one. The whole
+// Teal at nothing, orange halfway, and #ED0040 at full - the same red the frame
+// rate's badge wears, so one red means one thing. It arrives a shade brighter
+// than that: the lift at the bottom of this puts the strongest channel back at
+// full scale, which is a pure scale and leaves the hue exactly where it was. All
+// of them near the top of what the panel can do, because they are being read off
+// a backlight that never fully goes out and a dull colour on that is a grey one. The whole
 // fill takes one colour off this: the bar says how much by how long it is, and
 // says it again by what colour it is, rather than fading along its own length.
 uint16_t colourAt(float percent) {
@@ -143,7 +146,7 @@ uint16_t colourAt(float percent) {
                            {0.6f, 255.0f, 255.0f, 0.0f},
                            {0.7f, 255.0f, 182.0f, 0.0f},
                            {0.8f, 255.0f, 168.0f, 0.0f},
-                           {1.0f, 255.0f, 48.0f, 64.0f}};
+                           {1.0f, 237.0f, 0.0f, 64.0f}};
   constexpr uint8_t COUNT = sizeof(RAMP) / sizeof(RAMP[0]);
 
   float t = clamp01(percent / 100.0f);
