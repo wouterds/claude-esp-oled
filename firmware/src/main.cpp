@@ -31,7 +31,14 @@ static Page page = Page::Main;
 // being watched is what the drawing costs. Bright pink and across the top of
 // whatever is underneath: it is not part of any page and should not be taken
 // for one. It stays until it is asked to go, or until the board is restarted.
-static constexpr uint16_t PINK = 0xF8B2;
+// #ED0040, as near as five bits of red and five of blue reach: #EF0042, which
+// is the same colour to the eye and a rounding error on paper.
+static constexpr uint16_t BADGE = 0xE808;
+static constexpr uint16_t BADGE_INK = 0xFFFF;
+// On every side of the figures. The text is centred, so the left gets whatever
+// the right is given whether it is asked for or not - and the two rows above and
+// below are already in the band, which is what makes it the badge's height.
+static constexpr int16_t FPS_PAD = 2;
 // Squarely on the bottom line of text, which is the commit on the details page
 // and the address on the face. It stands in for that line rather than sharing
 // the glass with it - the whole of the room down here is already spoken for, and
@@ -60,7 +67,22 @@ static void countFrames(uint16_t *fb) {
   for (int16_t y = from; y <= to; y++) {
     memset(boardRow(fb, y) + boardX(x1), 0, (size_t)(x1 - x0 + 1) * 2);
   }
-  textDraw(fb, said, (int16_t)SCREEN_R, FPS_TOP, FPS_SCALE, boardColour(PINK));
+
+  // Then the badge over the top of that, only as wide as the figures it holds.
+  // The last glyph carries no gap after it, which is the one place this differs
+  // from the count times the step.
+  int16_t ink = (int16_t)(strlen(said) * textStep(FPS_SCALE) - FPS_SCALE);
+  int16_t half = (int16_t)(ink / 2 + FPS_PAD);
+  uint16_t badge = boardColour(BADGE);
+  for (int16_t y = from; y <= to; y++) {
+    uint16_t *row = boardRow(fb, y);
+    // Turned, so the low index is the far edge and the span stays contiguous.
+    int16_t end = boardX((int16_t)(SCREEN_R - half));
+    for (int16_t i = boardX((int16_t)(SCREEN_R + half)); i <= end; i++) {
+      row[i] = badge;
+    }
+  }
+  textDraw(fb, said, (int16_t)SCREEN_R, FPS_TOP, FPS_SCALE, boardColour(BADGE_INK));
   boardFlushRows((int16_t)(SCREEN_H - 1 - to), (int16_t)(SCREEN_H - 1 - from));
 }
 
