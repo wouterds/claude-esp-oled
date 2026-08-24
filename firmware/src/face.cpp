@@ -243,30 +243,90 @@ ALWAYS Reach eyeReach(Mood mood) {
   }
 }
 
+// Four of the six expressions draw the eye as one blob, and these are the
+// numbers that make it. They live here rather than inside eyeShape below so that
+// the shape and the fast path in faceDraw read the same figures - two copies of
+// them is two copies that drift.
+//
+// `slide` is how far down its own centre the shape sits, which is only ever
+// tired: a lid comes down onto a bottom edge that stays where it is. Scaling the
+// height alone would take the eye in from the top and the bottom at once, which
+// reads as an eye getting smaller rather than as one closing, and that is the
+// whole difference between sleepy and shrinking.
+struct Blob {
+  bool plain;
+  float hx, hy;
+  float rTop, rBottom;
+  float slide;
+};
+
+ALWAYS Blob eyeBlob(Mood mood, float squeeze) {
+  switch (mood) {
+    case Mood::Happy:
+      // Neutral's blob, domed over the top and squared off underneath.
+      return {true, 28.0f, 29.0f * squeeze, 28.0f, 9.0f, 0.0f};
+    case Mood::Surprised:
+      return {true, 34.0f, 40.0f * squeeze, 34.0f, 34.0f, 0.0f};
+    case Mood::Tired: {
+      // Rounded over the top, not squared, and not tilted at all. A flat edge
+      // above a squat eye is a brow and reads as cross; a slant either way is an
+      // emotion of its own, outward into sadness and inward into anger. Tired is
+      // none of those - it is just slack.
+      constexpr float FULL = 29.0f;
+      float half = FULL * squeeze;
+      return {true, 28.0f, half, 15.0f, 24.0f, FULL - half};
+    }
+    case Mood::Angry:
+    case Mood::Dead:
+      // Angry is tilted and dead is not a blob at all; both draw themselves.
+      return {false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    case Mood::Neutral:
+    default:
+      // Anything new lands here and looks neutral, which is where it landed
+      // before this was a table.
+      return {true, 29.0f, 38.0f * squeeze, 23.0f, 23.0f, 0.0f};
+  }
+}
+
+// What a row of one of those blobs already knows. Every term here comes off the
+// row's own y and the frame's squeeze, so a row works it out once rather than
+// once for each of the seventy-odd pixels along it.
+struct BlobRow {
+  float base;  // r - hx, so a pixel's own leg is |lx| + this
+  float qy;
+  float ay;
+  float r;
+};
+
+ALWAYS BlobRow blobRow(const Blob &b, float ly) {
+  float py = ly - b.slide;
+  float r = py < 0.0f ? b.rTop : b.rBottom;
+  float limit = b.hx < b.hy ? b.hx : b.hy;
+  if (r > limit) {
+    r = limit;
+  }
+  float qy = (py < 0.0f ? -py : py) - b.hy + r;
+  BlobRow row;
+  row.base = r - b.hx;
+  row.qy = qy;
+  row.ay = qy > 0.0f ? qy : 0.0f;
+  row.r = r;
+  return row;
+}
+
+// The same distance sdRoundBoxTB gives, with everything the row settled already
+// settled.
+ALWAYS float blobAt(const BlobRow &row, float lx) {
+  float qx = (lx < 0.0f ? -lx : lx) + row.base;
+  float ax = qx > 0.0f ? qx : 0.0f;
+  float inner = qx > row.qy ? qx : row.qy;
+  return legs(ax, row.ay) + (inner < 0.0f ? inner : 0.0f) - row.r;
+}
+
 // One eye of one expression, in its own space, with the sign of `side` telling
 // it which of the pair it is so anything slanted mirrors instead of repeating.
 ALWAYS float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
   switch (mood) {
-    case Mood::Happy:
-      // Neutral's blob, domed over the top and squared off underneath.
-      return sdRoundBoxTB(x, y, 28.0f, 29.0f * squeeze, 28.0f, 9.0f);
-    case Mood::Tired: {
-      // A lid comes down onto a bottom edge that stays where it is. Scaling the
-      // height alone takes the eye in from the top and the bottom at once,
-      // which reads as an eye getting smaller rather than as one closing - and
-      // that is the whole difference between sleepy and shrinking.
-      constexpr float FULL = 29.0f;
-      float half = FULL * squeeze;
-      float ly = y - (FULL - half);
-
-      // Rounded over the top, not squared, and not tilted at all. A flat edge
-      // above a squat eye is a brow and reads as cross; a slant either way is
-      // an emotion of its own, outward into sadness and inward into anger.
-      // Tired is none of those - it is just slack.
-      return sdRoundBoxTB(x, ly, 28.0f, half, 15.0f, 24.0f);
-    }
-    case Mood::Surprised:
-      return sdEye(x, y, 34.0f, 40.0f * squeeze, 34.0f);
     case Mood::Angry: {
       // Just tilted, and shorter than it is wide. Cutting the top flat is the
       // obvious way to draw a brow and it leaves a hard edge across the one
@@ -285,9 +345,10 @@ ALWAYS float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       float b = sdSegment(x, y, -ARM, ARM, ARM, -ARM) - THICK;
       return fminf(a, b);
     }
-    case Mood::Neutral:
-    default:
-      return sdEye(x, y, 29.0f, 38.0f * squeeze, 23.0f);
+    default: {
+      Blob b = eyeBlob(mood, squeeze);
+      return sdRoundBoxTB(x, y - b.slide, b.hx, b.hy, b.rTop, b.rBottom);
+    }
   }
 }
 
@@ -304,23 +365,38 @@ ALWAYS float coverFrom(float d) {
   return cover + glow * 0.55f;
 }
 
-ALWAYS float mouthCoverage(Mood mood, Mood before, float x, float y, float mix) {
+// A distance, turned into ink on one pixel. Every loop below ends this way.
+ALWAYS void lay(uint16_t *row, int16_t x, float d) {
+  float v = clamp01(coverFrom(d));
+  if (v <= 0.004f) {
+    return;
+  }
+  uint8_t level = (uint8_t)(v * 255.0f);
+  row[boardX(x)] =
+      boardColour((uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3)));
+}
+
+ALWAYS float mouthShapeMixed(Mood mood, Mood before, float x, float y, float mix) {
   float d = mouthShape(mood, x, y);
   if (mix < 1.0f) {
     float was = mouthShape(before, x, y);
     d = was + (d - was) * mix;
   }
-  return coverFrom(d);
+  return d;
 }
 
-ALWAYS float eyeCoverage(Mood mood, Mood before, float x, float y, float side, float squeeze,
-                         float mix) {
+// Interpolating the distances rather than the coverage is what makes this a
+// morph: the boundary walks from one shape to the other and the eye deforms
+// through the in-between. Fading the coverage instead would ghost one shape out
+// while the other came up underneath it.
+ALWAYS float eyeShapeMixed(Mood mood, Mood before, float x, float y, float side, float squeeze,
+                           float mix) {
   float d = eyeShape(mood, x, y, side, squeeze);
   if (mix < 1.0f) {
     float was = eyeShape(before, x, y, side, squeeze);
     d = was + (d - was) * mix;
   }
-  return coverFrom(d);
+  return d;
 }
 
 void clearBox(uint16_t *fb, float fx0, float fy0, float fx1, float fy1) {
@@ -650,6 +726,15 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   me.paintedB = bottom;
   me.painted = true;
 
+  // Both shapes on the glass are plain blobs, so a row can settle its own half
+  // of the distance once and the pixels along it only do their own half. Angry
+  // is tilted and dead is a pair of strokes: in both, x and y are mixed before
+  // the distance is taken, so there is no half a row can settle in advance and
+  // they go the long way round.
+  Blob blob = eyeBlob(mood, squeeze);
+  Blob blobWas = eyeBlob(before, squeeze);
+  bool byRow = blob.plain && (mix >= 1.0f || blobWas.plain);
+
   for (uint8_t i = 0; i < 2; i++) {
     float side = i == 0 ? -1.0f : 1.0f;
     int16_t x0 = (int16_t)(eyeX[i] - spanX) - 1;
@@ -666,15 +751,27 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
       uint16_t *row = boardRow(fb, y);
       // The box is the shape's own now, so there is nothing left on the row or
       // in the span that a test here would throw away.
+      if (byRow) {
+        BlobRow now = blobRow(blob, ly);
+        if (mix >= 1.0f) {
+          for (int16_t x = x1; x >= x0; x--) {
+            lay(row, x, blobAt(now, (float)x + 0.5f - eyeX[i]));
+          }
+        } else {
+          // Mid-change, so both are wanted and the distances are mixed - which
+          // is what makes it a morph rather than one shape fading into another.
+          BlobRow gone = blobRow(blobWas, ly);
+          for (int16_t x = x1; x >= x0; x--) {
+            float lx = (float)x + 0.5f - eyeX[i];
+            float was = blobAt(gone, lx);
+            lay(row, x, was + (blobAt(now, lx) - was) * mix);
+          }
+        }
+        continue;
+      }
       for (int16_t x = x1; x >= x0; x--) {
         float lx = (float)x + 0.5f - eyeX[i];
-        float v = clamp01(eyeCoverage(mood, before, lx, ly, side, squeeze, mix));
-        if (v <= 0.004f) {
-          continue;
-        }
-        uint8_t level = (uint8_t)(v * 255.0f);
-        row[boardX(x)] =
-            boardColour((uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3)));
+        lay(row, x, eyeShapeMixed(mood, before, lx, ly, side, squeeze, mix));
       }
     }
   }
@@ -695,13 +792,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
       // The box is the mouth's own now, so nothing here would be thrown away.
       for (int16_t x = x1; x >= x0; x--) {
         float lx = (float)x + 0.5f - centreX;
-        float v = clamp01(mouthCoverage(mood, before, lx, ly, mix));
-        if (v <= 0.004f) {
-          continue;
-        }
-        uint8_t level = (uint8_t)(v * 255.0f);
-        row[boardX(x)] =
-            boardColour((uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3)));
+        lay(row, x, mouthShapeMixed(mood, before, lx, ly, mix));
       }
     }
   }
