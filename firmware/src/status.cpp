@@ -411,7 +411,11 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   if (alarmChanged) {
     clearBand(fb, ALARM_TOP, ALARM_BOTTOM, (int16_t)(SCREEN_R - ALARM_HALF),
               (int16_t)(SCREEN_R + ALARM_HALF));
-    drawAlarm(fb, alarmColour(alarm));
+    // Nothing at all until a read has landed. A triangle that was already there
+    // cannot say it has just looked, and the grey one means it looked.
+    if (alarm != Outage::Unknown) {
+      drawAlarm(fb, alarmColour(alarm));
+    }
     boardFlushRows(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP));
     shown.alarm = (uint8_t)alarm;
   }

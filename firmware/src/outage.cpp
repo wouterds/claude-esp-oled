@@ -16,8 +16,7 @@ constexpr uint32_t RETRY_MS = 15000;
 // the radio joining and the first answer.
 constexpr uint32_t WAITING_MS = 400;
 
-volatile Outage level = Outage::None;
-bool known = false;
+volatile Outage level = Outage::Unknown;
 
 bool get(String &out) {
   WiFiClientSecure tls;
@@ -87,17 +86,17 @@ void poll() {
     return;
   }
   Outage worst = worstOf(body);
-  if (known && worst == level) {
+  if (worst == level) {
     return;
   }
   // The same sound a usage window rolling over gets: either way the thing that
-  // was in the way has gone.
-  if (known && worst < level) {
+  // was in the way has gone. Coming out of Unknown is a rise, so a first read
+  // that finds everything well stays quiet.
+  if (worst < level) {
     audioCheered();
   }
   Serial.printf("outage: %s\n", nameOf(worst));
   level = worst;
-  known = true;
 }
 
 void task(void *) {
@@ -105,7 +104,7 @@ void task(void *) {
     uint32_t wait = WAITING_MS;
     if (wifiConnected()) {
       poll();
-      wait = known ? EVERY_MS : RETRY_MS;
+      wait = level == Outage::Unknown ? RETRY_MS : EVERY_MS;
     }
     vTaskDelay(pdMS_TO_TICKS(wait));
   }
