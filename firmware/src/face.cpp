@@ -92,18 +92,17 @@ State me;
 
 ALWAYS float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
-// The length of two legs that are both clamped at nought.
-//
-// Whenever a point is beside a box rather than off one of its corners, one leg
-// is zero and the length is simply the other one, with no root at all - and
-// better than a third of the pixels in an eye are like that.
+// The length of two legs that are both clamped at nought. Whenever a point is
+// beside a box rather than off one of its corners, one leg is zero and the
+// length is simply the other one, with no root at all - and better than a third
+// of the pixels in an eye are like that.
 //
 // The corners do need one, and this chip's FPU has neither a root nor a divide:
-// the toolchain emits a library call for both, and at one call a pixel that is
+// the toolchain emits a library call for both, and at one a pixel that call is
 // most of what an eye costs. So they get a reciprocal root off the usual bit
 // trick and two Newton steps - a dozen FPU instructions instead of the call.
 // Measured against sqrtf across the whole range an eye can produce, the worst it
-// comes out is 0.0003 of a pixel, and the coverage below quantises to a 255th.
+// is out by is 0.0003 of a pixel, and the coverage below quantises to a 255th.
 ALWAYS float legs(float ax, float ay) {
   if (ax <= 0.0f) {
     return ay;
@@ -198,6 +197,46 @@ constexpr Mouth MOUTHS[] = {
 ALWAYS float mouthShape(Mood mood, float x, float y) {
   const Mouth &m = MOUTHS[(uint8_t)mood];
   return sdRoundBoxTB(x, y, m.hx, m.hy, m.rTop, m.rBottom);
+}
+
+// How far one eye reaches from its own centre, per expression, before the glow.
+// The box walked below is this rather than the widest of all of them, which on a
+// face that is usually neutral is a good fifth of the pixels never looked at.
+//
+// `lid` says whether the lid above actually scales the shape. Neutral, happy and
+// surprised are a height times the squeeze and nothing else. Angry is that too,
+// but tilted, so squeezing it shrinks the rotated height and the reach across
+// and down both come off it unevenly - and dead ignores the squeeze entirely.
+// Neither of those two ever blinks, so both are simply left at full height.
+//
+// `slides` is tired, which is the one that does not close about its middle: the
+// lid comes down onto a bottom edge that stays put, so the shape moves down the
+// glass as it shrinks and a span measured about the centre misses the bottom of
+// it. That was clipping the sleepy eye by eight pixels at the shut end of every
+// cycle before this was written down.
+struct Reach {
+  float x;
+  float y;
+  bool lid;
+  bool slides;
+};
+
+ALWAYS Reach eyeReach(Mood mood) {
+  switch (mood) {
+    case Mood::Happy:
+      return {28.0f, 29.0f, true, false};
+    case Mood::Surprised:
+      return {34.0f, 40.0f, true, false};
+    case Mood::Angry:
+      return {35.0f, 30.0f, false, false};
+    case Mood::Dead:
+      return {29.0f, 29.0f, false, false};
+    case Mood::Tired:
+      return {28.0f, 29.0f, true, true};
+    case Mood::Neutral:
+    default:
+      return {29.0f, 38.0f, true, false};
+  }
 }
 
 // One eye of one expression, in its own space, with the sign of `side` telling
@@ -530,7 +569,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   float mix = me.blend;
   // Read once. Off the global they are a load the compiler has to repeat for
   // every pixel; in a local it can lift the whole choice of shape out of the
-  // loop instead of making it eighteen thousand times.
+  // loop instead of deciding it eighteen thousand times.
   const Mood mood = me.mood;
   const Mood before = me.was;
 
@@ -566,13 +605,28 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // The two do not travel together: the eye on the side being looked toward
   // carries a little more of the movement, and each carries a slow wobble of
   // its own.
+  // Whichever of the two shapes on the glass reaches furthest, since during a
+  // change both of them are being drawn.
+  Reach reach = eyeReach(mood);
+  if (mix < 1.0f) {
+    Reach other = eyeReach(before);
+    if (other.x > reach.x) reach.x = other.x;
+    if (other.y > reach.y) reach.y = other.y;
+    reach.lid = reach.lid && other.lid;
+    reach.slides = reach.slides || other.slides;
+  }
+  // Where the ink can be on this row, and how far either side of that it goes.
+  float lidHalf = reach.lid ? reach.y * squeeze : reach.y;
+  float lidMid = reach.slides ? reach.y - lidHalf : 0.0f;
+  float spanX = reach.x + GLOW_RADIUS;
+
   for (float side = -1.0f; side < 2.0f; side += 2.0f) {
     float eyeX = centreX + side * EYE_GAP + me.lookX * (0.5f + side * 0.12f) +
                  sinf(me.clock * 2.3f + (side > 0.0f ? 1.7f : 0.0f)) * 1.1f;
-    int16_t x0 = (int16_t)(eyeX - REACH_X - GLOW_RADIUS);
-    int16_t x1 = (int16_t)(eyeX + REACH_X + GLOW_RADIUS);
-    int16_t y0 = (int16_t)(eyeY - REACH_Y - GLOW_RADIUS);
-    int16_t y1 = (int16_t)(eyeY + REACH_Y + GLOW_RADIUS);
+    int16_t x0 = (int16_t)(eyeX - spanX) - 1;
+    int16_t x1 = (int16_t)(eyeX + spanX) + 1;
+    int16_t y0 = (int16_t)(eyeY + lidMid - lidHalf - GLOW_RADIUS) - 1;
+    int16_t y1 = (int16_t)(eyeY + lidMid + lidHalf + GLOW_RADIUS) + 1;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
     if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
@@ -580,17 +634,11 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
 
     for (int16_t y = y0; y <= y1; y++) {
       float ly = (float)y + 0.5f - eyeY;
-      // Past the tallest shape plus its glow there is nothing on this row, and
-      // that is most of the rows near the top and bottom of the box.
-      if (fabsf(ly) - SPAN_Y * squeeze > GLOW_RADIUS) {
-        continue;
-      }
       uint16_t *row = boardRow(fb, y);
+      // The box is the shape's own now, so there is nothing left on the row or
+      // in the span that a test here would throw away.
       for (int16_t x = x1; x >= x0; x--) {
         float lx = (float)x + 0.5f - eyeX;
-        if (fabsf(lx) - SPAN_X > GLOW_RADIUS) {
-          continue;
-        }
         float v = clamp01(eyeCoverage(mood, before, lx, ly, side, squeeze, mix));
         if (v <= 0.004f) {
           continue;
