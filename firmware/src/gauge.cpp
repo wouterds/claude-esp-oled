@@ -12,9 +12,12 @@
 
 namespace {
 
-// Out where the glass is about to stop. The bar follows the edge because it is
-// a piece of a circle concentric with it, not because it is bent to fit.
-constexpr float RADIUS = 174.0f;
+// Out where the glass is about to stop, and a pixel short of where it could be.
+// The bar follows the edge because it is a piece of a circle concentric with it,
+// not because it is bent to fit. This is the centreline: ink reaches this plus
+// HALF_THICK, and its coverage a pixel past that again, so the standoff from the
+// edge is smaller than this number makes it look and is meant to be there.
+constexpr float RADIUS = 173.0f;
 constexpr float HALF_THICK = 3.5f;
 // Either side of the horizontal. Short is three quarters of the panel's height,
 // which is as far as an arc goes before its bottom end curves back in to where
