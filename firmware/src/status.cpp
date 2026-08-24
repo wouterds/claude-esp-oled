@@ -88,10 +88,11 @@ struct Shown {
   bool blink;
   uint8_t rise;
   uint8_t alarm;
+  bool alarmLit;
   char address[16];
 };
 
-Shown shown = {255, 255, false, false, false, 0, 255, {0}};
+Shown shown = {255, 255, false, false, false, 0, 255, false, {0}};
 
 // HH:MM:SS.MS. The hours run as wide as they have to rather than rolling into
 // days: a week out is a hundred and sixty-odd of them, and one field growing a
@@ -114,6 +115,16 @@ Line line = Line::Empty;
 // on the clock to watch it move, long enough on the outage to read it twice.
 constexpr uint32_t ALARM_MS = 5000;
 constexpr uint32_t ALARM_CYCLE_MS = 35000;
+
+// Three quick dips and then five seconds steady, over and over. It has to catch
+// an eye that is not looking, and a shape that never stops blinking stops being
+// a warning after the first minute of an outage that runs for hours.
+//
+// A dip is three frames at the rate this panel actually runs. Much under that
+// and which frames it lands on starts to show as a stutter rather than a beat.
+constexpr uint32_t ALARM_DIP_MS = 120;
+constexpr uint32_t ALARM_DIPS = 3;
+constexpr uint32_t ALARM_BEAT_MS = ALARM_DIPS * 2 * ALARM_DIP_MS + 5000;
 // When the turn-taking started. Reset whenever the level moves, so a fresh
 // outage says so at once instead of sitting out the rest of the clock's turn.
 uint32_t alarmSince = 0;
@@ -376,10 +387,18 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   topChanged |= overlaps(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP), faceFrom, faceTo);
 
   Outage alarm = outageLevel();
-  bool alarmChanged = (uint8_t)alarm != shown.alarm;
-  if (alarmChanged) {
+  bool outage = alarm == Outage::Partial || alarm == Outage::Major;
+  bool levelMoved = (uint8_t)alarm != shown.alarm;
+  if (levelMoved) {
     alarmSince = millis();
   }
+  // Dips on the odd beats of the opening run, then holds lit for the rest. It
+  // dims rather than goes out: a pixel cannot be switched off on this panel, so
+  // dipping to black dips to grey and reads as a fault rather than a warning.
+  uint32_t beat = (millis() - alarmSince) % ALARM_BEAT_MS;
+  bool lit = !outage || beat >= ALARM_DIPS * 2 * ALARM_DIP_MS ||
+             ((beat / ALARM_DIP_MS) & 1) == 0;
+  bool alarmChanged = levelMoved || lit != shown.alarmLit;
   alarmChanged |= overlaps(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP), faceFrom, faceTo);
 
   // The countdown stands where the address does, which costs nothing: the
@@ -404,7 +423,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // while the clock is up to lend it. Off the clock there is nothing to hand it
   // back to, so the turn would be a five second blink at an empty line - and
   // when nobody has asked for the text, the triangle is what says so.
-  bool sounding = ticking && (alarm == Outage::Partial || alarm == Outage::Major);
+  bool sounding = ticking && outage;
   bool alarmTurn = sounding && (millis() - alarmSince) % ALARM_CYCLE_MS < ALARM_MS;
 
   Line subject = Line::Empty;
@@ -473,10 +492,12 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
     // Nothing at all until a read has landed. A triangle that was already there
     // cannot say it has just looked, and the grey one means it looked.
     if (alarm != Outage::Unknown) {
-      drawAlarm(fb, alarmColour(alarm));
+      uint16_t ink = alarmColour(alarm);
+      drawAlarm(fb, lit ? ink : fade(ink, 0.25f));
     }
     boardFlushRows(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP));
     shown.alarm = (uint8_t)alarm;
+    shown.alarmLit = lit;
   }
 
   if (bottomChanged) {
