@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_system.h>
+#include <math.h>
 #include <string.h>
 
 #include "audio.h"
@@ -35,22 +36,20 @@ static Page page = Page::Main;
 // is the same colour to the eye and a rounding error on paper.
 static constexpr uint16_t BADGE = 0xE808;
 static constexpr uint16_t BADGE_INK = 0xFFFF;
-// On every side of the figures. The text is centred, so the left gets whatever
-// the right is given whether it is asked for or not - and the two rows above and
-// below are already in the band, which is what makes it the badge's height.
-static constexpr int16_t FPS_PAD = 2;
+// On every side of the figures, and the badge is that much bigger than them in
+// both directions.
+static constexpr int16_t FPS_PAD = 5;
+// Enough to read as rounded at this size without turning the thing into a
+// lozenge. The badge is 24 tall, and a corner much under this reads as a square
+// one that has been sanded.
+static constexpr float FPS_RADIUS = 6.0f;
 // Squarely on the bottom line of text, which is the commit on the details page
-// and the address on the face. It stands in for that line rather than sharing
-// the glass with it - the whole of the room down here is already spoken for, and
-// two things in it would be worse than either.
+// and the address on the face. It covers the middle of that line and leaves the
+// rest of it showing, which is the price of not touching anything else on these
+// rows - the gauge arcs cross them too, out at about a hundred and ten, and a
+// clear wide enough to take the whole line takes a bite out of the bars with it.
 static constexpr int16_t FPS_TOP = 308;
 static constexpr int16_t FPS_SCALE = 2;
-// Wide enough to take the line underneath with it. The commit runs to
-// twenty-four glyphs, which is 144 either side of the middle - further than the
-// glass goes at these rows, where the circle is down to about 127. Cleared any
-// narrower and the ends of that line stay lit either side of the frame rate,
-// which reads as a fault rather than as one thing covering another.
-static constexpr int16_t FPS_HALF = 128;
 static bool counting = false;
 static float fps = 0.0f;
 
@@ -58,30 +57,54 @@ static void countFrames(uint16_t *fb) {
   char said[12];
   snprintf(said, sizeof(said), "%u FPS", (unsigned)(fps + 0.5f));
 
-  // Cleared and written again every frame. Whatever is underneath has just
-  // drawn itself, and this has to be the last thing to reach the glass.
-  int16_t from = FPS_TOP - 2;
-  int16_t to = (int16_t)(FPS_TOP + 7 * FPS_SCALE + 1);
-  int16_t x0 = (int16_t)(SCREEN_R - FPS_HALF);
-  int16_t x1 = (int16_t)(SCREEN_R + FPS_HALF);
-  for (int16_t y = from; y <= to; y++) {
-    memset(boardRow(fb, y) + boardX(x1), 0, (size_t)(x1 - x0 + 1) * 2);
-  }
-
-  // Then the badge over the top of that, only as wide as the figures it holds.
   // The last glyph carries no gap after it, which is the one place this differs
   // from the count times the step.
-  int16_t ink = (int16_t)(strlen(said) * textStep(FPS_SCALE) - FPS_SCALE);
-  int16_t half = (int16_t)(ink / 2 + FPS_PAD);
-  uint16_t badge = boardColour(BADGE);
+  float ink = (float)(strlen(said) * textStep(FPS_SCALE) - FPS_SCALE);
+  float hx = ink * 0.5f + (float)FPS_PAD;
+  float hy = (float)(7 * FPS_SCALE) * 0.5f + (float)FPS_PAD;
+  // The middle of the figures rather than their top, because the badge is drawn
+  // as a distance from its own centre.
+  float mid = (float)FPS_TOP + (float)(7 * FPS_SCALE) * 0.5f - 0.5f;
+
+  // Its own box and nothing wider. A pixel of margin either way for the edge to
+  // fade into, and every row it touches is sent again below.
+  int16_t from = (int16_t)(mid - hy) - 1;
+  int16_t to = (int16_t)(mid + hy) + 1;
+  int16_t x0 = (int16_t)(SCREEN_R - hx) - 1;
+  int16_t x1 = (int16_t)(SCREEN_R + hx) + 1;
+
   for (int16_t y = from; y <= to; y++) {
     uint16_t *row = boardRow(fb, y);
-    // Turned, so the low index is the far edge and the span stays contiguous.
-    int16_t end = boardX((int16_t)(SCREEN_R - half));
-    for (int16_t i = boardX((int16_t)(SCREEN_R + half)); i <= end; i++) {
-      row[i] = badge;
+    float py = (float)y + 0.5f - mid;
+    // Turned, so the low index is the far edge and the walk stays in one row.
+    for (int16_t x = x0; x <= x1; x++) {
+      float px = (float)x + 0.5f - SCREEN_R;
+      // A signed distance rather than a span, so the corners come out round and
+      // the edge comes out smooth without a second pass over it.
+      float qx = fabsf(px) - (hx - FPS_RADIUS);
+      float qy = fabsf(py) - (hy - FPS_RADIUS);
+      float ax = qx > 0.0f ? qx : 0.0f;
+      float ay = qy > 0.0f ? qy : 0.0f;
+      float most = qx > qy ? qx : qy;
+      float d = sqrtf(ax * ax + ay * ay) + (most < 0.0f ? most : 0.0f) - FPS_RADIUS;
+
+      float cover = 0.5f - d;
+      if (cover <= 0.0f) {
+        // Outside the badge, and outside is somebody else's pixel.
+        continue;
+      }
+      if (cover > 1.0f) {
+        cover = 1.0f;
+      }
+      // Faded into black rather than into what was there. The corners are the
+      // only pixels this matters for and black is what a page puts behind them.
+      uint16_t r = (uint16_t)((float)((BADGE >> 11) & 0x1F) * cover + 0.5f);
+      uint16_t g = (uint16_t)((float)((BADGE >> 5) & 0x3F) * cover + 0.5f);
+      uint16_t b = (uint16_t)((float)(BADGE & 0x1F) * cover + 0.5f);
+      row[boardX(x)] = boardColour((uint16_t)((r << 11) | (g << 5) | b));
     }
   }
+
   textDraw(fb, said, (int16_t)SCREEN_R, FPS_TOP, FPS_SCALE, boardColour(BADGE_INK));
   boardFlushRows((int16_t)(SCREEN_H - 1 - to), (int16_t)(SCREEN_H - 1 - from));
 }
