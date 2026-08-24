@@ -19,9 +19,13 @@
 #include "text.h"
 #include "usage.h"
 
-static constexpr uint32_t FRAME_MS = 16;
+// Sixty a second, in microseconds because it does not go into milliseconds: a
+// whole 16 is 62.5 frames a second and a whole 17 is 58.8, and neither of them
+// is the number anybody asked for.
+static constexpr uint32_t FRAME_US = 16667;
 
 static uint32_t lastFrame = 0;
+static uint32_t nextFrame = 0;
 
 // Two of them, a swipe apart: the face, and what it is running on. Neither knows
 // the other exists - what turns the page is here.
@@ -53,10 +57,10 @@ static constexpr float FPS_RADIUS = 6.0f;
 static constexpr int16_t FPS_X = 242;
 static constexpr int16_t FPS_MID = 63;
 static constexpr int16_t FPS_SCALE = 2;
-// What the loop is pacing for. FRAME_MS is a whole 16, which is 62.5 frames a
-// second rather than 60, so a board keeping up perfectly reads 62 or 63 - and
-// that is the pacing's rounding rather than headroom anybody can use. Shown
-// rather than measured: what is smoothed below stays honest.
+// What the loop is pacing for. Belt and braces now that FRAME_US is the real
+// thing rather than a rounding of it: the smoothed figure still wanders a little
+// either side of sixty and there is no reading above it worth showing. Shown
+// rather than measured, so what is smoothed below stays honest.
 static constexpr unsigned FPS_CAP = 60;
 static bool counting = false;
 static float fps = 0.0f;
@@ -140,6 +144,27 @@ static const char *why(esp_reset_reason_t reason) {
     default:
       return "other";
   }
+}
+
+// Holds the loop to FRAME_US. Most of the wait goes through delay(), which hands
+// the core to whatever else wants it; only the sub-millisecond remainder is spun
+// on, because delayMicroseconds() does not yield and sixteen milliseconds of not
+// yielding is a long time to hold a core for the sake of a rounding.
+static void pace() {
+  uint32_t now = micros();
+  int32_t left = (int32_t)(nextFrame - now);
+  if (left > 0) {
+    if (left >= 1000) {
+      delay((uint32_t)left / 1000);
+    }
+    delayMicroseconds((uint32_t)left % 1000);
+  } else {
+    // Behind. The next one is paced from here rather than from where this one
+    // should have ended, so a slow frame costs a frame instead of being paid
+    // back by a burst of fast ones.
+    nextFrame = now;
+  }
+  nextFrame += FRAME_US;
 }
 
 // Every page owns the whole panel, so the one being left has to be taken off it
@@ -241,10 +266,7 @@ void loop() {
     if (counting) {
       countFrames(boardFramebuffer());
     }
-    uint32_t idle = millis() - now;
-    if (idle < FRAME_MS) {
-      delay(FRAME_MS - idle);
-    }
+    pace();
     return;
   }
 
@@ -279,8 +301,5 @@ void loop() {
   }
 
   // Sixty is past what the panel or the eye wants; the rest goes back.
-  uint32_t spent = millis() - now;
-  if (spent < FRAME_MS) {
-    delay(FRAME_MS - spent);
-  }
+  pace();
 }
