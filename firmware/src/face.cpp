@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "board.h"
+#include "outage.h"
 #include "usage.h"
 
 // Every shape here is a signed distance rather than a span of pixels, so a
@@ -48,10 +49,14 @@ Trig trig;
 constexpr uint8_t DEAD_AT = 95;
 constexpr uint8_t CROSS_AT = 80;
 constexpr uint8_t EASY_UNDER = 40;
+// Where the gauge itself has gone full yellow. The face and the bar agree
+// about what a number means or one of them is lying.
+constexpr uint8_t WARM_AT = 60;
 constexpr uint8_t STILL_POLLS = 5;
 // Long enough to be seen and not so long it stops being an expression. It is a
 // reaction to something happening, not a state it lives in.
 constexpr float CHEER_S = 5.0f;
+constexpr float STARTLE_S = 5.0f;
 // A window rolling over does not creep back down, it falls.
 constexpr uint8_t A_RESET = 10;
 
@@ -65,6 +70,9 @@ struct State {
   bool read;           // and whether they have ever said anything
   float cheer;         // seconds of good cheer still owed
   bool easy;           // whether both windows were last seen with room to spare
+  float startle;       // seconds of surprise still owed
+  bool warm;           // whether either window was last seen in the yellow
+  Outage alarm;        // what the status page last said, to catch it worsening
   float blend;         // 0 while settled, counts up through a change
   Mood mood;
   Mood was;
@@ -286,6 +294,9 @@ void faceBegin() {
   me.read = false;
   me.cheer = 0.0f;
   me.easy = false;
+  me.startle = 0.0f;
+  me.warm = false;
+  me.alarm = Outage::Unknown;
   me.blend = 1.0f;
   me.mood = Mood::Neutral;
   me.was = Mood::Neutral;
@@ -299,33 +310,56 @@ void faceBegin() {
 // What the numbers add up to. Worst of the two decides it, because a face that
 // reports the better half of bad news is not worth reading.
 void settle(float dt) {
-  if (!usageReady()) {
-    return;
+  // The status page answers on its own schedule and can land before the first
+  // usage read does, so it is watched whether there are figures yet or not.
+  // Worsening only, and Unknown settling into None at boot is not news.
+  Outage alarm = outageLevel();
+  if (alarm > me.alarm && alarm >= Outage::Partial) {
+    me.startle = STARTLE_S;
   }
-  uint8_t a = usageSession();
-  uint8_t b = usageWeekly();
-  bool dropped = me.read && (a + A_RESET <= me.seen[0] || b + A_RESET <= me.seen[1]);
-  bool easy = a < EASY_UNDER && b < EASY_UNDER;
-  // Both of the good things are events rather than states: a window rolling
-  // over, or opening its eyes to find there is room. Either is worth five
-  // seconds and then it has been said.
-  if (dropped || (easy && (!me.read || !me.easy))) {
-    me.cheer = CHEER_S;
+  me.alarm = alarm;
+
+  if (usageReady()) {
+    uint8_t a = usageSession();
+    uint8_t b = usageWeekly();
+    bool dropped = me.read && (a + A_RESET <= me.seen[0] || b + A_RESET <= me.seen[1]);
+    bool easy = a < EASY_UNDER && b < EASY_UNDER;
+    bool warm = a >= WARM_AT || b >= WARM_AT;
+    // Both of the good things are events rather than states: a window rolling
+    // over, or opening its eyes to find there is room. Either is worth five
+    // seconds and then it has been said.
+    if (dropped || (easy && (!me.read || !me.easy))) {
+      me.cheer = CHEER_S;
+    }
+    // Climbing into the yellow is worth the same. Dropping back out of it says
+    // nothing - it only re-arms this, so the next climb can say it again.
+    if (warm && !me.warm) {
+      me.startle = STARTLE_S;
+    }
+    me.seen[0] = a;
+    me.seen[1] = b;
+    me.easy = easy;
+    me.warm = warm;
+    me.read = true;
   }
-  me.seen[0] = a;
-  me.seen[1] = b;
-  me.easy = easy;
-  me.read = true;
+
   if (me.cheer > 0.0f) {
     me.cheer -= dt;
   }
+  if (me.startle > 0.0f) {
+    me.startle -= dt;
+  }
 
-  uint8_t worst = a > b ? a : b;
+  uint8_t worst = me.seen[0] > me.seen[1] ? me.seen[0] : me.seen[1];
   Mood want;
   if (worst >= DEAD_AT) {
     want = Mood::Dead;
   } else if (worst >= CROSS_AT) {
     want = Mood::Angry;
+  } else if (me.startle > 0.0f) {
+    // Over the states below it: a reaction to something that has just happened
+    // outranks a description of how things have been.
+    want = Mood::Surprised;
   } else if (usageStill() >= STILL_POLLS) {
     want = Mood::Tired;
   } else if (me.cheer > 0.0f) {
