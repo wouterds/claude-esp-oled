@@ -490,12 +490,12 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   if (alarmChanged) {
     clearBand(fb, ALARM_TOP, ALARM_BOTTOM, (int16_t)(SCREEN_R - ALARM_HALF),
               (int16_t)(SCREEN_R + ALARM_HALF));
-    // Nothing at all until a read has landed. A triangle that was already there
-    // cannot say it has just looked, and the grey one means it looked.
-    if (alarm != Outage::Unknown) {
-      uint16_t ink = alarmColour(alarm);
-      drawAlarm(fb, lit ? ink : fade(ink, 0.25f));
-    }
+    // Up from the first frame, grey, and grey covers both not having looked yet
+    // and having looked and found nothing. It is the shape that says where the
+    // news will appear, so it is worth more standing there dark than it is
+    // missing - and an empty space is not a quieter warning, it is no warning.
+    uint16_t ink = alarmColour(alarm);
+    drawAlarm(fb, lit ? ink : fade(ink, 0.25f));
     boardFlushRows(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP));
     shown.alarm = (uint8_t)alarm;
     shown.alarmLit = lit;
