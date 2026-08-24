@@ -57,6 +57,10 @@ constexpr uint16_t FAINT = 0x4A49;
 // The same colours the small battery uses at the same thresholds, so a colour
 // means one thing whichever side of the glass it is on.
 constexpr uint16_t GREEN = 0x07F6;
+// A full pack is still charging as far as the gauge is concerned - the cable is
+// in and nothing is being drawn from it - so this is what says the fill has
+// nowhere left to climb.
+constexpr uint8_t FULL_AT = 100;
 // Warmed off pure yellow and given a little blue. Full red and full green with
 // none at all is an acid colour on a panel that is lit from behind - it reads
 // as a warning when this level is only a notice, and it is the one colour on
@@ -178,11 +182,16 @@ void infoStep(uint16_t *fb) {
   const char *wants = network ? network : "OFFLINE";
   const char *at = address ? address : "";
 
-  // Where the charge on its way in has got to. Nought unless the cable is in,
-  // so a battery simply sitting there compares equal every frame and this page
-  // goes on costing nothing.
-  uint8_t rise = battery.charging ? (uint8_t)((millis() / RISE_MS) % RISE_STEPS) : 0;
-  uint8_t level = battery.charging
+  // Where the charge on its way in has got to. Nought unless the cable is in and
+  // there is somewhere for the fill to go: a battery sitting on its own, or one
+  // already full on the cable, compares equal every frame and this page goes on
+  // costing nothing. Full on the cable used to keep counting, which moved the
+  // fill from a hundred to a hundred and redrew the whole page for it sixteen
+  // times a second.
+  bool topped = battery.percent >= FULL_AT;
+  bool filling = battery.charging && !topped;
+  uint8_t rise = filling ? (uint8_t)((millis() / RISE_MS) % RISE_STEPS) : 0;
+  uint8_t level = filling
                       ? (uint8_t)(battery.percent + (100 - battery.percent) * rise / RISE_STEPS)
                       : battery.percent;
 
