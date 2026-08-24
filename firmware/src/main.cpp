@@ -32,7 +32,12 @@ static Page page = Page::Main;
 // whatever is underneath: it is not part of any page and should not be taken
 // for one. It stays until it is asked to go, or until the board is restarted.
 static constexpr uint16_t PINK = 0xF8B2;
-static constexpr int16_t FPS_TOP = 8;
+// The outage triangle sits with its middle sixty-three rows down from the top,
+// so this puts the frame rate's middle sixty-three rows up from the bottom - the
+// same mark read from the other end. It clears the bottom line of text, which
+// starts at 307 on both pages, by a row and a half, and that is the whole of the
+// room down there.
+static constexpr int16_t FPS_TOP = 290;
 static constexpr int16_t FPS_SCALE = 2;
 static constexpr int16_t FPS_HALF = 64;
 static bool counting = false;
