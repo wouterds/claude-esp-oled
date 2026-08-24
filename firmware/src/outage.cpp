@@ -72,9 +72,9 @@ Outage worstOf(const String &body) {
 const char *nameOf(Outage what) {
   switch (what) {
     case Outage::Major:
-      return "a component is down";
+      return "major outage";
     case Outage::Partial:
-      return "something is degraded";
+      return "minor outage";
     default:
       return "all operational";
   }

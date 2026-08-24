@@ -412,10 +412,10 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   const char *want = "";
   if (alarmTurn) {
     subject = Line::Alarm;
-    // Fourteen glyphs at this size come to 86 either side of the middle, and the
-    // bars' bottom ends reach in to about 89 - so this is as long as the line
-    // can get before clearing it starts eating them.
-    want = alarm == Outage::Major ? "MAJOR OUTAGE" : "PARTIAL OUTAGE";
+    // Fourteen glyphs at this size come to 86 either side of the middle and the
+    // bars' bottom ends reach in to about 89, so that is the ceiling for a line
+    // here. These two are twelve.
+    want = alarm == Outage::Major ? "MAJOR OUTAGE" : "MINOR OUTAGE";
   } else if (ticking) {
     subject = Line::Clock;
     want = clock;
