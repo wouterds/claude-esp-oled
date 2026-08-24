@@ -311,8 +311,8 @@ void drawAlarm(uint16_t *fb, uint16_t colour) {
       float py = (float)y + 0.5f - ALARM_Y;
 
       float shell = sdTriangle(px, py, HW, HH) - R;
-      float bar = sdRoundBox(px, py + 0.9f, 1.7f, 4.0f, 1.7f);
-      float dot = sqrtf(px * px + (py - 7.4f) * (py - 7.4f)) - 1.8f;
+      float bar = sdRoundBox(px, py + 1.9f, 1.7f, 4.0f, 1.7f);
+      float dot = sqrtf(px * px + (py - 6.4f) * (py - 6.4f)) - 1.8f;
       float bang = bar < dot ? bar : dot;
       plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang), colour);
     }
