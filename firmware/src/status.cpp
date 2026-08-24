@@ -25,13 +25,16 @@ constexpr int16_t MIDDLE = 17;
 constexpr int16_t BAR_TOP = MIDDLE - 10;
 constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 
-// Its own band, in the gap between the chrome and the highest the face's box
-// ever reaches. The status page has nothing to do with the two icons above it
-// and moves on a clock of its own - a minute rather than a frame.
-constexpr int16_t ALARM_Y = 39;
-constexpr int16_t ALARM_TOP = 30;
-constexpr int16_t ALARM_BOTTOM = 47;
-constexpr int16_t ALARM_HALF = 12;
+// Its own band, and its own flush: the status page has nothing to do with the
+// two icons above it and moves on a clock of its own - a minute, not a frame.
+//
+// It reaches further down than the note above suggests is safe, and that note is
+// the conservative one. The face's box is its centre less eighty, and the centre
+// stops climbing at HOME_Y - ROAM, so nothing of it is ever above y=72.
+constexpr int16_t ALARM_Y = 45;
+constexpr int16_t ALARM_TOP = 33;
+constexpr int16_t ALARM_BOTTOM = 55;
+constexpr int16_t ALARM_HALF = 14;
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
 // this height it gives about 80 pixels either side of the middle, and the two
@@ -59,9 +62,6 @@ constexpr uint16_t RED = 0xF800;
 // to block a backlight that is always on, so anything under about a third
 // sinks into it and the ring may as well not have been drawn.
 constexpr uint16_t DIM = 0x738E;
-// The triangle with nothing to report. Lighter than DIM, which is a ring that
-// is switched off - this one is lit and saying it looked.
-constexpr uint16_t PALE = 0x9CD3;
 // What a ring lights up to while it is still looking. Grey rather than white,
 // because white is what being on a network looks like.
 constexpr uint16_t SEEKING = 0xA534;
@@ -257,9 +257,11 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
 // panel cannot switch a pixel off, so a black glyph over a lit shape comes out
 // grey, and cutting the shape away leaves the backlight to speak for it.
 void drawAlarm(uint16_t *fb, uint16_t colour) {
-  constexpr float HW = 9.6f;
-  constexpr float HH = 7.6f;
-  constexpr float R = 1.3f;
+  constexpr float HW = 11.8f;
+  constexpr float HH = 10.0f;
+  // Most of what makes it read as a sign rather than as a spike. The corners go
+  // before the size does if the two ever have to trade.
+  constexpr float R = 2.6f;
 
   for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
     for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {
@@ -267,8 +269,8 @@ void drawAlarm(uint16_t *fb, uint16_t colour) {
       float py = (float)y + 0.5f - ALARM_Y;
 
       float shell = sdTriangle(px, py, HW - R, HH - R) - R;
-      float bar = sdRoundBox(px, py + 1.6f, 1.05f, 2.6f, 0.9f);
-      float dot = sqrtf(px * px + (py - 4.2f) * (py - 4.2f)) - 1.15f;
+      float bar = sdRoundBox(px, py + 2.0f, 1.3f, 3.2f, 1.3f);
+      float dot = sqrtf(px * px + (py - 5.4f) * (py - 5.4f)) - 1.45f;
       float bang = bar < dot ? bar : dot;
       plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang), colour);
     }
@@ -282,7 +284,7 @@ uint16_t alarmColour(Outage level) {
     case Outage::Partial:
       return YELLOW;
     default:
-      return PALE;
+      return GREY;
   }
 }
 
