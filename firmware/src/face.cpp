@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "board.h"
@@ -87,26 +88,58 @@ struct State {
 
 State me;
 
-inline float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
-inline float dot2(float x, float y) { return x * x + y * y; }
+#define ALWAYS inline __attribute__((always_inline))
+
+ALWAYS float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
+
+// The length of two legs that are both clamped at nought.
+//
+// Whenever a point is beside a box rather than off one of its corners, one leg
+// is zero and the length is simply the other one, with no root at all - and
+// better than a third of the pixels in an eye are like that.
+//
+// The corners do need one, and this chip's FPU has neither a root nor a divide:
+// the toolchain emits a library call for both, and at one call a pixel that is
+// most of what an eye costs. So they get a reciprocal root off the usual bit
+// trick and two Newton steps - a dozen FPU instructions instead of the call.
+// Measured against sqrtf across the whole range an eye can produce, the worst it
+// comes out is 0.0003 of a pixel, and the coverage below quantises to a 255th.
+ALWAYS float legs(float ax, float ay) {
+  if (ax <= 0.0f) {
+    return ay;
+  }
+  if (ay <= 0.0f) {
+    return ax;
+  }
+  float sum = ax * ax + ay * ay;
+  uint32_t bits;
+  __builtin_memcpy(&bits, &sum, sizeof(bits));
+  bits = 0x5f3759dfu - (bits >> 1);
+  float root;
+  __builtin_memcpy(&root, &bits, sizeof(root));
+  root = root * (1.5f - 0.5f * sum * root * root);
+  root = root * (1.5f - 0.5f * sum * root * root);
+  return sum * root;
+}
+ALWAYS float dot2(float x, float y) { return x * x + y * y; }
 inline float frand(float lo, float hi) {
   return lo + (hi - lo) * (float)random(0, 10001) * 0.0001f;
 }
 
-inline float sdRoundBox(float px, float py, float hx, float hy, float r) {
+ALWAYS float sdRoundBox(float px, float py, float hx, float hy, float r) {
   float qx = fabsf(px) - hx + r;
   float qy = fabsf(py) - hy + r;
   float ax = qx > 0.0f ? qx : 0.0f;
   float ay = qy > 0.0f ? qy : 0.0f;
   float inner = qx > qy ? qx : qy;
-  return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
+  return legs(ax, ay) + (inner < 0.0f ? inner : 0.0f) - r;
 }
 
 // A rounded box whose corner radius can never outrun the half-extent it is
 // rounding. Squashing an eye - a blink, a wake - drives the height below the
 // radius, and sdRoundBox is only a distance while the radius fits inside it;
 // past that the ends come out in points.
-inline float sdEye(float px, float py, float hx, float hy, float r) {
+ALWAYS float sdEye(float px, float py, float hx, float hy, float r) {
   float limit = hx < hy ? hx : hy;
   return sdRoundBox(px, py, hx, hy, r < limit ? r : limit);
 }
@@ -114,7 +147,7 @@ inline float sdEye(float px, float py, float hx, float hy, float r) {
 // A rounded box with one radius at the top and another at the bottom, so an eye
 // can be domed above and squarer below. Screen y runs down, so the top corners
 // are the negative ones.
-inline float sdRoundBoxTB(float px, float py, float hx, float hy, float rTop, float rBottom) {
+ALWAYS float sdRoundBoxTB(float px, float py, float hx, float hy, float rTop, float rBottom) {
   float r = py < 0.0f ? rTop : rBottom;
   float limit = hx < hy ? hx : hy;
   if (r > limit) {
@@ -125,7 +158,7 @@ inline float sdRoundBoxTB(float px, float py, float hx, float hy, float rTop, fl
   float ax = qx > 0.0f ? qx : 0.0f;
   float ay = qy > 0.0f ? qy : 0.0f;
   float inner = qx > qy ? qx : qy;
-  return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
+  return legs(ax, ay) + (inner < 0.0f ? inner : 0.0f) - r;
 }
 
 inline float sdSegment(float px, float py, float ax, float ay, float bx, float by) {
@@ -162,14 +195,14 @@ constexpr Mouth MOUTHS[] = {
 // The blob is bent rather than cut. Taking a circle out of it leaves the ends
 // of the crescent in points, which is the one thing a mouth made of a rounded
 // blob should not have - bending keeps every side as round as it started.
-float mouthShape(Mood mood, float x, float y) {
+ALWAYS float mouthShape(Mood mood, float x, float y) {
   const Mouth &m = MOUTHS[(uint8_t)mood];
   return sdRoundBoxTB(x, y, m.hx, m.hy, m.rTop, m.rBottom);
 }
 
 // One eye of one expression, in its own space, with the sign of `side` telling
 // it which of the pair it is so anything slanted mirrors instead of repeating.
-float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
+ALWAYS float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
   switch (mood) {
     case Mood::Happy:
       // Neutral's blob, domed over the top and squared off underneath.
@@ -221,26 +254,27 @@ float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
 // morph: the boundary walks from one shape to the other and the eye deforms
 // through the in-between. Fading the coverage instead would ghost one shape out
 // while the other came up underneath it.
-float coverFrom(float d) {
+ALWAYS float coverFrom(float d) {
   float cover = clamp01(0.5f - d);
   float glow = d < GLOW_RADIUS ? clamp01(1.0f - d * GLOW_INV) : 0.0f;
   glow = glow * glow * GLOW_GAIN * (1.0f - cover);
   return cover + glow * 0.55f;
 }
 
-float mouthCoverage(float x, float y, float mix) {
-  float d = mouthShape(me.mood, x, y);
+ALWAYS float mouthCoverage(Mood mood, Mood before, float x, float y, float mix) {
+  float d = mouthShape(mood, x, y);
   if (mix < 1.0f) {
-    float was = mouthShape(me.was, x, y);
+    float was = mouthShape(before, x, y);
     d = was + (d - was) * mix;
   }
   return coverFrom(d);
 }
 
-float eyeCoverage(float x, float y, float side, float squeeze, float mix) {
-  float d = eyeShape(me.mood, x, y, side, squeeze);
+ALWAYS float eyeCoverage(Mood mood, Mood before, float x, float y, float side, float squeeze,
+                         float mix) {
+  float d = eyeShape(mood, x, y, side, squeeze);
   if (mix < 1.0f) {
-    float was = eyeShape(me.was, x, y, side, squeeze);
+    float was = eyeShape(before, x, y, side, squeeze);
     d = was + (d - was) * mix;
   }
   return coverFrom(d);
@@ -494,6 +528,11 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
     squeeze = 0.06f + 0.94f * fabsf(cosf((me.blinking / 0.16f) * PI_F));
   }
   float mix = me.blend;
+  // Read once. Off the global they are a load the compiler has to repeat for
+  // every pixel; in a local it can lift the whole choice of shape out of the
+  // loop instead of making it eighteen thousand times.
+  const Mood mood = me.mood;
+  const Mood before = me.was;
 
   constexpr float REACH_X = 38.0f;
   constexpr float REACH_Y = 42.0f;
@@ -512,10 +551,14 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   // beats memsetting 253KB of PSRAM sixty times a second.
   float wasTop = me.paintedY - EYE_RISE - REACH_Y - GLOW_RADIUS - 2.0f;
   float wasBottom = me.paintedY + MOUTH_DROP + MOUTH_REACH_Y + GLOW_RADIUS + 2.0f;
-  clearBox(fb, me.paintedX - HALF_W, wasTop, me.paintedX + HALF_W, wasBottom);
-  clearBox(fb, centreX - HALF_W, top, centreX + HALF_W, bottom);
   float dirtyTop = wasTop < top ? wasTop : top;
   float dirtyBottom = wasBottom > bottom ? wasBottom : bottom;
+  // One box over both positions rather than one for each. The face drifts a
+  // pixel or two a frame, so the two overlap almost exactly and clearing them
+  // separately does most of the same rows twice.
+  float leftMost = me.paintedX < centreX ? me.paintedX : centreX;
+  float rightMost = me.paintedX > centreX ? me.paintedX : centreX;
+  clearBox(fb, leftMost - HALF_W, dirtyTop, rightMost + HALF_W, dirtyBottom);
   me.paintedX = centreX;
   me.paintedY = centreY;
 
@@ -548,7 +591,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
         if (fabsf(lx) - SPAN_X > GLOW_RADIUS) {
           continue;
         }
-        float v = clamp01(eyeCoverage(lx, ly, side, squeeze, mix));
+        float v = clamp01(eyeCoverage(mood, before, lx, ly, side, squeeze, mix));
         if (v <= 0.004f) {
           continue;
         }
@@ -581,7 +624,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
         if (fabsf(lx) - MOUTH_SPAN_X > GLOW_RADIUS) {
           continue;
         }
-        float v = clamp01(mouthCoverage(lx, ly, mix));
+        float v = clamp01(mouthCoverage(mood, before, lx, ly, mix));
         if (v <= 0.004f) {
           continue;
         }
