@@ -154,33 +154,21 @@ void loop() {
     turnTo(Page::Main);
   }
 
-  // Two taps close together: on the face they put the numbers up, and on the
-  // commit they put the frame rate up. A single tap is what a sleeve does, so it
-  // is not asked to mean anything, and both taps have to land on the same thing.
-  // The numbers, off the one button the chip can read.
-  if (buttonPressed() && page == Page::Main) {
-    gaugeFigures();
-  }
-
-  static uint32_t firstTap = 0;
-  static int16_t firstAt = 0;
-  if (touchTapped()) {
-    int16_t at = touchTappedAt();
-    if (firstTap != 0 && now - firstTap < 400) {
-      if (page == Page::Main) {
-        gaugeFigures();
-      } else if (infoOnCommit(at) && infoOnCommit(firstAt)) {
-        counting = !counting;
-        // Whatever it was covering has to come back, and the page underneath is
-        // the only thing that knows what was there.
-        if (!counting) {
-          turnTo(page);
-        }
-      }
-      firstTap = 0;
+  // The one button the chip can read, and it means whatever page is in front of
+  // it: the numbers on the face, the frame rate on the details. A press says so
+  // once and unambiguously, which two taps on a glass this size never did - a
+  // sleeve managed the first of them often enough to be a nuisance, and the pair
+  // had to land on the same thing to count at all.
+  if (buttonPressed()) {
+    if (page == Page::Main) {
+      gaugeFigures();
     } else {
-      firstTap = now;
-      firstAt = at;
+      counting = !counting;
+      // Whatever it was covering has to come back, and the page underneath is
+      // the only thing that knows what was there.
+      if (!counting) {
+        turnTo(page);
+      }
     }
   }
 

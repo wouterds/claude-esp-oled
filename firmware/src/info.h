@@ -11,11 +11,6 @@
 // partial redraws cost everywhere else.
 void infoStep(uint16_t *fb);
 
-// Whether a finger that landed this far down the glass landed on the commit -
-// which is the only thing on this page anybody would want to tap. Generously:
-// a fingertip is wider than the line is tall.
-bool infoOnCommit(int16_t down);
-
 // Forgets what it last put down, so the next step draws all of it. For arriving
 // at the page, which is the one time nothing has changed and all of it still
 // has to go back on the glass.

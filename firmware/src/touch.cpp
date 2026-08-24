@@ -38,8 +38,6 @@ bool fired = false;
 int16_t fromAlong = 0;
 uint32_t lastReport = 0;
 
-volatile bool tapped = false;
-volatile int16_t tappedAt = 0;
 volatile Swipe went = Swipe::None;
 
 void IRAM_ATTR onReport() {
@@ -49,13 +47,9 @@ void IRAM_ATTR onReport() {
 }
 
 void lift() {
-  // A finger that went nowhere was a tap. One that went somewhere was a swipe,
-  // and that was reported the moment it got far enough - so it is not also a
-  // tap, however it ends.
-  if (!fired) {
-    tappedAt = fromAlong;
-    tapped = true;
-  }
+  // A swipe is reported the moment it gets far enough rather than when the
+  // finger comes up, so there is nothing left to decide here - only the state
+  // for the next finger to put back.
   down = false;
   fired = false;
 }
@@ -165,16 +159,6 @@ void touchBegin() {
   pinMode(TP_INT, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(TP_INT), onReport, FALLING);
 }
-
-bool touchTapped() {
-  if (!tapped) {
-    return false;
-  }
-  tapped = false;
-  return true;
-}
-
-int16_t touchTappedAt() { return tappedAt; }
 
 Swipe touchSwiped() {
   Swipe was = went;
