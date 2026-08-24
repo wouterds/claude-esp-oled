@@ -12,6 +12,7 @@
 #include "face.h"
 #include "gauge.h"
 #include "info.h"
+#include "outage.h"
 #include "portal.h"
 #include "text.h"
 #include "usage.h"
@@ -110,6 +111,7 @@ void setup() {
   wifiBegin();
   portalBegin();
   usageBegin();
+  outageBegin();
   faceBegin();
   gaugeBegin();
   // Empty, and on the glass straight away. They have nothing to say until the
