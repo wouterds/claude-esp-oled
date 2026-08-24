@@ -142,8 +142,12 @@ bool boardBegin() {
   vendor.flags.use_qspi_interface = 1;
   chooseInit(vendor);
 
-  // 80MHz is what the board's own driver runs this panel at, and it halves the
-  // time a frame spends on the wire.
+  // 80MHz is what the board's own driver runs this panel at, and it is really
+  // arriving: asked for 40 instead, a frame's flush goes from about 6.9ms to
+  // 10.3ms, which is the 3.4ms of wire time doubling. Worth writing down because
+  // none of these pins is one of the S3's IOMUX SPI pins, and the reference
+  // manual puts the GPIO matrix ceiling at 40MHz - so the number looks like it
+  // cannot be honoured, and on this panel it is.
   esp_lcd_panel_io_handle_t io = newPanelIo(80 * 1000 * 1000);
   if (!io) {
     Serial.println("panel io failed");
