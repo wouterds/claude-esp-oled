@@ -7,6 +7,7 @@
 #include "battery.h"
 #include "board.h"
 #include "gauge.h"
+#include "outage.h"
 #include "text.h"
 #include "usage.h"
 #include "wifi.h"
@@ -23,6 +24,14 @@ namespace {
 constexpr int16_t MIDDLE = 17;
 constexpr int16_t BAR_TOP = MIDDLE - 10;
 constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
+
+// Its own band, in the gap between the chrome and the highest the face's box
+// ever reaches. The status page has nothing to do with the two icons above it
+// and moves on a clock of its own - a minute rather than a frame.
+constexpr int16_t ALARM_Y = 39;
+constexpr int16_t ALARM_TOP = 30;
+constexpr int16_t ALARM_BOTTOM = 47;
+constexpr int16_t ALARM_HALF = 12;
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
 // this height it gives about 80 pixels either side of the middle, and the two
@@ -50,6 +59,9 @@ constexpr uint16_t RED = 0xF800;
 // to block a backlight that is always on, so anything under about a third
 // sinks into it and the ring may as well not have been drawn.
 constexpr uint16_t DIM = 0x738E;
+// The triangle with nothing to report. Lighter than DIM, which is a ring that
+// is switched off - this one is lit and saying it looked.
+constexpr uint16_t PALE = 0x9CD3;
 // What a ring lights up to while it is still looking. Grey rather than white,
 // because white is what being on a network looks like.
 constexpr uint16_t SEEKING = 0xA534;
@@ -75,10 +87,11 @@ struct Shown {
   bool present;
   bool blink;
   uint8_t rise;
+  uint8_t alarm;
   char address[16];
 };
 
-Shown shown = {255, 255, false, false, false, 0, {0}};
+Shown shown = {255, 255, false, false, false, 0, 255, {0}};
 
 // HH:MM:SS.MS. The hours run as wide as they have to rather than rolling into
 // days: a week out is a hundred and sixty-odd of them, and one field growing a
@@ -148,6 +161,16 @@ float sdRoundBox(float px, float py, float hx, float hy, float r) {
   float ay = qy > 0.0f ? qy : 0.0f;
   float inner = qx > qy ? qx : qy;
   return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
+}
+
+// Apex up: the bottom edge, and the right one folded onto both sides. Exact
+// along the edges and a shade long outside the corners, which is a pixel of
+// antialiasing on a shape this size.
+float sdTriangle(float px, float py, float hx, float hy) {
+  float side = sqrtf(4.0f * hy * hy + hx * hx);
+  float edge = (2.0f * hy * fabsf(px) - hx * (py + hy)) / side;
+  float base = py - hy;
+  return edge > base ? edge : base;
 }
 
 // An arc opening by `aperture` either side of straight up, with rounded ends.
@@ -230,6 +253,39 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
   }
 }
 
+// The bang is taken out of the triangle rather than drawn on top of it: the
+// panel cannot switch a pixel off, so a black glyph over a lit shape comes out
+// grey, and cutting the shape away leaves the backlight to speak for it.
+void drawAlarm(uint16_t *fb, uint16_t colour) {
+  constexpr float HW = 9.6f;
+  constexpr float HH = 7.6f;
+  constexpr float R = 1.3f;
+
+  for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
+    for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {
+      float px = (float)x + 0.5f - SCREEN_R;
+      float py = (float)y + 0.5f - ALARM_Y;
+
+      float shell = sdTriangle(px, py, HW - R, HH - R) - R;
+      float bar = sdRoundBox(px, py + 1.6f, 1.05f, 2.6f, 0.9f);
+      float dot = sqrtf(px * px + (py - 4.2f) * (py - 4.2f)) - 1.15f;
+      float bang = bar < dot ? bar : dot;
+      plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang), colour);
+    }
+  }
+}
+
+uint16_t alarmColour(Outage level) {
+  switch (level) {
+    case Outage::Major:
+      return RED;
+    case Outage::Partial:
+      return YELLOW;
+    default:
+      return PALE;
+  }
+}
+
 uint16_t batteryColour(const BatteryState &battery, bool blink) {
   if (battery.charging) {
     return GREEN;
@@ -286,6 +342,10 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // Whatever the face just painted over is gone, whether it changed or not.
   topChanged |= overlaps(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP), faceFrom, faceTo);
 
+  Outage alarm = outageLevel();
+  bool alarmChanged = (uint8_t)alarm != shown.alarm;
+  alarmChanged |= overlaps(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP), faceFrom, faceTo);
+
   // The countdown stands where the address does, which costs nothing: the
   // address is only up until a token is, and the figures have nothing to say
   // before that, so the two are never both wanted. It is the session window
@@ -327,7 +387,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   bool bottomChanged = reveal != typed || rewrite;
   bottomChanged |= overlaps(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM), faceFrom, faceTo);
 
-  if (!topChanged && !bottomChanged) {
+  if (!topChanged && !alarmChanged && !bottomChanged) {
     return;
   }
   typed = reveal;
@@ -346,6 +406,14 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
     shown.bars = bars;
     shown.blink = blink;
     shown.rise = rise;
+  }
+
+  if (alarmChanged) {
+    clearBand(fb, ALARM_TOP, ALARM_BOTTOM, (int16_t)(SCREEN_R - ALARM_HALF),
+              (int16_t)(SCREEN_R + ALARM_HALF));
+    drawAlarm(fb, alarmColour(alarm));
+    boardFlushRows(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP));
+    shown.alarm = (uint8_t)alarm;
   }
 
   if (bottomChanged) {
