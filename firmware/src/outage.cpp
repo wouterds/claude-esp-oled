@@ -94,6 +94,12 @@ void poll() {
   // that finds everything well stays quiet.
   if (worst < level) {
     audioCheered();
+  } else if (level == Outage::None) {
+    // Only off a read that had found everything well. Out of Unknown nothing
+    // has changed - the board is learning where it stands rather than being
+    // told it moved - and an outage already running would say so again on every
+    // boot for as long as it lasted.
+    audioErrored();
   }
   Serial.printf("outage: %s\n", nameOf(worst));
   level = worst;
