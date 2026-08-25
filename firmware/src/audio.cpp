@@ -61,6 +61,14 @@ struct Note {
   // Silence after it. Nought where notes are meant to run together, which is
   // how one voice pretends to be a chord.
   uint16_t gap;
+  // Where the pitch ends up, for a note that does not stay where it started.
+  // Nought to hold still, which is what every note here does but one: stepping
+  // between pitches is a tune however sad the pitches are, and the one thing on
+  // this board that must not sound like a tune is the death.
+  //
+  // Last on purpose - left off, it is nought, so the tables above that hold
+  // still say nothing about it.
+  uint16_t to;
 };
 
 // A blip and the note it lands on, a fifth up. Two notes is the shortest thing
@@ -77,10 +85,16 @@ constexpr Note CHEERED[] = {{1047, 70, 0}, {1319, 70, 0}, {1568, 70, 0}, {2093, 
 // sounded settled to anybody - which is the whole of why it reads as wrong
 // rather than as sad. Said twice, or a single fall is a notification.
 constexpr Note ERRORED[] = {{1760, 60, 50}, {1245, 150, 90}, {1760, 60, 50}, {1245, 190, 0}};
-// The same triad the cheer climbs, walked back down - but each step is held
-// longer than the one above it. A fall at a constant rate is a scale; a fall
-// that slows as it goes is something running out of what was carrying it.
-constexpr Note DIED[] = {{1568, 90, 0}, {1319, 130, 0}, {1047, 340, 0}};
+// Pitch bleeding out, and then the floor. The slide is one note rather than
+// several because an interval - any interval - is a musical idea, and three
+// notes down a major triad is the cheer played backwards, which is why the
+// first attempt at this sounded like a doorbell.
+//
+// The gap is the whole trick: the slide runs out, nothing happens for a beat,
+// and then something lands underneath it. That note is below anything else on
+// the board and near the bottom of what this speaker can move at all - it comes
+// out soft and buzzy, which is the point.
+constexpr Note DIED[] = {{1568, 620, 140, 600}, {415, 420, 0}};
 
 I2SClass i2s;
 bool ready = false;
@@ -145,7 +159,12 @@ void note(const Note &n) {
   uint32_t total = (uint32_t)n.ms * RATE / 1000;
   uint32_t attack = (uint32_t)(ATTACK_MS * RATE / 1000.0f);
   uint32_t held = (uint32_t)(total * (1.0f - RELEASE));
-  float step = (float)n.hz / (float)RATE;
+  float from = (float)n.hz / (float)RATE;
+  float to = (float)(n.to ? n.to : n.hz) / (float)RATE;
+  // Worked out once rather than as a fraction of the way through per sample,
+  // which would be a divide sixteen thousand times a second for a number that
+  // moves by the same amount every time.
+  float slide = total ? (to - from) / (float)total : 0.0f;
   float phase = 0.0f;
 
   for (uint32_t done = 0; done < total;) {
@@ -166,7 +185,7 @@ void note(const Note &n) {
       float triangle = 4.0f * fabsf(phase - 0.5f) - 1.0f;
       rounded += (triangle - rounded) * ROUND;
       chunk[i] = (int16_t)(rounded * PEAK * (VOLUME / 100.0f) * level);
-      phase += step;
+      phase += from + slide * (float)at;
       if (phase >= 1.0f) {
         phase -= 1.0f;
       }

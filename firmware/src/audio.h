@@ -1,9 +1,9 @@
 #pragma once
 
 // The ES8311 on the far end of the same I2C bus everything else is on, driven a
-// note at a time. None of this is music: they are two short sounds, and they
-// are here so the board can say something happened to somebody who is not
-// looking at it. Nothing announces the board itself - it is on a desk, and a
+// note at a time. None of this is music: they are a handful of short sounds,
+// and they are here so the board can say something happened to somebody who is
+// not looking at it. Nothing announces the board itself - it is on a desk, and a
 // thing on a desk that sings when it is switched on gets switched off.
 //
 // Asking for one returns immediately. Rendering a note takes longer than a
