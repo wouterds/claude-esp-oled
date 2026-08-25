@@ -190,6 +190,12 @@ static void turnTo(Page to) {
 
 void setup() {
   Serial.begin(115200);
+  // Unplugged, a write that does not fit is thrown away and returns. Plugged
+  // into a host that has stopped reading - a Mac with the port enumerated and
+  // no monitor on it - the same write blocks 100ms a go, twenty times over, and
+  // whichever task printed stops dead for two seconds. Nought means short
+  // writes instead: a truncated log line is cheaper than a frozen panel.
+  Serial.setTxTimeoutMs(0);
   Serial.printf("reset: %s\n", why(esp_reset_reason()));
   if (!boardBegin()) {
     while (true) {
