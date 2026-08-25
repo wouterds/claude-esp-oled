@@ -263,12 +263,12 @@ void loop() {
   // sleeve managed the first of them often enough to be a nuisance, and the pair
   // had to land on the same thing to count at all.
   if (buttonPressed()) {
-    // A pair asks for the error sound, on top of whatever the press itself
-    // meant. Nothing raises that sound on its own yet, and a sound nobody can
-    // hear is a sound nobody can tell is wrong.
+    // A pair asks for the cheer, on top of whatever the press itself meant. The
+    // error has an outage to raise it now, but a window rolls over when it
+    // rolls over - so this is the only way to hear that one on purpose.
     static uint32_t lastPress = 0;
     if (lastPress && (uint32_t)(now - lastPress) < DOUBLE_MS) {
-      audioErrored();
+      audioCheered();
       // Forgotten, or a third press pairs with the second and sounds again.
       lastPress = 0;
     } else {
