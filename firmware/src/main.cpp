@@ -32,12 +32,6 @@ static uint32_t nextFrame = 0;
 enum class Page : uint8_t { Main, Info };
 static Page page = Page::Main;
 
-// Two presses closer together than this are a pair. The press itself still
-// lands either way rather than being held back to find out whether a second one
-// is coming - what it does is a toggle, so a pair puts it back where it was and
-// the alternative is a quarter second of lag on every single press.
-static constexpr uint32_t DOUBLE_MS = 400;
-
 // The frame rate, put on the glass rather than into the log, for when the thing
 // being watched is what the drawing costs. Bright pink and across the top of
 // whatever is underneath: it is not part of any page and should not be taken
@@ -263,17 +257,6 @@ void loop() {
   // sleeve managed the first of them often enough to be a nuisance, and the pair
   // had to land on the same thing to count at all.
   if (buttonPressed()) {
-    // A pair asks for the cheer, on top of whatever the press itself meant. The
-    // error has an outage to raise it now, but a window rolls over when it
-    // rolls over - so this is the only way to hear that one on purpose.
-    static uint32_t lastPress = 0;
-    if (lastPress && (uint32_t)(now - lastPress) < DOUBLE_MS) {
-      audioCheered();
-      // Forgotten, or a third press pairs with the second and sounds again.
-      lastPress = 0;
-    } else {
-      lastPress = now;
-    }
     if (page == Page::Main) {
       gaugeFigures();
     } else {
