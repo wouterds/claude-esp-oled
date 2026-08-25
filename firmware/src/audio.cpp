@@ -68,10 +68,11 @@ struct Note {
 // pleased. This one happens with a hand still on the cable, so it is the
 // shorter of the two.
 constexpr Note PLUGGED[] = {{1319, 45, 0}, {1760, 120, 0}};
-// The same shape, said twice. The gap between them is what makes it two of
-// something rather than a run of four: shorter and it is a tune, longer and it
-// is two things that happened to happen.
-constexpr Note CHEERED[] = {{1047, 55, 0}, {1568, 165, 70}, {1047, 55, 0}, {1568, 175, 0}};
+// One voice climbing a major triad and clearing the octave, which is what
+// arriving somewhere sounds like. The steps run together rather than being
+// sounded at, and the last is held four times as long as any of them: the climb
+// is the news and the note it lands on is where the news settles.
+constexpr Note CHEERED[] = {{1047, 70, 0}, {1319, 70, 0}, {1568, 70, 0}, {2093, 260, 0}};
 // Down where the other two go up, and down by the one interval that has never
 // sounded settled to anybody - which is the whole of why it reads as wrong
 // rather than as sad. Said twice, or a single fall is a notification.
