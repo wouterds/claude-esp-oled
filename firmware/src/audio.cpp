@@ -33,10 +33,10 @@ constexpr int PIN_PA = 9;
 constexpr uint32_t RATE = 16000;
 // A part of full scale, done in the samples rather than in the codec. The
 // part's own volume register is in half decibels, so a percentage written
-// straight into it is a percentage of nothing anybody can hear - a fifth of the
-// way up that register is tens of decibels down, which is silence with a bill
-// attached.
-constexpr uint8_t VOLUME = 20;
+// straight into it is a percentage of nothing anybody can hear - a fraction of
+// the way up that register is tens of decibels down, which is silence with a
+// bill attached.
+constexpr uint8_t VOLUME = 15;
 // Short of the rails even at full volume. A sine that reaches them is a sine
 // that clips into something buzzing the moment anything is added to it.
 constexpr float PEAK = 26000.0f;
