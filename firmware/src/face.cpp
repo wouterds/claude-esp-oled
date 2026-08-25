@@ -78,6 +78,11 @@ constexpr float GAP_NEAR = 20.0f;
 // Either side of that gap, so the flares do not arrive on a metronome.
 constexpr float GAP_JITTER = 0.25f;
 
+// What a dead face has left. Nothing about it is in a hurry, and a quarter is
+// slow enough to read as winding down without stopping dead - which would look
+// like the panel had frozen rather than like the face had given up.
+constexpr float DEAD_SLOW = 0.25f;
+
 struct State {
   float x, y;          // where the eyes are
   float tx, ty;        // where they are drifting to
@@ -578,10 +583,19 @@ void settle(float dt) {
 
 void faceStep(float dt) {
   settle(dt);
-  me.clock += dt;
   me.blend = clamp01(me.blend + dt / BLEND_SECONDS);
 
   me.held += dt;
+
+  // Everything below here moves; everything above it counts. Slowing the clock
+  // rather than each of the drift, the float, the look and the gaps between
+  // looks is what keeps them slowing together - one thing winding down instead
+  // of four things that happen to be sluggish. The countdowns are left on real
+  // seconds, or five seconds of surprise would quietly become twenty.
+  if (me.mood == Mood::Dead) {
+    dt *= DEAD_SLOW;
+  }
+  me.clock += dt;
 
   // A critically damped spring: it arrives without ringing, and the stiffness
   // alone is the difference between drifting over and darting.
