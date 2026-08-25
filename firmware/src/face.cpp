@@ -502,6 +502,9 @@ void settle(float dt) {
   }
   me.alarm = alarm;
 
+  // Whether the one thing that undoes a death has just happened. Set inside the
+  // read below, where the drop is spotted, and read after it.
+  bool revived = false;
   if (usageReady()) {
     uint8_t a = usageSession();
     uint8_t b = usageWeekly();
@@ -514,6 +517,7 @@ void settle(float dt) {
     if (dropped || (easy && (!me.read || !me.easy))) {
       me.cheer = CHEER_S;
     }
+    revived = dropped;
     // Climbing into the yellow is worth the same. Dropping back out of it says
     // nothing - it only re-arms this, so the next climb can say it again.
     if (warm && !me.warm) {
@@ -555,6 +559,15 @@ void settle(float dt) {
       float gap = GAP_FAR + (GAP_NEAR - GAP_FAR) * deep;
       me.flareIn = gap * frand(1.0f - GAP_JITTER, 1.0f + GAP_JITTER);
     }
+  }
+
+  // Dead is dead. Everything the ladder below weighs is a level, and no level
+  // means anything to a face that has already spent the lot - the number
+  // drifting back under the mark is not a recovery, it is the same window still
+  // being spent. Only a window actually rolling over is news enough to undo it,
+  // and that arrives as a fall rather than as a reading.
+  if (me.mood == Mood::Dead && !revived) {
+    return;
   }
 
   Mood want;
