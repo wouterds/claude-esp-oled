@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "audio.h"
 #include "board.h"
 #include "outage.h"
 #include "usage.h"
@@ -577,6 +578,11 @@ void settle(float dt) {
     me.was = me.mood;
     me.blend = 0.0f;
     me.held = 0.0f;
+    // On the way in only. It is the one change on this face worth hearing from
+    // the other side of a room, and the only one you cannot undo by waiting.
+    if (want == Mood::Dead) {
+      audioDied();
+    }
     me.mood = want;
   }
 }
