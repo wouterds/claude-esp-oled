@@ -16,3 +16,7 @@ void audioPlugged();
 
 // A window has rolled over and there is room again.
 void audioCheered();
+
+// Something went wrong. Nothing raises it on its own yet - a double press on
+// the button is what asks for it, so that there is a way to hear it at all.
+void audioErrored();

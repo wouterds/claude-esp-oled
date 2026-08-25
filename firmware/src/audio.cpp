@@ -72,6 +72,10 @@ constexpr Note PLUGGED[] = {{1319, 45, 0}, {1760, 120, 0}};
 // something rather than a run of four: shorter and it is a tune, longer and it
 // is two things that happened to happen.
 constexpr Note CHEERED[] = {{1047, 55, 0}, {1568, 165, 70}, {1047, 55, 0}, {1568, 175, 0}};
+// Down where the other two go up, and down by the one interval that has never
+// sounded settled to anybody - which is the whole of why it reads as wrong
+// rather than as sad. Said twice, or a single fall is a notification.
+constexpr Note ERRORED[] = {{1760, 60, 50}, {1245, 150, 90}, {1760, 60, 50}, {1245, 190, 0}};
 
 I2SClass i2s;
 bool ready = false;
@@ -194,8 +198,10 @@ void task(void *) {
       wanted = 0;
       if (want == 1) {
         play(PLUGGED, sizeof(PLUGGED) / sizeof(PLUGGED[0]));
-      } else {
+      } else if (want == 2) {
         play(CHEERED, sizeof(CHEERED) / sizeof(CHEERED[0]));
+      } else {
+        play(ERRORED, sizeof(ERRORED) / sizeof(ERRORED[0]));
       }
     }
     vTaskDelay(pdMS_TO_TICKS(20));
@@ -239,5 +245,11 @@ void audioPlugged() {
 void audioCheered() {
   if (ready) {
     wanted = 2;
+  }
+}
+
+void audioErrored() {
+  if (ready) {
+    wanted = 3;
   }
 }
