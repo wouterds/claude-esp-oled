@@ -47,7 +47,7 @@ Trig trig;
 
 // Where the expressions come from. The face does not have moods of its own any
 // more - it reads the two gauges, and these are the marks on them.
-constexpr uint8_t DEAD_AT = 95;
+constexpr uint8_t DEAD_AT = 98;
 constexpr uint8_t CROSS_AT = 80;
 constexpr uint8_t EASY_UNDER = 40;
 // Where the gauge itself has gone full yellow. The face and the bar agree
