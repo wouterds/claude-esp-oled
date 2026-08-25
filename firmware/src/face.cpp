@@ -49,6 +49,9 @@ Trig trig;
 // more - it reads the two gauges, and these are the marks on them.
 constexpr uint8_t DEAD_AT = 98;
 constexpr uint8_t CROSS_AT = 80;
+// Where the face starts reacting to the number at all. Between here and
+// CROSS_AT it is startled by it; above CROSS_AT it is cross about it.
+constexpr uint8_t WATCH_AT = 70;
 constexpr uint8_t EASY_UNDER = 40;
 // Where the gauge itself has gone full yellow. The face and the bar agree
 // about what a number means or one of them is lying.
@@ -61,6 +64,20 @@ constexpr float STARTLE_S = 5.0f;
 // A window rolling over does not creep back down, it falls.
 constexpr uint8_t A_RESET = 10;
 
+// The bands wear their face in flares over whatever is underneath rather than
+// locking into it. A number that has been high for an hour is not news for an
+// hour, and an expression that never changes stops being looked at - so the
+// face says it, goes back to itself, and says it again a while later.
+constexpr float FLARE_LO = 4.0f;
+constexpr float FLARE_HI = 6.0f;
+// How long between them, at the bottom of the bands and at the top. The gap
+// closes as the number climbs, so the face gets visibly twitchier the worse it
+// is without ever settling into one expression.
+constexpr float GAP_FAR = 45.0f;
+constexpr float GAP_NEAR = 20.0f;
+// Either side of that gap, so the flares do not arrive on a metronome.
+constexpr float GAP_JITTER = 0.25f;
+
 struct State {
   float x, y;          // where the eyes are
   float tx, ty;        // where they are drifting to
@@ -72,6 +89,9 @@ struct State {
   float cheer;         // seconds of good cheer still owed
   bool easy;           // whether both windows were last seen with room to spare
   float startle;       // seconds of surprise still owed
+  float flare;         // seconds of the band's own face still owed
+  float flareIn;       // and seconds until it wears it again
+  Mood flareAs;        // which of the two this one is
   bool warm;           // whether either window was last seen in the yellow
   Outage alarm;        // what the status page last said, to catch it worsening
   float blend;         // 0 while settled, counts up through a change
@@ -448,6 +468,9 @@ void faceBegin() {
   me.cheer = 0.0f;
   me.easy = false;
   me.startle = 0.0f;
+  me.flare = 0.0f;
+  me.flareIn = 0.0f;
+  me.flareAs = Mood::Neutral;
   me.warm = false;
   me.alarm = Outage::Unknown;
   me.blend = 1.0f;
@@ -505,11 +528,34 @@ void settle(float dt) {
   }
 
   uint8_t worst = me.seen[0] > me.seen[1] ? me.seen[0] : me.seen[1];
+  if (me.flare > 0.0f) {
+    me.flare -= dt;
+  }
+
+  // Nothing to flare about under WATCH_AT, and nothing left to say at DEAD_AT -
+  // the face has stopped pretending by then and wears the one expression.
+  if (!me.read || worst < WATCH_AT || worst >= DEAD_AT) {
+    me.flare = 0.0f;
+    // Left due, so crossing into a band is itself worth a face rather than
+    // something you wait most of a minute to hear about.
+    me.flareIn = 0.0f;
+  } else {
+    me.flareIn -= dt;
+    if (me.flareIn <= 0.0f) {
+      me.flare = frand(FLARE_LO, FLARE_HI);
+      me.flareAs = worst >= CROSS_AT ? Mood::Angry : Mood::Surprised;
+      // Nought at the bottom of the bands and one at the top.
+      float deep = (float)(worst - WATCH_AT) / (float)(DEAD_AT - WATCH_AT);
+      float gap = GAP_FAR + (GAP_NEAR - GAP_FAR) * deep;
+      me.flareIn = gap * frand(1.0f - GAP_JITTER, 1.0f + GAP_JITTER);
+    }
+  }
+
   Mood want;
   if (worst >= DEAD_AT) {
     want = Mood::Dead;
-  } else if (worst >= CROSS_AT) {
-    want = Mood::Angry;
+  } else if (me.flare > 0.0f) {
+    want = me.flareAs;
   } else if (me.startle > 0.0f) {
     // Over the states below it: a reaction to something that has just happened
     // outranks a description of how things have been.
