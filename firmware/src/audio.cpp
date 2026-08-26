@@ -36,7 +36,7 @@ constexpr uint32_t RATE = 16000;
 // straight into it is a percentage of nothing anybody can hear - a fraction of
 // the way up that register is tens of decibels down, which is silence with a
 // bill attached.
-constexpr uint8_t VOLUME = 15;
+constexpr uint8_t VOLUME = 10;
 // Short of the rails even at full volume. A sine that reaches them is a sine
 // that clips into something buzzing the moment anything is added to it.
 constexpr float PEAK = 26000.0f;
