@@ -1,6 +1,6 @@
 # claude-esp-oled
 
-A round 360x360 display on an ESP32-S3, driven straight from the chip. A face
+A round display on an ESP32-S3, driven straight from the chip. A face
 wanders the glass wearing how much of your claude.ai allowance is gone, with a
 bar down each edge for the five hour window and the week.
 
@@ -24,9 +24,14 @@ power path and the chip cannot see it - it is the small one beside the USB-C,
 pressed for a second to power on and held for three to power off. `BOOT` is the
 strapping pin, and held down at reset it traps the board in the bootloader.
 
-Hardware is a **Waveshare ESP32-S3-Touch-LCD-1.85B**. Despite the name of this
-repository the panel is an IPS LCD rather than an OLED, which matters: black is
-backlight leaking through liquid crystal rather than a pixel that is off.
+Hardware is either a **Waveshare ESP32-S3-Touch-LCD-1.85B** - a 360x360 IPS LCD,
+where despite the name of this repository black is backlight leaking through
+liquid crystal rather than a pixel that is off - or a **Waveshare
+ESP32-S3-Touch-AMOLED-1.75C**, a 466x466 AMOLED where it really is off.
+
+`npm run firmware:flash` works out which one is plugged in and flashes that. It
+has to: the two boards' pins overlap rather than merely differ, so the wrong
+image drives the wrong silicon on every line and looks like dead hardware.
 
 See [.agents/docs/hardware.md](.agents/docs/hardware.md) for the board -
 including the things that each present as a dead board and none of which say so.

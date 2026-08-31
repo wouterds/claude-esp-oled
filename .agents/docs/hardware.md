@@ -1,18 +1,50 @@
 # Hardware
 
-A Waveshare **ESP32-S3-Touch-LCD-1.85B**: an **ESP32-S3R8** - 16MB of flash and
-8MB of octal PSRAM - behind a 1.85" **round** 360x360 IPS panel in a machined
-aluminium case. The panel is a **ST77916** on QSPI. A **CST816S** touch
-controller, a **BQ27220** battery gauge, a **QMI8658** IMU, **ES8311**/**ES7210**
-audio and a **PCF85063** clock are also on it, all on one I2C bus.
+Two boards, one firmware, an env each. Both are an **ESP32-S3** with 8MB of
+**octal** PSRAM driving a round touch panel over QSPI, and very little else
+about them is the same.
 
-**Not the same board as the ESP32-S3-Touch-LCD-1.85.** Same size, same panel,
-same QSPI pins - and on the non-B, LCD reset is behind a TCA9554 IO expander
-that this one does not have. Firmware written for one comes up black on the
-other. Waveshare document them as separate products; the B's page is the one to
-read.
+| | ESP32-S3-Touch-LCD-1.85B | ESP32-S3-Touch-AMOLED-1.75C |
+| --- | --- | --- |
+| env | `esp32-s3-touch-lcd-185` | `esp32-s3-touch-amoled-175c` |
+| glass | 360x360 round **IPS LCD** | 466x466 round **AMOLED** |
+| controller | ST77916 | CO5300 |
+| flash | **16MB** | **32MB** |
+| touch | CST816S at `0x15` | CST9217 at `0x5A` |
+| brightness | PWM on a backlight pin | panel register `0x51`, no backlight |
+| battery | BQ27220 gauge at `0x55` | AXP2101 PMIC, not read yet |
+| QSPI clock | 80MHz | 40MHz |
+| also on I2C | QMI8658 IMU, PCF85063 clock, ES8311/ES7210 audio | the same four |
+
+**The images are not interchangeable, and the wrong one does not fail.** The
+pins overlap rather than merely differ: `GPIO5` is the LCD board's backlight and
+one of the AMOLED board's four LCD data lines, `GPIO11` is the LCD board's I2C
+data and the AMOLED board's touch interrupt. Flashed the wrong way round, every
+line drives the wrong silicon and the result looks like dead hardware.
+
+## Telling them apart
+
+Nothing on either board announces which it is, and a board may already be
+holding the wrong firmware - so the question has to be answerable without
+running anything on it. The flash chip answers it:
+
+```bash
+esptool --port /dev/cu.usbmodem1101 flash-id   # "Detected flash size: 16MB" or "32MB"
+```
+
+`npm run firmware:flash` reads that itself and flashes the matching env. Naming
+an env explicitly still works and is refused when it is the other board.
+
+**Neither is the plain-numbered board of the same size.** The
+ESP32-S3-Touch-AMOLED-**1.75** has 16MB of flash where the **1.75C** has 32, and
+the ESP32-S3-Touch-LCD-**1.85** puts its LCD reset behind a TCA9554 where the
+**1.85B** wires it to the S3. Both differences are silent when wrong, and both
+vendors document the variants as separate products. Read the page with the
+suffix.
 
 ## Wiring
+
+### ESP32-S3-Touch-LCD-1.85B
 
 | | |
 | --- | --- |
@@ -25,8 +57,23 @@ read.
 | Audio data | **playback out `GPIO47`**, microphones in `GPIO39` |
 | Amplifier enable | `GPIO9` |
 | Touch | `CST816S` at `0x15`, reset `GPIO1`, interrupt `GPIO4` |
-| USB | native, `D- GPIO19`, `D+ GPIO20` |
-| BOOT button | `GPIO0`, pulled up, low when pressed |
+
+### ESP32-S3-Touch-AMOLED-1.75C
+
+| | |
+| --- | --- |
+| LCD data | `GPIO4` `GPIO5` `GPIO6` `GPIO7` (D0..D3) |
+| LCD clock / select | `GPIO38` / `GPIO12` |
+| LCD reset | `GPIO1` |
+| LCD backlight | **none** - the pixels emit, see below |
+| I2C - touch, IMU, audio, PMIC, clock | `SDA GPIO15`, `SCL GPIO14` |
+| Audio clocks | `MCLK GPIO16`, `BCLK GPIO9`, `LRCK GPIO45` |
+| Audio data | **playback out `GPIO8`**, microphones in `GPIO10` |
+| Amplifier enable | `GPIO46` |
+| Touch | `CST9217` at `0x5A`, reset `GPIO2`, interrupt `GPIO11` |
+
+Both: USB is native, `D- GPIO19` / `D+ GPIO20`, and the `BOOT` button is
+`GPIO0`, pulled up and low when pressed.
 
 ## Building and flashing
 
@@ -39,10 +86,24 @@ cannot install esptool's python dependencies and the build dies on
 ```bash
 uv tool install --with pip platformio
 
-npm run firmware:build
-npm run firmware:flash
+npm run firmware:build     # both envs
+npm run firmware:flash     # detects the board, flashes it, prints the boot log
 npm run firmware:monitor
 ```
+
+A good boot log names the panel, the touch part and the codec. On the AMOLED
+board it reads:
+
+```
+panel init: ESP_OK
+panel up, psram free 7943584
+brightness: 100% (ESP_OK)
+battery: no gauge on this board
+touch: CST9217 ready
+audio: ES8311 ready at 16000 Hz, 10%
+```
+
+`psram free` in the sevens is how you know the octal PSRAM setting took.
 
 ## The things that cost a day
 
@@ -52,7 +113,8 @@ a soft power path, so the power button is a power button and not a reset:
 presents *no* USB device at all - not a broken one, none - so this reads as a
 dead cable or a dead board rather than as a board that is simply switched off.
 `ls /dev | grep cu.usbmodem` empty, and `ioreg -p IOUSB -w0 -l | grep 12346`
-finding nothing, is what it looks like.
+finding nothing, is what it looks like. Established on the LCD board; the AMOLED
+board has a PMIC of its own and its power behaviour has not been tested.
 
 **The power button is the small one, beside the USB port.** Not the larger one
 next to it, whatever the schematic calls them: pressed short, for one second,
@@ -62,13 +124,15 @@ powers the board up and down on the timings above. Written down because it is
 the reverse of what the product page implies and it costs an evening to
 rediscover.
 
-**The audio pins are named from both ends, one line apart.** Waveshare's summary
-line gives `DOUT=GPIO47, DIN=GPIO39` from the *codec's* point of view; the pin
-table directly beneath it gives `GPIO47 I2S_DOUT - playback data output` from
-the *MCU's*. Take the summary at face value and playback is wired into the
-microphone input. Nothing errors: every codec register still acknowledges, the
-I2S peripheral still reports every byte written, and the amplifier still comes
-up - so what you get is hiss and no sound, which reads as a dead speaker.
+**The audio pins are named from both ends, one line apart.** On the LCD board
+Waveshare's summary line gives `DOUT=GPIO47, DIN=GPIO39` from the *codec's*
+point of view; the pin table directly beneath it gives `GPIO47 I2S_DOUT -
+playback data output` from the *MCU's*. The AMOLED board's header names them
+from the codec's end only - `ES8311_DOUT` for the pin the S3 plays out of.
+Take either at face value and playback is wired into the microphone input.
+Nothing errors: every codec register still acknowledges, the I2S peripheral
+still reports every byte written, and the amplifier still comes up - so what you
+get is hiss and no sound, which reads as a dead speaker.
 
 **Start I2S before configuring the codec.** The ES8311's clock manager is set up
 against an MCLK that has to already be arriving. Configured in silence it takes
@@ -79,21 +143,64 @@ which means the boot strap was held down as the board came up. It will sit at
 `waiting for download` forever and never reach the sketch. Let go of the button
 and power it on again.
 
-**The flash header must say 16MB and the PSRAM must say octal.** There is no
-PlatformIO board definition for this module, so it is the generic S3 devkit
-narrowed down - and that profile assumes 8MB of flash and quad PSRAM. Both are
-silent when wrong. The wrong flash header stops the sketch before it reaches
-`setup()`; `qio_qspi` instead of `qio_opi` leaves the 253KB framebuffer failing
-to allocate with the panel already lit and nothing on it. `esptool flash-id`
-reports the size the chip actually is, which is the thing to check it against.
+**The flash header must say what the chip is, and the PSRAM must say octal.**
+There is no PlatformIO board definition for either module, so both are the
+generic S3 devkit narrowed down - and that profile assumes 8MB of flash and quad
+PSRAM. Both are silent when wrong. The wrong flash header stops the sketch
+before it reaches `setup()`; `qio_qspi` instead of `qio_opi` leaves the
+framebuffer failing to allocate with the panel already lit and nothing on it.
+`esptool flash-id` reports the size the chip actually is, which is the thing to
+check it against.
 
 **`ARDUINO_USB_CDC_ON_BOOT=1` is what points `Serial` at USB.** Left at the
 devkit default of 0, `Serial` goes to the UART pins and the board looks mute
 over USB while running perfectly well.
 
-**Light the backlight after the first frame, not before.** The panel powers up
-holding whatever was last in its RAM and shows that to the room for as long as
-it takes to reach the first flush.
+**Light the panel after the first frame, not before.** Both panels power up
+holding whatever was last in their RAM and show that to the room for as long as
+it takes to reach the first flush. The LCD board raises a backlight to do it and
+the AMOLED board writes a brightness register, but the ordering is the same and
+`boardBegin()` owns it.
+
+**On the AMOLED board, black is black.** The constraint in `AGENTS.md` about an
+IPS panel never fully blocking its backlight does not apply to emissive pixels -
+there is no backlight, brightness is panel register `0x51`, and an unlit pixel
+is off. Anything written to work around LCD black will look wrong here rather
+than merely unnecessary.
+
+**The AMOLED panel needs nothing from the AXP2101.** The board carries a PMIC
+and it is reasonable to assume the display rails hang off it, which is a day
+spent bringing up a PMIC that was never in the way. Waveshare's own
+`01_HelloWorld` drives the panel with nothing but `Wire.begin()` and
+`gfx->begin()`. The PMIC does own the battery, which is why there is no charge
+on that board's status line yet.
+
+**The CO5300's visible columns do not start at zero.** Its RAM is wider than the
+466 that are lit and the panel is addressed from column six, which is the
+`X_GAP` in `panel_co5300.cpp`. Wrong, this is a scene sitting a few pixels off
+centre rather than anything that looks like a fault - and eight is the other
+candidate, the same offset counted from the far side.
+
+**The AMOLED board does not reach sixty frames a second.** It has 1.67x the
+pixels of the LCD board and clocks its QSPI at 40MHz rather than 80, which is
+what its own examples use. Measured: about 14ms of drawing and 14ms of flush, so
+35 frames a second against the loop's target of 60. Raising the clock is one
+constant in `panel_co5300.cpp` and wants eyes on the glass, because a QSPI bus
+run too fast corrupts the picture rather than failing.
+
+**The scene is measured in the LCD board's pixels.** Every length in it was
+composed against a 180px radius and is scaled by `SCENE` in `board.h` to
+whatever glass it lands on. Seconds, rates and percentages are not lengths and
+are deliberately left out of it. The factor is exactly 1 on the LCD board, so
+its binary is unaffected by anything the AMOLED board needs. Text scales are
+whole numbers and do not scale, so type is relatively smaller on the bigger
+panel - that is a design decision nobody has made yet rather than a bug.
+
+**The AMOLED board has no fuel gauge.** Its pack is behind the AXP2101 and
+nothing answers at the gauge's address, so the charge reads as absent. Anything
+polling an address that does not acknowledge gets a failed transaction logged by
+the I2C driver at whatever rate it polls, which buries the rest of the log -
+`batteryBegin()` probes once and gives up for that reason.
 
 **The official `espressif32` platform is still on Arduino core 2.x.** Anything
 expecting core 3.0 dies inside its own headers with nothing pointing at the core
