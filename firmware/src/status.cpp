@@ -21,7 +21,7 @@ namespace {
 //
 // The band is the taller of the two icons plus a pixel, because a row of glyph
 // left outside it is a row that never gets cleared.
-constexpr int16_t MIDDLE = 17;
+constexpr int16_t MIDDLE = (int16_t)(17 * SCENE);
 constexpr int16_t BAR_TOP = MIDDLE - 10;
 constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 
@@ -31,18 +31,18 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
 // It reaches further down than the note above suggests is safe, and that note is
 // the conservative one: the face's box begins at HOME_Y - ROAM - 80, which is
 // well under this band.
-constexpr int16_t ALARM_Y = 63;
-constexpr int16_t ALARM_TOP = 49;
-constexpr int16_t ALARM_BOTTOM = 76;
-constexpr int16_t ALARM_HALF = 15;
+constexpr int16_t ALARM_Y = (int16_t)(63 * SCENE);
+constexpr int16_t ALARM_TOP = (int16_t)(49 * SCENE);
+constexpr int16_t ALARM_BOTTOM = (int16_t)(76 * SCENE);
+constexpr int16_t ALARM_HALF = (int16_t)(15 * SCENE);
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
 // this height it gives about 80 pixels either side of the middle, and the two
 // of them together come to sixty-odd.
-constexpr int16_t WIFI_X = 160;
-constexpr int16_t BATTERY_X = 199;
+constexpr int16_t WIFI_X = (int16_t)(160 * SCENE);
+constexpr int16_t BATTERY_X = (int16_t)(199 * SCENE);
 
-constexpr int16_t ADDRESS_Y = 310;
+constexpr int16_t ADDRESS_Y = (int16_t)(310 * SCENE);
 constexpr int16_t BOTTOM_SCALE = 2;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
@@ -238,10 +238,10 @@ float sdArc(float px, float py, float sinA, float cosA, float ra, float rb) {
 }
 
 void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
-  constexpr float HW = 11.0f;
-  constexpr float HH = 6.0f;
-  constexpr float R = 3.0f;
-  constexpr float WALL = 1.4f;
+  constexpr float HW = 11.0f * SCENE;
+  constexpr float HH = 6.0f * SCENE;
+  constexpr float R = 3.0f * SCENE;
+  constexpr float WALL = 1.4f * SCENE;
   float fillTo = -HW + 1.6f + (2.0f * HW - 3.2f) * (percent / 100.0f);
 
   for (int16_t y = MIDDLE - 8; y <= MIDDLE + 8; y++) {
@@ -312,9 +312,9 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
 void drawAlarm(uint16_t *fb, uint16_t colour) {
   // Getting on for a quarter of the height goes on the corners. Reach is HH + R
   // down and HW + R across, which is what the band and ALARM_HALF come from.
-  constexpr float HW = 8.5f;
-  constexpr float HH = 7.5f;
-  constexpr float R = 5.0f;
+  constexpr float HW = 8.5f * SCENE;
+  constexpr float HH = 7.5f * SCENE;
+  constexpr float R = 5.0f * SCENE;
 
   for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
     for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {

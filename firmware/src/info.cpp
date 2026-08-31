@@ -21,23 +21,23 @@ namespace {
 // the middle of the page, and the three lines under it weigh almost nothing.
 // The commit hangs further back than the spacing wants, because it is the one
 // line here that is tapped rather than read.
-constexpr float CELL_X = 180.0f;
-constexpr float CELL_Y = 106.0f;
-constexpr float CELL_HW = 34.0f;
-constexpr float CELL_HH = 60.0f;
-constexpr float CELL_R = 14.0f;
-constexpr float WALL = 3.0f;
+constexpr float CELL_X = 180.0f * SCENE;
+constexpr float CELL_Y = 106.0f * SCENE;
+constexpr float CELL_HW = 34.0f * SCENE;
+constexpr float CELL_HH = 60.0f * SCENE;
+constexpr float CELL_R = 14.0f * SCENE;
+constexpr float WALL = 3.0f * SCENE;
 // Between the wall and the charge inside it. Without a gap the fill welds
 // itself to the shell and the whole thing reads as a solid block.
-constexpr float GAP = 7.0f;
-constexpr float NUB_HW = 13.0f;
-constexpr float NUB_HH = 5.0f;
+constexpr float GAP = 7.0f * SCENE;
+constexpr float NUB_HW = 13.0f * SCENE;
+constexpr float NUB_HH = 5.0f * SCENE;
 
-constexpr int16_t PERCENT_TOP = 188;
+constexpr int16_t PERCENT_TOP = (int16_t)(188 * SCENE);
 constexpr int16_t PERCENT_SCALE = 4;
-constexpr int16_t NETWORK_TOP = 242;
-constexpr int16_t ADDRESS_TOP = 264;
-constexpr int16_t COMMIT_TOP = 308;
+constexpr int16_t NETWORK_TOP = (int16_t)(242 * SCENE);
+constexpr int16_t ADDRESS_TOP = (int16_t)(264 * SCENE);
+constexpr int16_t COMMIT_TOP = (int16_t)(308 * SCENE);
 constexpr int16_t LINE_SCALE = 2;
 // What fits between the edges of the glass down there, in glyphs. A network can
 // be called anything up to thirty-two characters and the ones that long run off

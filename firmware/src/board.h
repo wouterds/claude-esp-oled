@@ -4,6 +4,16 @@
 
 #include "pins.h"
 
+// The scene was composed against the 360x360 glass and every distance in it is
+// written in that panel's pixels. On a larger piece of glass they are scaled by
+// this rather than re-tuned by hand, so the composition is worked out once.
+//
+// Exactly 1 on the board it was drawn for, so that board's constants are the
+// numbers that were already tested rather than the same numbers round-tripped
+// through a multiply. Only lengths take it: the seconds, the rates and the
+// percentages beside them are not distances and do not move with the glass.
+static constexpr float SCENE = SCREEN_R / 180.0f;
+
 // Brings up the QSPI bus, the panel and the backlight, in that order. False
 // means the panel never came up and there is nothing to draw on.
 bool boardBegin();
@@ -21,11 +31,13 @@ inline uint16_t boardColour(uint16_t rgb565) {
   return (uint16_t)((rgb565 >> 8) | (rgb565 << 8));
 }
 
-// The panel is mounted upside down. The turn is applied where pixels are
-// written rather than in the flush or in the panel's own scan order: the flush
-// touches every pixel on the glass and would have to give up its memcpy, and
-// MADCTL would leave every coordinate in here reasoning about a screen that is
-// the other way up. Drawing touches a few thousand pixels and can afford it.
+// The LCD board's panel is mounted upside down. The turn is applied where
+// pixels are written rather than in the flush or in the panel's own scan order:
+// the flush touches every pixel on the glass and would have to give up its
+// memcpy, and MADCTL would leave every coordinate in here reasoning about a
+// screen that is the other way up. Drawing touches a few thousand pixels and
+// can afford it. The AMOLED board is not mounted that way and its panel undoes
+// this turn in MADCTL, so that scenes stay written the one way.
 inline uint16_t *boardRow(uint16_t *fb, int16_t y) {
   return fb + (int32_t)(SCREEN_H - 1 - y) * SCREEN_W;
 }

@@ -45,19 +45,19 @@ static constexpr uint16_t BADGE_INK = 0xFFFF;
 // row rather than as nothing at all. Still more above and below than at the ends,
 // because the glyphs are taller than they are wide and the same number all round
 // reads as tight at the top and loose at the sides.
-static constexpr float FPS_PAD_X = 5.0f;
-static constexpr float FPS_PAD_Y = 5.5f;
+static constexpr float FPS_PAD_X = 5.0f * SCENE;
+static constexpr float FPS_PAD_Y = 5.5f * SCENE;
 // Enough to read as rounded at this size without turning the thing into a
 // lozenge. The badge is 24 tall, and a corner much under this reads as a square
 // one that has been sanded.
-static constexpr float FPS_RADIUS = 6.0f;
+static constexpr float FPS_RADIUS = 6.0f * SCENE;
 // Level with the outage triangle, whose middle is 63 rows down, and in the gap
 // to the right of it. The triangle reaches x=195 and the gauge arc's inner edge
 // comes in to x=290 on the badge's top row, which leaves 95 pixels; the badge is
 // centred in them rather than pushed against either side, so it grows both ways
 // and stays clear of both however many figures it ends up holding.
-static constexpr int16_t FPS_X = 242;
-static constexpr int16_t FPS_MID = 63;
+static constexpr int16_t FPS_X = (int16_t)(242 * SCENE);
+static constexpr int16_t FPS_MID = (int16_t)(63 * SCENE);
 static constexpr int16_t FPS_SCALE = 2;
 // What the loop is pacing for. Belt and braces now that FRAME_US is the real
 // thing rather than a rounding of it: the smoothed figure still wanders a little

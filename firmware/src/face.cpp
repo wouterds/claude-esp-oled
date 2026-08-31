@@ -18,21 +18,21 @@
 namespace {
 
 constexpr float PI_F = 3.14159265f;
-constexpr float GLOW_RADIUS = 8.0f;
+constexpr float GLOW_RADIUS = 8.0f * SCENE;
 constexpr float GLOW_INV = 1.0f / GLOW_RADIUS;
 constexpr float GLOW_GAIN = 0.5f;
 
 // How far from its home the face may drift.
-constexpr float ROAM = 26.0f;
-constexpr float EYE_GAP = 46.0f;
+constexpr float ROAM = 26.0f * SCENE;
+constexpr float EYE_GAP = 46.0f * SCENE;
 // The clear box the face paints inside runs from 80 above this to 84 below it,
 // which is also what caps this at 197: the box's bottom is this plus ROAM plus
 // 84, and the bottom line of text starts at 307. The drift is small because the
 // panel is round: with the mouth below the eyes the face reaches 129 pixels from
 // its own centre, and 180 is where the glass stops.
-constexpr float HOME_Y = 196.0f;
-constexpr float EYE_RISE = 28.0f;
-constexpr float MOUTH_DROP = 52.0f;
+constexpr float HOME_Y = 196.0f * SCENE;
+constexpr float EYE_RISE = 28.0f * SCENE;
+constexpr float MOUTH_DROP = 52.0f * SCENE;
 
 constexpr float BLEND_SECONDS = 0.35f;
 
@@ -298,7 +298,7 @@ ALWAYS Blob eyeBlob(Mood mood, float squeeze) {
       // above a squat eye is a brow and reads as cross; a slant either way is an
       // emotion of its own, outward into sadness and inward into anger. Tired is
       // none of those - it is just slack.
-      constexpr float FULL = 29.0f;
+      constexpr float FULL = 29.0f * SCENE;
       float half = FULL * squeeze;
       return {true, 28.0f, half, 15.0f, 24.0f, FULL - half};
     }
@@ -365,8 +365,8 @@ ALWAYS float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       return sdEye(rx, ry, 29.0f, 19.0f * squeeze, 18.0f);
     }
     case Mood::Dead: {
-      constexpr float ARM = 20.0f;
-      constexpr float THICK = 8.5f;
+      constexpr float ARM = 20.0f * SCENE;
+      constexpr float THICK = 8.5f * SCENE;
       float a = sdSegment(x, y, -ARM, -ARM, ARM, ARM) - THICK;
       float b = sdSegment(x, y, -ARM, ARM, ARM, -ARM) - THICK;
       return fminf(a, b);

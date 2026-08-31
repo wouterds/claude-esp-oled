@@ -17,8 +17,8 @@ namespace {
 // not because it is bent to fit. This is the centreline: ink reaches this plus
 // HALF_THICK, and its coverage a pixel past that again, so the standoff from the
 // edge is smaller than this number makes it look and is meant to be there.
-constexpr float RADIUS = 173.0f;
-constexpr float HALF_THICK = 3.5f;
+constexpr float RADIUS = 173.0f * SCENE;
+constexpr float HALF_THICK = 3.5f * SCENE;
 // Either side of the horizontal. Short reaches about three quarters of the way
 // down the panel: its bottom end lands on row 317, which is past where the
 // address and the clock are written, but by then the arc has curved in to a
@@ -46,13 +46,13 @@ constexpr uint16_t TRACK = 0x4A49;
 
 // Where the two numbers go when they are asked for: level with the middle of
 // the glass and tucked inside their own bar.
-constexpr int16_t FIGURE_X = 46;
+constexpr int16_t FIGURE_X = (int16_t)(46 * SCENE);
 // The top of the glyphs, because that is what the font is given - measure the
 // box around them from their middle and it comes up four rows short at the
 // bottom, which is exactly the part of a digit that survives being cleared.
-constexpr int16_t FIGURE_TOP = 173;
-constexpr int16_t FIGURE_HEIGHT = 14;
-constexpr int16_t FIGURE_HW = 28;
+constexpr int16_t FIGURE_TOP = (int16_t)(173 * SCENE);
+constexpr int16_t FIGURE_HEIGHT = (int16_t)(14 * SCENE);
+constexpr int16_t FIGURE_HW = (int16_t)(28 * SCENE);
 
 // How fast a bar closes on the number it was given. Exponential rather than a
 // timed ease, so a bar already on its way somewhere just bends.
