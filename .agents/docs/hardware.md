@@ -12,7 +12,7 @@ about them is the same.
 | flash | **16MB** | **32MB** |
 | touch | CST816S at `0x15` | CST9217 at `0x5A` |
 | brightness | PWM on a backlight pin | panel register `0x51`, no backlight |
-| battery | BQ27220 gauge at `0x55` | AXP2101 PMIC, not read yet |
+| battery | BQ27220 gauge at `0x55` | AXP2101 PMIC at `0x34` |
 | QSPI clock | 80MHz | 40MHz |
 | also on I2C | QMI8658 IMU, PCF85063 clock, ES8311/ES7210 audio | the same four |
 
@@ -98,7 +98,7 @@ board it reads:
 panel init: ESP_OK
 panel up, psram free 7943584
 brightness: 100% (ESP_OK)
-battery: no gauge on this board
+battery: 4153 mV, 94%, external power
 touch: CST9217 ready
 audio: ES8311 ready at 16000 Hz, 10%
 ```
@@ -196,13 +196,19 @@ its binary is unaffected by anything the AMOLED board needs. Text scales are
 whole numbers and do not scale, so type is relatively smaller on the bigger
 panel - that is a design decision nobody has made yet rather than a bug.
 
-**The AMOLED board has no fuel gauge.** Its pack is behind the AXP2101, so the
-charge reads as absent until that is written. Which board carries a BQ27220 is
-decided at compile time and not by probing the bus: a gauge that has browned out
-with its own pack answers exactly like one that was never fitted, and those want
-opposite treatment - the first asked again when a pack turns up, the second
-never again. Probing also polls an address that never acknowledges, and the I2C
-driver logs a failed transaction each time, which buries the rest of the log.
+**The AMOLED board has no fuel gauge.** Its pack is behind the AXP2101, which
+runs the charger and keeps a gauge of its own, so the charge, the voltage and
+whether the cable is in are all read off the PMIC instead. Which board carries a
+BQ27220 is decided at compile time and not by probing the bus: a gauge that has
+browned out with its own pack answers exactly like one that was never fitted,
+and those want opposite treatment - the first asked again when a pack turns up,
+the second never again.
+
+**Neither the PMIC's ADC nor its battery detector is on out of reset**, and both
+are silent when off: the voltage reads a flat zero and the pack reads as absent.
+Nothing above that cares whether a board has no battery or an unasked one, so
+the icon and the whole battery page are simply not drawn - which looks like a
+rendering fault rather than two bits that were never set.
 
 **The official `espressif32` platform is still on Arduino core 2.x.** Anything
 expecting core 3.0 dies inside its own headers with nothing pointing at the core
