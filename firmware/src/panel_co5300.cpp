@@ -7,10 +7,19 @@
 
 // The visible glass does not start at the controller's first column: its RAM is
 // wider than the 466 that are lit, and the panel's own examples address it from
-// column six. Wrong, this is a scene sitting a few pixels off centre rather
-// than anything that looks like a fault - and eight is the other candidate, the
-// offset counted from the far side instead.
-static constexpr int X_GAP = 6;
+// column six.
+//
+// Six is right for a panel written the way round it is scanned. This one is
+// mirrored below, and the gap is added to the address *before* the controller
+// mirrors it - so a window of 6..471 comes out at the far end of the frame
+// instead, two columns off. Those two columns at the near edge are then never
+// addressed at all, and hold whatever was in the panel's RAM before this
+// firmware ever ran: they survive a reboot, they survive a reflash, and they
+// look like a stray line drawn just outside the bars that nothing will clear.
+//
+// The gap that lands the window back on the glass is the frame's width less the
+// last visible column - eight on a 480 wide frame.
+static constexpr int X_GAP = 8;
 
 static esp_lcd_panel_handle_t lit = nullptr;
 
