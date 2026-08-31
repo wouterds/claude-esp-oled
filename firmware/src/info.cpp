@@ -90,7 +90,7 @@ void plot(uint16_t *fb, int16_t x, int16_t y, float coverage, uint16_t colour) {
   if (coverage <= 0.02f || x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) {
     return;
   }
-  coverage = clamp01(coverage);
+  coverage = boardInk(clamp01(coverage));
   uint16_t r = (uint16_t)(((colour >> 11) & 0x1F) * coverage);
   uint16_t g = (uint16_t)(((colour >> 5) & 0x3F) * coverage);
   uint16_t b = (uint16_t)((colour & 0x1F) * coverage);

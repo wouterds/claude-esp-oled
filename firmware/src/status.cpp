@@ -171,7 +171,7 @@ void plot(uint16_t *fb, int16_t x, int16_t y, float coverage, uint16_t colour) {
   if (coverage <= 0.02f || x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) {
     return;
   }
-  boardRow(fb, y)[boardX(x)] = boardColour(fade(colour, clamp01(coverage)));
+  boardRow(fb, y)[boardX(x)] = boardColour(fade(colour, boardInk(clamp01(coverage))));
 }
 
 // Only as wide as what is being redrawn. The bars run down both edges of the

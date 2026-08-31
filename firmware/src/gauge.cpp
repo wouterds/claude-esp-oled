@@ -188,7 +188,7 @@ uint16_t colourAt(float percent) {
 }
 
 uint16_t shade(uint16_t colour, float coverage) {
-  coverage *= alpha;
+  coverage = boardInk(coverage) * alpha;
   uint16_t r = (uint16_t)(((colour >> 11) & 0x1F) * coverage);
   uint16_t g = (uint16_t)(((colour >> 5) & 0x3F) * coverage);
   uint16_t b = (uint16_t)((colour & 0x1F) * coverage);

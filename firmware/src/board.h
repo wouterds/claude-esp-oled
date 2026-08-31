@@ -14,6 +14,24 @@
 // percentages beside them are not distances and do not move with the glass.
 static constexpr float SCENE = SCREEN_R / 180.0f;
 
+// What a fraction of a pixel is worth on this glass. The LCD board's black is a
+// backlight leaking through liquid crystal, so the faint end of an antialiased
+// edge falls under that floor and is never seen. The AMOLED's black is a pixel
+// that is off, so the same faint end is a lit halo around everything with an
+// edge - which reads as softness rather than as smoothing, and is why an icon
+// that looked crisp on one board looks blurred on the other.
+//
+// Squaring pulls the dim end down to where it reads as an edge again and leaves
+// full coverage alone. The face is deliberately not put through this: its glow
+// is the one thing here that is meant to be a halo.
+inline float boardInk(float coverage) {
+#if defined(BOARD_AMOLED_175C)
+  return coverage * coverage;
+#else
+  return coverage;
+#endif
+}
+
 // Brings up the QSPI bus, the panel and the backlight, in that order. False
 // means the panel never came up and there is nothing to draw on.
 bool boardBegin();
