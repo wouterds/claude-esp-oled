@@ -38,9 +38,14 @@ constexpr int16_t BOX_X0 = 0;
 // Far enough in to hold the ends. An arc that reaches down to five past seven
 // has its cap at x=131, nowhere near the x=80 that held the short one - and a
 // box that stops short of it does not shorten the bar, it guillotines it.
-constexpr int16_t BOX_X1 = 115;
-constexpr int16_t BOX_Y0 = 18;
-constexpr int16_t BOX_Y1 = 342;
+//
+// This is the box the bars are built inside, wiped inside and flushed from, so
+// on a larger panel it has to grow with the arc it holds or it does all three
+// to a bar that is longer than it: the ends are never drawn, and the rows past
+// it are never cleared, so whatever the bar last put there stays on the glass.
+constexpr int16_t BOX_X1 = (int16_t)(115 * SCENE);
+constexpr int16_t BOX_Y0 = (int16_t)(18 * SCENE);
+constexpr int16_t BOX_Y1 = (int16_t)(342 * SCENE);
 
 constexpr uint16_t TRACK = 0x4A49;
 
@@ -67,12 +72,16 @@ constexpr float ARRIVED = 0.15f;
 // the glass, with the colour it ends up. About twenty-four hundred each, and
 // the cap is only there so a mistake cannot run away with PSRAM. A side has its
 // own half of the buffer because either of them can be rebuilt on its own.
+//
+// It goes up with the area rather than the radius: a bar on a larger panel is
+// both longer and thicker. Reached, the cap does not warn - it stops adding
+// pixels, and the bar simply ends where the count ran out.
 struct Pixel {
   int16_t x;
   int16_t y;
   uint16_t colour;
 };
-constexpr uint16_t SIDE_PIXELS = 6000;
+constexpr uint16_t SIDE_PIXELS = (uint16_t)(6000 * SCENE * SCENE);
 
 // Off the glass, coming onto it, on it.
 enum class Phase : uint8_t { Hidden, Fading, Live };
