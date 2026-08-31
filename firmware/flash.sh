@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
-# Flash, then reset, then say what came back.
+# Flash whichever of the two boards is actually plugged in, then reset it and
+# say what came back.
 #
-# esptool resets the chip itself after an upload, and on this board that reset
-# lands often enough in the ROM bootloader that the sketch never runs and the
-# panel stays dark - which reads as a bad flash. A second, explicit reset costs
-# a second and takes the question away.
+# The images are not interchangeable. The boards' pins overlap rather than
+# merely differ - GPIO5 is one board's backlight and one of the other's four
+# LCD data lines - so the wrong image does not fail, it drives the wrong
+# silicon on every line and looks like dead hardware. Nothing about a board
+# announces which it is, so this asks the flash chip: 16MB is the LCD board and
+# 32MB is the AMOLED one. esptool reads that off the chip without running
+# anything on it, which is the only question that can be asked of a board that
+# may be holding the wrong firmware already.
+#
+#   ./firmware/flash.sh          flash whatever is plugged in
+#   ./firmware/flash.sh <env>    flash that env, refusing if it is the other board
 set -euo pipefail
 
 PIO="$(command -v pio || echo "$HOME/.platformio/penv/bin/pio")"
@@ -14,6 +22,11 @@ PIO="$(command -v pio || echo "$HOME/.platformio/penv/bin/pio")"
 PY="$HOME/.platformio/penv/bin/python"
 [ -x "$PY" ] || PY="$(dirname "$PIO")/python"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+LCD_ENV="esp32-s3-touch-lcd-185"
+AMOLED_ENV="esp32-s3-touch-amoled-175c"
+
+want="${1:-}"
 
 port() { ls /dev | grep '^cu\.usbmodem' | head -1; }
 
@@ -28,8 +41,28 @@ if [ -z "$p" ]; then
   exit 1
 fi
 
-"$PIO" run -d "$HERE" -t upload --upload-port "/dev/$p"
+size="$("$PY" -m esptool --port "/dev/$p" flash-id 2>/dev/null |
+        sed -n 's/.*Detected flash size: *//p' | head -1 || true)"
+case "$size" in
+  16MB) found="$LCD_ENV" ;;
+  32MB) found="$AMOLED_ENV" ;;
+  "")   echo "could not read the flash chip on /dev/$p - is the board awake?" >&2; exit 1 ;;
+  *)    echo "unknown board: $size of flash is neither of the two this builds for" >&2; exit 1 ;;
+esac
 
+if [ -n "$want" ] && [ "$want" != "$found" ]; then
+  echo "refusing: asked for $want, but the board on /dev/$p has $size of flash," >&2
+  echo "which is $found. The other image would drive the wrong pins." >&2
+  exit 1
+fi
+
+echo "board: $size of flash -> $found"
+"$PIO" run -d "$HERE" -e "$found" -t upload --upload-port "/dev/$p"
+
+# esptool resets the chip itself after an upload, and on this board that reset
+# lands often enough in the ROM bootloader that the sketch never runs and the
+# panel stays dark - which reads as a bad flash. A second, explicit reset costs
+# a second and takes the question away.
 sleep 1
 p="$(port)"
 "$PY" -m esptool --port "/dev/$p" --after hard-reset flash-id >/dev/null 2>&1 || true
@@ -37,7 +70,7 @@ p="$(port)"
 sleep 2
 p="$(port)"
 echo "--- boot log ---"
-"$PY" - "$p" <<'PYEOF'
+"$PY" - "$p" <<'BOOTLOG'
 import serial, sys, time
 s = serial.Serial()
 s.port = '/dev/' + sys.argv[1]
@@ -56,6 +89,7 @@ while time.time() < end:
         buf += d.decode(errors='replace')
 s.close()
 for line in buf.splitlines():
-    if any(k in line.lower() for k in ('panel', 'backlight', 'battery', 'touch', 'reset:', 'boot:', 'framebuffer')):
+    if any(k in line.lower() for k in ('panel', 'brightness', 'backlight', 'battery',
+                                       'touch', 'audio', 'reset:', 'boot:', 'framebuffer')):
         print(' ', line)
-PYEOF
+BOOTLOG
