@@ -8,9 +8,6 @@
 
 namespace {
 
-constexpr int TP_RESET = 1;
-constexpr int TP_INT = 4;
-constexpr uint8_t TOUCH = 0x15;
 // The finger count, then the first point's coordinates behind it - five bytes
 // in one read, because the bus is shared and a second transaction for the low
 // byte of an x is a second thing to go wrong.
@@ -60,10 +57,10 @@ void look() {
   uint8_t low = 0;
 
   busTake();
-  Wire.beginTransmission(TOUCH);
+  Wire.beginTransmission(TOUCH_ADDR);
   Wire.write(REG_FINGERS);
   bool got = Wire.endTransmission(false) == 0 &&
-             Wire.requestFrom((int)TOUCH, (int)REPORT_BYTES) == REPORT_BYTES;
+             Wire.requestFrom((int)TOUCH_ADDR, (int)REPORT_BYTES) == REPORT_BYTES;
   if (got) {
     fingers = Wire.read();
     high = Wire.read();
@@ -132,14 +129,14 @@ void task(void *) {
 void touchBegin() {
   // The controller is held in reset out of power-on and answers nothing until
   // it is let go, which looks the same as it not being there.
-  pinMode(TP_RESET, OUTPUT);
-  digitalWrite(TP_RESET, LOW);
+  pinMode(TOUCH_RST, OUTPUT);
+  digitalWrite(TOUCH_RST, LOW);
   delay(10);
-  digitalWrite(TP_RESET, HIGH);
+  digitalWrite(TOUCH_RST, HIGH);
   delay(60);
 
   busTake();
-  Wire.beginTransmission(TOUCH);
+  Wire.beginTransmission(TOUCH_ADDR);
   present = Wire.endTransmission() == 0;
   busGive();
   Serial.printf("touch: %s\n", present ? "CST816S ready" : "not answering");
@@ -156,8 +153,8 @@ void touchBegin() {
   // not acknowledge its address at all - so asking it on a timer is a read that
   // fails whenever nothing is happening. The interrupt is the part that stays
   // awake: it pulses for each report and is the only thing worth waiting on.
-  pinMode(TP_INT, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(TP_INT), onReport, FALLING);
+  pinMode(TOUCH_INT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(TOUCH_INT), onReport, FALLING);
 }
 
 Swipe touchSwiped() {

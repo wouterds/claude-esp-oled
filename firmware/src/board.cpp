@@ -11,17 +11,6 @@
 #include "esp_lcd_st77916.h"
 #include "st77916_waveshare.h"
 
-// Waveshare ESP32-S3-Touch-LCD-1.85B, from the board's own GPIO table. Same
-// QSPI pins as the non-B board of this size; reset is not the same, because
-// there is no TCA9554 on this one and LCD_RST is a pin of the S3.
-static constexpr int LCD_CS = 21;
-static constexpr int LCD_SCK = 40;
-static constexpr int LCD_D0 = 46;
-static constexpr int LCD_D1 = 45;
-static constexpr int LCD_D2 = 42;
-static constexpr int LCD_D3 = 41;
-static constexpr int LCD_RST = 3;
-static constexpr int LCD_BL = 5;
 
 // The backlight, driven as the vendor drives it. This is an IPS panel: black is
 // the crystal blocking the backlight rather than a pixel that is off, and it

@@ -3,10 +3,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-namespace {
+#include "pins.h"
 
-constexpr int I2C_SDA = 11;
-constexpr int I2C_SCL = 10;
+namespace {
 
 SemaphoreHandle_t held = nullptr;
 

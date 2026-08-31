@@ -4,10 +4,10 @@
 #include <Wire.h>
 
 #include "bus.h"
+#include "pins.h"
 
 namespace {
 
-constexpr uint8_t GAUGE = 0x55;
 constexpr uint8_t REG_VOLTAGE = 0x08;
 constexpr uint8_t REG_CURRENT = 0x0C;
 constexpr uint8_t REG_FLAGS = 0x0A;
@@ -69,9 +69,9 @@ uint32_t nextRead = 0;
 // the address followed by a read without releasing the bus.
 bool readWord(uint8_t reg, uint16_t &out) {
   busTake();
-  Wire.beginTransmission(GAUGE);
+  Wire.beginTransmission(GAUGE_ADDR);
   Wire.write(reg);
-  bool got = Wire.endTransmission(false) == 0 && Wire.requestFrom((int)GAUGE, 2) == 2;
+  bool got = Wire.endTransmission(false) == 0 && Wire.requestFrom((int)GAUGE_ADDR, 2) == 2;
   if (got) {
     uint8_t low = Wire.read();
     uint8_t high = Wire.read();
@@ -83,7 +83,7 @@ bool readWord(uint8_t reg, uint16_t &out) {
 
 bool writeBytes(uint8_t reg, const uint8_t *data, uint8_t len) {
   busTake();
-  Wire.beginTransmission(GAUGE);
+  Wire.beginTransmission(GAUGE_ADDR);
   Wire.write(reg);
   Wire.write(data, len);
   bool ok = Wire.endTransmission(true) == 0;

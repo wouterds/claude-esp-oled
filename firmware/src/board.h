@@ -2,12 +2,7 @@
 
 #include <stdint.h>
 
-// The panel is round and 360 across. Everything drawn on it is clipped by the
-// glass rather than by the framebuffer, so a scene has to keep itself inside
-// the inscribed circle - the corners of the buffer are simply not there.
-static constexpr int16_t SCREEN_W = 360;
-static constexpr int16_t SCREEN_H = 360;
-static constexpr float SCREEN_R = 180.0f;
+#include "pins.h"
 
 // Brings up the QSPI bus, the panel and the backlight, in that order. False
 // means the panel never came up and there is nothing to draw on.

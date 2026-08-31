@@ -6,26 +6,10 @@
 #include <math.h>
 
 #include "bus.h"
+#include "pins.h"
 
 namespace {
 
-// Seven bits. The board's own documentation gives 0x30, which is the same
-// address written for a bus that counts the read/write bit as part of it.
-constexpr uint8_t CODEC = 0x18;
-
-constexpr int PIN_MCLK = 2;
-constexpr int PIN_BCLK = 48;
-constexpr int PIN_LRCK = 38;
-// Playback out on 47 and the microphones in on 39, which is the way round the
-// board's own pin table has it - the summary line above that table calls them
-// DOUT and DIN from the codec's point of view instead, and taking that at face
-// value sends the sound to the microphones. That reads as an amplifier with
-// nothing arriving at it, which is to say: hiss.
-constexpr int PIN_DOUT = 47;
-constexpr int PIN_DIN = 39;
-// The amplifier is only awake while there is something to say. Left on it puts
-// a hiss on a board whose whole point is sitting quietly on a desk.
-constexpr int PIN_PA = 9;
 
 // 16kHz is above everything these sounds are made of and a quarter of the
 // samples of a rate that would also be. The codec wants 256 of its own clocks
@@ -105,7 +89,7 @@ int16_t chunk[512];
 
 bool put(uint8_t reg, uint8_t value) {
   busTake();
-  Wire.beginTransmission(CODEC);
+  Wire.beginTransmission(CODEC_ADDR);
   Wire.write(reg);
   Wire.write(value);
   bool sent = Wire.endTransmission() == 0;
@@ -205,14 +189,14 @@ void note(const Note &n) {
 }
 
 void play(const Note *notes, uint8_t count) {
-  digitalWrite(PIN_PA, HIGH);
+  digitalWrite(AUDIO_PA, HIGH);
   // The amplifier takes a moment to come up, and whatever is written into it
   // before it has is the click of it coming up.
   delay(8);
   for (uint8_t i = 0; i < count; i++) {
     note(notes[i]);
   }
-  digitalWrite(PIN_PA, LOW);
+  digitalWrite(AUDIO_PA, LOW);
 }
 
 void task(void *) {
@@ -237,14 +221,14 @@ void task(void *) {
 }  // namespace
 
 void audioBegin() {
-  pinMode(PIN_PA, OUTPUT);
-  digitalWrite(PIN_PA, LOW);
+  pinMode(AUDIO_PA, OUTPUT);
+  digitalWrite(AUDIO_PA, LOW);
 
   // The clocks first. The codec's own clock manager is set up against an MCLK
   // that has to already be arriving - configured in silence it takes the
   // settings and does nothing with them, which sounds exactly like a part that
   // is not there.
-  i2s.setPins(PIN_BCLK, PIN_LRCK, PIN_DOUT, PIN_DIN, PIN_MCLK);
+  i2s.setPins(AUDIO_BCLK, AUDIO_LRCK, AUDIO_DOUT, AUDIO_DIN, AUDIO_MCLK);
   if (!i2s.begin(I2S_MODE_STD, RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
     Serial.println("audio: no I2S");
     return;
