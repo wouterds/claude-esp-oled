@@ -22,8 +22,8 @@ namespace {
 // The band is the taller of the two icons plus a pixel, because a row of glyph
 // left outside it is a row that never gets cleared.
 constexpr int16_t MIDDLE = (int16_t)(17 * SCENE);
-constexpr int16_t BAR_TOP = MIDDLE - 10;
-constexpr int16_t BAR_BOTTOM = MIDDLE + 10;
+constexpr int16_t BAR_TOP = MIDDLE - (int16_t)(10 * SCENE);
+constexpr int16_t BAR_BOTTOM = MIDDLE + (int16_t)(10 * SCENE);
 
 // Its own band, and its own flush: the status page has nothing to do with the
 // two icons above it and moves on a clock of its own - a minute, not a frame.
@@ -238,16 +238,26 @@ float sdArc(float px, float py, float sinA, float cosA, float ra, float rb) {
 }
 
 void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
-  constexpr float HW = 11.0f * SCENE;
-  constexpr float HH = 6.0f * SCENE;
-  constexpr float R = 3.0f * SCENE;
-  constexpr float WALL = 1.4f * SCENE;
+  // Measured in the scene's own units, with the sampling scaled rather than the
+  // shape. This glyph is a dozen offsets hung off one centre - a wall, a fill
+  // inset, a nub - and scaling each of them by hand is a dozen chances to get
+  // one wrong, which is a battery whose wall is thinner than its own outline on
+  // one board and not the other.
+  constexpr float HW = 11.0f;
+  constexpr float HH = 6.0f;
+  constexpr float R = 3.0f;
+  constexpr float WALL = 1.4f;
   float fillTo = -HW + 1.6f + (2.0f * HW - 3.2f) * (percent / 100.0f);
 
-  for (int16_t y = MIDDLE - 8; y <= MIDDLE + 8; y++) {
-    for (int16_t x = BATTERY_X - 14; x <= BATTERY_X + 16; x++) {
-      float px = (float)x + 0.5f - BATTERY_X;
-      float py = (float)y + 0.5f - MIDDLE;
+  // Reach in the panel's pixels, far enough ahead to hold the nub off the end.
+  constexpr int16_t BACK = (int16_t)(14 * SCENE);
+  constexpr int16_t AHEAD = (int16_t)(17 * SCENE);
+  constexpr int16_t TALL = (int16_t)(8 * SCENE);
+
+  for (int16_t y = MIDDLE - TALL; y <= MIDDLE + TALL; y++) {
+    for (int16_t x = BATTERY_X - BACK; x <= BATTERY_X + AHEAD; x++) {
+      float px = ((float)x + 0.5f - BATTERY_X) / SCENE;
+      float py = ((float)y + 0.5f - MIDDLE) / SCENE;
 
       // The shell is the outline of a rounded box: its distance folded about
       // zero, which is the band of pixels within a wall's width of the edge.
@@ -262,7 +272,8 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
         charge = px <= fillTo ? inside : 1.0f;
       }
       float d = outline < charge ? outline : charge;
-      plot(fb, x, y, 0.5f - d, colour);
+      // Back into panel pixels, so the soft edge stays one pixel wide.
+      plot(fb, x, y, 0.5f - d * SCENE, colour);
     }
   }
 }
@@ -285,22 +296,24 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
   uint16_t middle = bars >= 2 ? lit : DIM;
   uint16_t centre = bars >= 1 ? lit : DIM;
 
-  for (int16_t y = MIDDLE - 9; y <= MIDDLE + 9; y++) {
-    for (int16_t x = WIFI_X - 12; x <= WIFI_X + 12; x++) {
+  constexpr int16_t WIDE = (int16_t)(12 * SCENE);
+  constexpr int16_t TALL = (int16_t)(9 * SCENE);
+  for (int16_t y = MIDDLE - TALL; y <= MIDDLE + TALL; y++) {
+    for (int16_t x = WIFI_X - WIDE; x <= WIFI_X + WIDE; x++) {
       // Measured from the bottom of the glyph, which is where the arcs and the
       // dot are all centred - a pixel above the middle line, so the icon sits
       // level with the battery rather than hanging under it.
-      float px = (float)x + 0.5f - WIFI_X;
-      float py = (float)y + 0.5f - (MIDDLE + 5.0f);
+      float px = ((float)x + 0.5f - WIFI_X) / SCENE;
+      float py = ((float)y + 0.5f - MIDDLE) / SCENE - 5.0f;
 
       // A pixel further off than the rest. The outer arc is the longest of the
       // three and reads as crowding the one below it at the same spacing.
-      plot(fb, x, y, 0.5f - sdArc(px, py + 1.0f, sinA, cosA, 11.0f, 1.6f), outer);
+      plot(fb, x, y, 0.5f - sdArc(px, py + 1.0f, sinA, cosA, 11.0f, 1.6f) * SCENE, outer);
       // Closer in than it looks like it should be. The gap that reads as right
       // is the one between the arc's inner edge and the dot, not between their
       // centres, and the thickness of the arc eats most of it.
-      plot(fb, x, y, 0.5f - sdArc(px, py, sinA, cosA, 6.4f, 1.6f), middle);
-      plot(fb, x, y, 0.5f - (sqrtf(px * px + py * py) - 2.5f), centre);
+      plot(fb, x, y, 0.5f - sdArc(px, py, sinA, cosA, 6.4f, 1.6f) * SCENE, middle);
+      plot(fb, x, y, 0.5f - (sqrtf(px * px + py * py) - 2.5f) * SCENE, centre);
     }
   }
 }
@@ -312,20 +325,20 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
 void drawAlarm(uint16_t *fb, uint16_t colour) {
   // Getting on for a quarter of the height goes on the corners. Reach is HH + R
   // down and HW + R across, which is what the band and ALARM_HALF come from.
-  constexpr float HW = 8.5f * SCENE;
-  constexpr float HH = 7.5f * SCENE;
-  constexpr float R = 5.0f * SCENE;
+  constexpr float HW = 8.5f;
+  constexpr float HH = 7.5f;
+  constexpr float R = 5.0f;
 
   for (int16_t y = ALARM_TOP; y <= ALARM_BOTTOM; y++) {
     for (int16_t x = (int16_t)(SCREEN_R - ALARM_HALF); x <= (int16_t)(SCREEN_R + ALARM_HALF); x++) {
-      float px = (float)x + 0.5f - SCREEN_R;
-      float py = (float)y + 0.5f - ALARM_Y;
+      float px = ((float)x + 0.5f - SCREEN_R) / SCENE;
+      float py = ((float)y + 0.5f - ALARM_Y) / SCENE;
 
       float shell = sdTriangle(px, py, HW, HH) - R;
       float bar = sdRoundBox(px, py + 1.9f, 1.7f, 4.0f, 1.7f);
       float dot = sqrtf(px * px + (py - 6.4f) * (py - 6.4f)) - 1.8f;
       float bang = bar < dot ? bar : dot;
-      plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang), colour);
+      plot(fb, x, y, 0.5f - (shell > -bang ? shell : -bang) * SCENE, colour);
     }
   }
 }
@@ -483,7 +496,8 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   typed = reveal;
 
   if (topChanged) {
-    clearBand(fb, BAR_TOP, BAR_BOTTOM, WIFI_X - 14, BATTERY_X + 18);
+    clearBand(fb, BAR_TOP, BAR_BOTTOM, WIFI_X - (int16_t)(14 * SCENE),
+            BATTERY_X + (int16_t)(19 * SCENE));
     if (battery.present) {
       // The bar inside it already says how much, so the number said it twice.
       drawBattery(fb, level, batteryColour(battery, blink));

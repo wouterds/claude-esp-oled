@@ -147,7 +147,7 @@ void drawCell(uint16_t *fb, uint8_t percent, uint16_t colour) {
       // The shell is the outline of the box: its distance folded about zero,
       // which is the band of pixels within a wall's width of the edge.
       float shell = fabsf(sdRoundBox(px, py, CELL_HW, CELL_HH, CELL_R)) - WALL;
-      float nub = sdRoundBox(px, py + CELL_HH + NUB_HH, NUB_HW, NUB_HH, 3.0f);
+      float nub = sdRoundBox(px, py + CELL_HH + NUB_HH, NUB_HW, NUB_HH, 3.0f * SCENE);
       plot(fb, x, y, 0.5f - (shell < nub ? shell : nub), colour);
 
       if (percent == 0) {
