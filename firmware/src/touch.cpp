@@ -1,10 +1,10 @@
 #include "touch.h"
 
 #include <Arduino.h>
-#include <Wire.h>
 
 #include "board.h"
-#include "bus.h"
+#include "pins.h"
+#include "touchpad.h"
 
 namespace {
 
@@ -52,35 +52,14 @@ void lift() {
 }
 
 void look() {
-  uint8_t fingers = 0;
-  uint8_t high = 0;
-  uint8_t low = 0;
-
-  busTake();
-  Wire.beginTransmission(TOUCH_ADDR);
-  Wire.write(REG_FINGERS);
-  bool got = Wire.endTransmission(false) == 0 &&
-             Wire.requestFrom((int)TOUCH_ADDR, (int)REPORT_BYTES) == REPORT_BYTES;
-  if (got) {
-    fingers = Wire.read();
-    high = Wire.read();
-    low = Wire.read();
-    Wire.read();
-    Wire.read();
-  }
-  busGive();
-  if (!got) {
+  bool touching = false;
+  int16_t along = 0;
+  if (!touchpadRead(&touching, &along)) {
     return;
   }
 
   lastReport = millis();
-  // The top nibble of the high byte is the event, not the coordinate. What is
-  // left is the axis the controller calls X, which on this mounting runs down
-  // the glass rather than across it - so it is read as a distance from the top,
-  // turned the way everything drawn here is turned.
-  int16_t along = (int16_t)(SCREEN_W - 1 - (((high & 0x0F) << 8) | low));
-
-  if (fingers == 0) {
+  if (!touching) {
     if (down) {
       lift();
     }
@@ -127,19 +106,7 @@ void task(void *) {
 }  // namespace
 
 void touchBegin() {
-  // The controller is held in reset out of power-on and answers nothing until
-  // it is let go, which looks the same as it not being there.
-  pinMode(TOUCH_RST, OUTPUT);
-  digitalWrite(TOUCH_RST, LOW);
-  delay(10);
-  digitalWrite(TOUCH_RST, HIGH);
-  delay(60);
-
-  busTake();
-  Wire.beginTransmission(TOUCH_ADDR);
-  present = Wire.endTransmission() == 0;
-  busGive();
-  Serial.printf("touch: %s\n", present ? "CST816S ready" : "not answering");
+  present = touchpadBegin();
   if (!present) {
     return;
   }
