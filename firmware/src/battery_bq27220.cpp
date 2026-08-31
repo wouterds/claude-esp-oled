@@ -64,11 +64,6 @@ constexpr int16_t DISCHARGING_MA = -20;
 
 BatteryState cached = {0, 0, false, false};
 uint32_t nextRead = 0;
-// Whether the gauge answered, which is a different question from whether there
-// is a pack on it. A board that does not carry the part never grows one, and
-// asking it twice a second is a failing transaction twice a second - which the
-// I2C driver is entitled to log, and which then buries everything else.
-bool wired = false;
 
 // Every register on this part is a little-endian pair, and a read is a write of
 // the address followed by a read without releasing the bus.
@@ -206,15 +201,6 @@ void teachIfWrong() {
 }  // namespace
 
 void batteryBegin() {
-  busTake();
-  Wire.beginTransmission(GAUGE_ADDR);
-  wired = Wire.endTransmission() == 0;
-  busGive();
-  if (!wired) {
-    Serial.println("battery: no gauge on this board");
-    return;
-  }
-
   sample();
   nextRead = millis() + EVERY_MS;
   if (!cached.present) {
@@ -233,9 +219,6 @@ void batteryBegin() {
 }
 
 BatteryState batteryRead() {
-  if (!wired) {
-    return cached;
-  }
   uint32_t now = millis();
   if ((int32_t)(now - nextRead) >= 0) {
     nextRead = now + EVERY_MS;

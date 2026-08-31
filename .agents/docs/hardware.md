@@ -196,11 +196,13 @@ its binary is unaffected by anything the AMOLED board needs. Text scales are
 whole numbers and do not scale, so type is relatively smaller on the bigger
 panel - that is a design decision nobody has made yet rather than a bug.
 
-**The AMOLED board has no fuel gauge.** Its pack is behind the AXP2101 and
-nothing answers at the gauge's address, so the charge reads as absent. Anything
-polling an address that does not acknowledge gets a failed transaction logged by
-the I2C driver at whatever rate it polls, which buries the rest of the log -
-`batteryBegin()` probes once and gives up for that reason.
+**The AMOLED board has no fuel gauge.** Its pack is behind the AXP2101, so the
+charge reads as absent until that is written. Which board carries a BQ27220 is
+decided at compile time and not by probing the bus: a gauge that has browned out
+with its own pack answers exactly like one that was never fitted, and those want
+opposite treatment - the first asked again when a pack turns up, the second
+never again. Probing also polls an address that never acknowledges, and the I2C
+driver logs a failed transaction each time, which buries the rest of the log.
 
 **The official `espressif32` platform is still on Arduino core 2.x.** Anything
 expecting core 3.0 dies inside its own headers with nothing pointing at the core
