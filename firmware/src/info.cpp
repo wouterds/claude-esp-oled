@@ -90,7 +90,7 @@ void plot(uint16_t *fb, int16_t x, int16_t y, float coverage, uint16_t colour) {
   if (coverage <= 0.02f || x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) {
     return;
   }
-  coverage = boardInk(clamp01(coverage));
+  coverage = clamp01(coverage);
   uint16_t r = (uint16_t)(((colour >> 11) & 0x1F) * coverage);
   uint16_t g = (uint16_t)(((colour >> 5) & 0x3F) * coverage);
   uint16_t b = (uint16_t)((colour & 0x1F) * coverage);
@@ -148,16 +148,18 @@ void drawCell(uint16_t *fb, uint8_t percent, uint16_t colour) {
       // which is the band of pixels within a wall's width of the edge.
       float shell = fabsf(sdRoundBox(px, py, CELL_HW, CELL_HH, CELL_R)) - WALL;
       float nub = sdRoundBox(px, py + CELL_HH + NUB_HH, NUB_HW, NUB_HH, 3.0f * SCENE);
-      plot(fb, x, y, 0.5f - (shell < nub ? shell : nub), colour);
+      float d = shell < nub ? shell : nub;
 
       if (percent == 0) {
+        plot(fb, x, y, 0.5f - d, colour);
         continue;
       }
       // Cut to the cavity, or what is left at a few percent is a full-width
       // sliver hanging out past the rounded bottom of the space holding it.
       float cavity = sdRoundBox(px, py, CAVITY_HW, CAVITY_HH, CELL_R * 0.5f);
       float charge = sdRoundBox(px, py - chargeY, CAVITY_HW, chargeHH, CELL_R * 0.5f);
-      plot(fb, x, y, 0.5f - (charge > cavity ? charge : cavity), colour);
+      float held = charge > cavity ? charge : cavity;
+      plot(fb, x, y, 0.5f - (held < d ? held : d), colour);
     }
   }
 }

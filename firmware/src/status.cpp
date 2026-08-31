@@ -171,7 +171,7 @@ void plot(uint16_t *fb, int16_t x, int16_t y, float coverage, uint16_t colour) {
   if (coverage <= 0.02f || x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) {
     return;
   }
-  boardRow(fb, y)[boardX(x)] = boardColour(fade(colour, boardInk(clamp01(coverage))));
+  boardRow(fb, y)[boardX(x)] = boardColour(fade(colour, clamp01(coverage)));
 }
 
 // Only as wide as what is being redrawn. The bars run down both edges of the
@@ -308,12 +308,20 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
 
       // A pixel further off than the rest. The outer arc is the longest of the
       // three and reads as crowding the one below it at the same spacing.
-      plot(fb, x, y, 0.5f - sdArc(px, py + 1.0f, sinA, cosA, 11.0f, 1.6f) * SCENE, outer);
+      // Nearest wins. Drawn one after another, each arc paints its own faint
+      // edge over whatever the one before left solid, and where they meet that
+      // is a dark seam rather than a join.
+      float dOuter = sdArc(px, py + 1.0f, sinA, cosA, 11.0f, 1.6f);
       // Closer in than it looks like it should be. The gap that reads as right
       // is the one between the arc's inner edge and the dot, not between their
       // centres, and the thickness of the arc eats most of it.
-      plot(fb, x, y, 0.5f - sdArc(px, py, sinA, cosA, 6.4f, 1.6f) * SCENE, middle);
-      plot(fb, x, y, 0.5f - (sqrtf(px * px + py * py) - 2.5f) * SCENE, centre);
+      float dMiddle = sdArc(px, py, sinA, cosA, 6.4f, 1.6f);
+      float dCentre = sqrtf(px * px + py * py) - 2.5f;
+      float d = dOuter;
+      uint16_t ink = outer;
+      if (dMiddle < d) { d = dMiddle; ink = middle; }
+      if (dCentre < d) { d = dCentre; ink = centre; }
+      plot(fb, x, y, 0.5f - d * SCENE, ink);
     }
   }
 }
