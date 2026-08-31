@@ -13,7 +13,7 @@ about them is the same.
 | touch | CST816S at `0x15` | CST9217 at `0x5A` |
 | brightness | PWM on a backlight pin | panel register `0x51`, no backlight |
 | battery | BQ27220 gauge at `0x55` | AXP2101 PMIC at `0x34` |
-| QSPI clock | 80MHz | 40MHz |
+| QSPI clock | 80MHz | 80MHz |
 | also on I2C | QMI8658 IMU, PCF85063 clock, ES8311/ES7210 audio | the same four |
 
 **The images are not interchangeable, and the wrong one does not fail.** The
@@ -182,11 +182,19 @@ centre rather than anything that looks like a fault - and eight is the other
 candidate, the same offset counted from the far side.
 
 **The AMOLED board does not reach sixty frames a second.** It has 1.67x the
-pixels of the LCD board and clocks its QSPI at 40MHz rather than 80, which is
-what its own examples use. Measured: about 14ms of drawing and 14ms of flush, so
-35 frames a second against the loop's target of 60. Raising the clock is one
-constant in `panel_co5300.cpp` and wants eyes on the glass, because a QSPI bus
-run too fast corrupts the picture rather than failing.
+pixels of the LCD board, and a scene drawn a pixel at a time costs all of them.
+Measured at 80MHz: about 14ms of drawing against 10ms of flush, so a little over
+40 frames a second where the loop is pacing for 60. Drawing is what to attack,
+not the wire.
+
+**The board's own examples clock this glass at 40MHz, and 80 works.** 40 is the
+graphics library's default for every panel it drives rather than anything this
+one asked for, and it costs about twelve frames a second: a full 466x466 frame
+is 434KB, which is 22ms of wire time at 40MHz and 11 at 80. Note that halving
+the wire time did not halve the flush - the copy down from PSRAM into a buffer
+the DMA can reach is the other half of it and does not care about the clock. A
+QSPI bus run past what the panel takes does not fail, it corrupts the picture,
+so this is the first thing to put back if frames come up torn or speckled.
 
 **The scene is measured in the LCD board's pixels.** Every length in it was
 composed against a 180px radius and is scaled by `SCENE` in `board.h` to

@@ -28,10 +28,15 @@ bool panelBegin(esp_lcd_panel_handle_t *out, esp_lcd_panel_io_color_trans_done_c
   io.cs_gpio_num = LCD_CS;
   io.dc_gpio_num = -1;
   io.spi_mode = 0;
-  // 40MHz is what this board's own examples clock the glass at. It is half what
-  // the LCD board runs and it is the ceiling the frame rate meets first: a full
-  // 466x466 frame is 434KB, which is about 22ms of wire time here.
-  io.pclk_hz = 40 * 1000 * 1000;
+  // 80MHz, which is what the LCD board's glass runs at. This board's own Arduino
+  // examples use 40 - but that is the graphics library's default for every panel
+  // it drives rather than anything this one asked for, and at 40 a full 466x466
+  // frame is 22ms of wire time on its own, which is the frame rate's ceiling
+  // before anything has been drawn. Halving it is worth about twelve frames a
+  // second here. A QSPI bus run past what the panel will take does not fail, it
+  // corrupts the picture - so this is the first thing to put back if the glass
+  // starts showing torn or speckled frames.
+  io.pclk_hz = 80 * 1000 * 1000;
   io.trans_queue_depth = 10;
   io.lcd_cmd_bits = 32;
   io.lcd_param_bits = 8;
