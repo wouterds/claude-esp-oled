@@ -8,23 +8,17 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#include "esp_lcd_st77916.h"
-#include "st77916_waveshare.h"
+#include "panel.h"
+#include "pins.h"
 
-
-// The backlight, driven as the vendor drives it. This is an IPS panel: black is
-// the crystal blocking the backlight rather than a pixel that is off, and it
-// never blocks all of it - so this duty is the only control over how black the
-// black behind the scene looks, and it dims the scene with it.
-static constexpr int BL_FREQUENCY = 20000;
-static constexpr int BL_RESOLUTION = 10;
-static constexpr int BL_DUTY = 1023;
+// Full. Both panels reach it by different means and neither has a reason not to.
+static constexpr uint8_t BRIGHTNESS = 100;
 
 // The panel is fed a band at a time out of a buffer the DMA can actually read.
-// The framebuffer itself is 253KB and lives in PSRAM, which leaves it out of
-// reach of the SPI DMA - so each band is copied down into internal RAM on its
-// way out. The copy is a straight memcpy because the framebuffer already holds
-// the panel's byte order; see boardColour.
+// The framebuffer lives in PSRAM, which leaves it out of reach of the SPI DMA -
+// so each band is copied down into internal RAM on its way out. The copy is a
+// straight memcpy because the framebuffer already holds the panel's byte order;
+// see boardColour.
 static constexpr int BAND_ROWS = 40;
 static constexpr size_t BAND_BYTES = (size_t)SCREEN_W * BAND_ROWS * 2;
 
@@ -47,60 +41,6 @@ static uint16_t *framebuffer = nullptr;
 // next band while the panel is still taking the last one costs a second buffer
 // and hides whichever of the two is quicker behind the other.
 static uint16_t *band[2] = {nullptr, nullptr};
-
-static esp_lcd_panel_io_handle_t newPanelIo(uint32_t pclkHz) {
-  esp_lcd_panel_io_spi_config_t io = {};
-  io.cs_gpio_num = LCD_CS;
-  io.dc_gpio_num = -1;
-  io.spi_mode = 0;
-  io.pclk_hz = pclkHz;
-  io.trans_queue_depth = 10;
-  io.lcd_cmd_bits = 32;
-  io.lcd_param_bits = 8;
-  io.flags.quad_mode = true;
-  if (bandSent) {
-    io.on_color_trans_done = bandDone;
-  }
-
-  esp_lcd_panel_io_handle_t handle = nullptr;
-  if (esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io, &handle) != ESP_OK) {
-    return nullptr;
-  }
-  return handle;
-}
-
-// Two revisions of this panel exist and they want different power and gamma
-// registers. Waveshare tells them apart by reading register 0x04 back, and this
-// board answers that read with zeroes - it does not talk back over QSPI here -
-// so the probe cannot decide it and the answer was found by trying both.
-//
-// Revision 1 on this glass renders a flat white fill with a brighter band
-// across the middle, which reads as a framebuffer fault and is not one.
-// Revision 2 renders it clean, so revision 2 is the default and the probe only
-// ever overrides it if it actually manages to read something back.
-static void chooseInit(st77916_vendor_config_t &vendor) {
-  vendor.init_cmds = vendor_specific_init_version_2;
-  vendor.init_cmds_size = sizeof(vendor_specific_init_version_2) / sizeof(st77916_lcd_init_cmd_t);
-
-  esp_lcd_panel_io_handle_t slow = newPanelIo(5 * 1000 * 1000);
-  if (!slow) {
-    return;
-  }
-  uint8_t id[4] = {0, 0, 0, 0};
-  int cmd = (0x0B << 24) | (0x04 << 8);
-  if (esp_lcd_panel_io_rx_param(slow, cmd, id, sizeof(id)) == ESP_OK) {
-    Serial.printf("panel id: %02x %02x %02x %02x\n", id[0], id[1], id[2], id[3]);
-    if (id[0] == 0x00 && id[1] == 0x7F && id[2] == 0x7F && id[3] == 0x7F) {
-      vendor.init_cmds = vendor_specific_init_version_1;
-      vendor.init_cmds_size = sizeof(vendor_specific_init_version_1) / sizeof(st77916_lcd_init_cmd_t);
-      Serial.println("panel: revision 1");
-      esp_lcd_panel_io_del(slow);
-      return;
-    }
-  }
-  Serial.println("panel: revision 2");
-  esp_lcd_panel_io_del(slow);
-}
 
 bool boardBegin() {
   bandSent = xSemaphoreCreateBinary();
@@ -127,68 +67,15 @@ bool boardBegin() {
     return false;
   }
 
-  st77916_vendor_config_t vendor = {};
-  vendor.flags.use_qspi_interface = 1;
-  chooseInit(vendor);
-
-  // 80MHz is what the board's own driver runs this panel at, and it is really
-  // arriving: asked for 40 instead, a frame's flush goes from about 6.9ms to
-  // 10.3ms, which is the 3.4ms of wire time doubling. Worth writing down because
-  // none of these pins is one of the S3's IOMUX SPI pins, and the reference
-  // manual puts the GPIO matrix ceiling at 40MHz - so the number looks like it
-  // cannot be honoured, and on this panel it is.
-  esp_lcd_panel_io_handle_t io = newPanelIo(80 * 1000 * 1000);
-  if (!io) {
-    Serial.println("panel io failed");
+  if (!panelBegin(&panel, bandDone)) {
     return false;
   }
-
-  esp_lcd_panel_dev_config_t dev = {};
-  dev.reset_gpio_num = LCD_RST;
-  dev.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-  dev.bits_per_pixel = 16;
-  dev.vendor_config = &vendor;
-  if (esp_lcd_new_panel_st77916(io, &dev, &panel) != ESP_OK) {
-    Serial.println("panel create failed");
-    return false;
-  }
-
-  esp_err_t rc = esp_lcd_panel_reset(panel);
-  Serial.printf("panel reset: %s\n", esp_err_to_name(rc));
-  rc = esp_lcd_panel_init(panel);
-  Serial.printf("panel init: %s\n", esp_err_to_name(rc));
-  if (rc != ESP_OK) {
-    return false;
-  }
-  // A quarter turn, done by the panel rather than by the drawing. MADCTL's MV
-  // bit swaps the controller's own axes, so the address window a flush asks for
-  // is transposed with everything else and a band of rows lands as a band of
-  // columns - which is the only reason a partial flush survives this. The panel
-  // is square, so nothing has to be reshaped to fit.
-  esp_lcd_panel_swap_xy(panel, true);
-  esp_lcd_panel_mirror(panel, false, true);
-
-  rc = esp_lcd_panel_disp_on_off(panel, true);
-  Serial.printf("panel on: %s\n", esp_err_to_name(rc));
-
   Serial.printf("panel up, psram free %u\n", (unsigned)ESP.getFreePsram());
   boardFlush();
 
   // Only now. The panel powers up holding whatever was last in its RAM, and
   // lighting it before the first black frame lands shows that to the room.
-  //
-  // PWM rather than a pin held high, which is how the board's own driver runs
-  // it, and what makes the duty above adjustable at all.
-  if (ledcAttach(LCD_BL, BL_FREQUENCY, BL_RESOLUTION)) {
-    ledcWrite(LCD_BL, BL_DUTY);
-    Serial.printf("backlight: pwm at %d/1023\n", BL_DUTY);
-  } else {
-    // A dark panel with a healthy init reads as a dead board, and the dimmer
-    // is not worth that - full brightness beats nothing at all.
-    pinMode(LCD_BL, OUTPUT);
-    digitalWrite(LCD_BL, HIGH);
-    Serial.println("backlight: pwm unavailable, pin held high");
-  }
+  panelBrightness(BRIGHTNESS);
   return true;
 }
 
