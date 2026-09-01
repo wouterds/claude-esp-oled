@@ -149,12 +149,12 @@ constexpr int16_t NYAN_DRAW_W = (int16_t)(NYAN_W * NYAN_SCALE);
 constexpr int16_t NYAN_DRAW_H = (int16_t)(NYAN_H * NYAN_SCALE);
 constexpr float NYAN_Y = 52.0f * SCENE;
 
-// The cat with the glass to itself, on a double tap. Another whole multiple,
-// and the biggest one that keeps the cat's own box inside the circle - the
-// corner of that box is what runs out of glass first, and the assert under it
-// is what says so. Only the cat is measured: the trail behind it is meant to
-// leave the glass, and the flame on the end of it lands well past the edge.
-constexpr int16_t BIG_SCALE = (int16_t)(8.0f * SCENE);
+// The cat with the glass to itself, on a double tap. Three quarters of the
+// biggest whole multiple that keeps the cat's own box inside the circle - full
+// size left it filling the glass corner to corner with no room round it at
+// all. Only the cat is measured: the trail behind it is meant to leave the
+// glass, and the flame on the end of it lands well past the edge.
+constexpr int16_t BIG_SCALE = (int16_t)(6.0f * SCENE);
 constexpr float BIG_HW = (float)(NYAN_CAT_W * BIG_SCALE) * 0.5f;
 constexpr float BIG_HH = (float)(NYAN_H * BIG_SCALE) * 0.5f;
 static_assert(BIG_HW * BIG_HW + BIG_HH * BIG_HH < SCREEN_R * SCREEN_R,
