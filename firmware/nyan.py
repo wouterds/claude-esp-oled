@@ -54,7 +54,7 @@ TALL = 21
 TRAIL_PX = 240
 # The LCD board gets less. Its glass is the tighter of the two, and at the row
 # the sprite sits on the full trail runs to within a few pixels of the circle.
-TRAIL_LCD_PX = 168
+TRAIL_LCD_PX = 140
 # Columns of sprite over which the far end of the trail closes to a point. Cut
 # square it reads as a rainbow somebody sawed the end off; drawn back to nothing
 # it reads as something the cat is leaving behind. Narrow at the tip and
