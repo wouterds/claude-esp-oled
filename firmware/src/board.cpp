@@ -83,33 +83,15 @@ uint16_t *boardFramebuffer() { return framebuffer; }
 
 void boardFlush() { boardFlushRows(0, SCREEN_H - 1); }
 
-void boardFlushRows(int16_t from, int16_t to) { boardFlushRect(0, SCREEN_W - 1, from, to); }
-
-// Only the box that changed. The face is a third of the panel and the label a
+// Only the rows that changed. The face is a third of the panel and the label a
 // twentieth of it, so most frames leave the rest of the glass alone - and the
 // wire, not the drawing, is what a frame waits on.
-void boardFlushRect(int16_t x0, int16_t x1, int16_t from, int16_t to) {
+void boardFlushRows(int16_t from, int16_t to) {
   if (from < 0) {
     from = 0;
   }
   if (to > SCREEN_H - 1) {
     to = SCREEN_H - 1;
-  }
-  if (x0 < 0) {
-    x0 = 0;
-  }
-  if (x1 > SCREEN_W - 1) {
-    x1 = SCREEN_W - 1;
-  }
-  if (from > to || x0 > x1) {
-    return;
-  }
-  // A narrower box holds more rows in the same buffer, so the number of bands
-  // goes down as the box gets thinner rather than the buffer going to waste.
-  const int16_t wide = (int16_t)(x1 - x0 + 1);
-  int16_t bandRows = (int16_t)(BAND_BYTES / ((size_t)wide * 2));
-  if (bandRows < 1) {
-    bandRows = 1;
   }
   // Fill, hand over, fill the other one while that one goes out. The wait moves
   // to just before the next hand-over, which is the whole point: the copy for the
@@ -118,17 +100,13 @@ void boardFlushRect(int16_t x0, int16_t x1, int16_t from, int16_t to) {
   // for it.
   uint8_t slot = 0;
   bool flying = false;
-  for (int16_t y = from; y <= to; y += bandRows) {
-    int16_t rows = (y + bandRows <= to + 1) ? bandRows : (int16_t)(to + 1 - y);
-    // A row of the box at a time now, because the box is not the whole row.
-    for (int16_t r = 0; r < rows; r++) {
-      memcpy(band[slot] + (size_t)r * wide,
-             framebuffer + (int32_t)(y + r) * SCREEN_W + x0, (size_t)wide * 2);
-    }
+  for (int16_t y = from; y <= to; y += BAND_ROWS) {
+    int16_t rows = (y + BAND_ROWS <= to + 1) ? BAND_ROWS : (to + 1 - y);
+    memcpy(band[slot], framebuffer + (int32_t)y * SCREEN_W, (size_t)rows * SCREEN_W * 2);
     if (flying) {
       xSemaphoreTake(bandSent, portMAX_DELAY);
     }
-    esp_lcd_panel_draw_bitmap(panel, x0, y, x1 + 1, y + rows, band[slot]);
+    esp_lcd_panel_draw_bitmap(panel, 0, y, SCREEN_W, y + rows, band[slot]);
     flying = true;
     slot ^= 1;
   }

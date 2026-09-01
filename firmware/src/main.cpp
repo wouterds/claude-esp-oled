@@ -281,16 +281,14 @@ void loop() {
   uint32_t t0 = micros();
   int16_t from = 0;
   int16_t to = SCREEN_H - 1;
-  int16_t colFrom = 0;
-  int16_t colTo = SCREEN_W - 1;
   gaugeStep(boardFramebuffer(), now);
   faceStep(dt);
-  faceDraw(boardFramebuffer(), &from, &to, &colFrom, &colTo);
+  faceDraw(boardFramebuffer(), &from, &to);
   // The face clears a box wide enough to reach both bars, so they go back in
   // before the flush rather than being repaired after it.
   gaugeDraw(boardFramebuffer());
   uint32_t t1 = micros();
-  boardFlushRect(colFrom, colTo, from, to);
+  boardFlushRows(from, to);
   statusDraw(boardFramebuffer(), from, to);
   if (counting) {
     countFrames(boardFramebuffer());
