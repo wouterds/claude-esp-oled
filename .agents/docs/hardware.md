@@ -97,7 +97,7 @@ board it reads:
 ```
 panel init: ESP_OK
 panel up, psram free 7943584
-brightness: 100% (ESP_OK)
+brightness: 100%
 battery: 4153 mV, 94%, external power
 touch: CST9217 ready
 audio: ES8311 ready at 16000 Hz, 10%

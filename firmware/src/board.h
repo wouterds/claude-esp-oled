@@ -14,9 +14,11 @@
 // percentages beside them are not distances and do not move with the glass.
 static constexpr float SCENE = SCREEN_R / 180.0f;
 
-// Brings up the QSPI bus, the panel and the backlight, in that order. False
-// means the panel never came up and there is nothing to draw on.
-bool boardBegin();
+// Brings up the QSPI bus, the panel and the backlight, in that order, and
+// lights it at the level given - the stored one, so the glass never comes up
+// at full and then drops. False means the panel never came up and there is
+// nothing to draw on.
+bool boardBegin(uint8_t brightness);
 
 // The offscreen framebuffer. Scenes draw here and boardFlush() sends it.
 //

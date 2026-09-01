@@ -11,9 +11,6 @@
 #include "panel.h"
 #include "pins.h"
 
-// Full. Both panels reach it by different means and neither has a reason not to.
-static constexpr uint8_t BRIGHTNESS = 100;
-
 // The panel is fed a band at a time out of a buffer the DMA can actually read.
 // The framebuffer lives in PSRAM, which leaves it out of reach of the SPI DMA -
 // so each band is copied down into internal RAM on its way out. The copy is a
@@ -54,7 +51,7 @@ static uint16_t *framebuffer = nullptr;
 // and hides whichever of the two is quicker behind the other.
 static uint16_t *band[2] = {nullptr, nullptr};
 
-bool boardBegin() {
+bool boardBegin(uint8_t brightness) {
   bandSent = xSemaphoreCreateBinary();
   framebuffer = (uint16_t *)heap_caps_malloc((size_t)SCREEN_W * SCREEN_H * 2, MALLOC_CAP_SPIRAM);
   band[0] = (uint16_t *)heap_caps_malloc(BAND_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
@@ -87,7 +84,8 @@ bool boardBegin() {
 
   // Only now. The panel powers up holding whatever was last in its RAM, and
   // lighting it before the first black frame lands shows that to the room.
-  panelBrightness(BRIGHTNESS);
+  panelBrightness(brightness);
+  Serial.printf("brightness: %u%%\n", brightness);
   return true;
 }
 

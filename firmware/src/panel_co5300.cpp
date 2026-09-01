@@ -89,6 +89,5 @@ void panelBrightness(uint8_t percent) {
   }
   // No backlight on this board. The pixels emit, so this is a register on the
   // panel and black really is black whatever it is set to.
-  esp_err_t rc = esp_lcd_panel_co5300_set_brightness(lit, percent);
-  Serial.printf("brightness: %u%% (%s)\n", percent, esp_err_to_name(rc));
+  esp_lcd_panel_co5300_set_brightness(lit, percent);
 }

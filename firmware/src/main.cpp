@@ -212,7 +212,7 @@ void setup() {
   // writes instead: a truncated log line is cheaper than a frozen panel.
   Serial.setTxTimeoutMs(0);
   Serial.printf("reset: %s\n", why(esp_reset_reason()));
-  if (!boardBegin()) {
+  if (!boardBegin(100)) {
     while (true) {
       delay(1000);
     }

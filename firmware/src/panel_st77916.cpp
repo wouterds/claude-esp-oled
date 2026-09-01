@@ -129,7 +129,5 @@ void panelBrightness(uint8_t percent) {
     Serial.println("backlight: pwm unavailable, pin held high");
     return;
   }
-  int duty = (int)percent * BL_MAX / 100;
-  ledcWrite(LCD_BL, duty);
-  Serial.printf("backlight: pwm at %d/%d\n", duty, BL_MAX);
+  ledcWrite(LCD_BL, (int)percent * BL_MAX / 100);
 }
