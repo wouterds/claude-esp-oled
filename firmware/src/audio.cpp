@@ -20,7 +20,12 @@ constexpr uint32_t RATE = 16000;
 // straight into it is a percentage of nothing anybody can hear - a fraction of
 // the way up that register is tens of decibels down, which is silence with a
 // bill attached.
-constexpr uint8_t VOLUME = 10;
+//
+// Squared on the way in. The ear hears ratios, and a slider that is linear in
+// amplitude has all of its range in the first fifth - everything past that is
+// loud and a bit louder. A third of the way up is the tenth of full scale this
+// shipped at.
+volatile uint8_t volume = 32;
 // Short of the rails even at full volume. A sine that reaches them is a sine
 // that clips into something buzzing the moment anything is added to it.
 constexpr float PEAK = 26000.0f;
@@ -150,6 +155,10 @@ void note(const Note &n) {
   // moves by the same amount every time.
   float slide = total ? (to - from) / (float)total : 0.0f;
   float phase = 0.0f;
+  // Read once a note rather than once a sample: a finger on the slider moves it
+  // between notes and a note that changes level halfway through clicks.
+  float gain = (float)volume / 100.0f;
+  gain *= gain;
 
   for (uint32_t done = 0; done < total;) {
     uint32_t take = total - done;
@@ -168,7 +177,7 @@ void note(const Note &n) {
       }
       float triangle = 4.0f * fabsf(phase - 0.5f) - 1.0f;
       rounded += (triangle - rounded) * ROUND;
-      chunk[i] = (int16_t)(rounded * PEAK * (VOLUME / 100.0f) * level);
+      chunk[i] = (int16_t)(rounded * PEAK * gain * level);
       phase += from + slide * (float)at;
       if (phase >= 1.0f) {
         phase -= 1.0f;
@@ -240,13 +249,23 @@ void audioBegin() {
     return;
   }
   ready = true;
-  Serial.printf("audio: ES8311 ready at %lu Hz, %u%%\n", (unsigned long)RATE, VOLUME);
+  Serial.printf("audio: ES8311 ready at %lu Hz\n", (unsigned long)RATE);
   // Core 0, with the radio. A note is a tenth of a second of arithmetic and a
   // frame is a sixtieth: this may never be in the way of one.
   xTaskCreatePinnedToCore(task, "audio", 4096, nullptr, 1, nullptr, 0);
 }
 
+void audioVolume(uint8_t percent) { volume = percent > 100 ? 100 : percent; }
+
 void audioPlugged() {
+  if (ready) {
+    wanted = 1;
+  }
+}
+
+// The same two notes as the cable: short, up, and over before the hand is off
+// the glass. What is being demonstrated is the level, not a sound of its own.
+void audioSampled() {
   if (ready) {
     wanted = 1;
   }
