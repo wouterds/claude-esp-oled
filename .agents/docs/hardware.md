@@ -183,19 +183,28 @@ candidate, the same offset counted from the far side.
 
 **The AMOLED board does not reach sixty frames a second.** It has 1.67x the
 pixels of the LCD board, and a scene drawn a pixel at a time costs all of them.
-Measured over 35 seconds of ordinary running: 15ms of drawing against 12.5ms of
-flush, for 36 frames a second where the loop is pacing for 60.
+Measured over 35 seconds of ordinary running: 14ms of drawing against 4.4ms of
+flush, for 53 frames a second where the loop is pacing for 60. **Drawing is what
+to attack now** - the wire is no longer close.
+
+**Flush the box, not the rows.** The face is about half the width of the glass,
+and flushing whole rows for it sent the bars and the figures beside it again on
+every frame. On this panel that was worth two thirds of the flush - 12.5ms down
+to 4.4, and 36 frames a second up to 53 - because a narrower box also holds more
+rows in the same band buffer, so there are fewer transfers as well as fewer
+bytes. It is also why static text beside a moving face was seen to shimmer: it
+was being rewritten under the panel's own scan forty times a second for nothing.
 
 **The board's own examples clock this glass at 40MHz, and 80 works.** 40 is the
 graphics library's default for every panel it drives rather than a number this
-one asked for. Measured over the same window, the clock is worth six frames a
-second - 30 against 36, with the flush going from 17.1ms to 12.5ms.
+one asked for. Measured over the same window, back when whole rows were being
+flushed, the clock was worth six frames a second - 30 against 36, with the flush
+going from 17.1ms to 12.5ms.
 
-Note what did *not* happen: doubling the clock did not halve the flush. Two
-reasons, and both matter before optimising the wire again. The copy down from
-PSRAM into a buffer the DMA can reach is the other half of a flush and does not
-care about the clock; and the figure the log calls `flush` is timed across
-`statusDraw` as well, so a good part of it is drawing rather than wire.
+Note what did *not* happen there: doubling the clock did not halve the flush.
+The copy down from PSRAM into a buffer the DMA can reach is the other half of a
+flush and does not care about the clock; and the figure the log calls `flush` is
+timed across `statusDraw` as well, so part of it is drawing rather than wire.
 
 Take short samples with suspicion. A window caught just after boot, before the
 radio and the usage poll have settled and while the face happens to be quiet,
