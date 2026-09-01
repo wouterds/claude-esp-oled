@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Flash whichever of the two boards is actually plugged in, then reset it and
-# say what came back.
+# Flash every board that is plugged in, each with its own image, then reset each
+# and say what came back.
 #
 # The images are not interchangeable. The boards' pins overlap rather than
 # merely differ - GPIO5 is one board's backlight and one of the other's four
@@ -11,8 +11,8 @@
 # anything on it, which is the only question that can be asked of a board that
 # may be holding the wrong firmware already.
 #
-#   ./firmware/flash.sh          flash whatever is plugged in
-#   ./firmware/flash.sh <env>    flash that env, refusing if it is the other board
+#   ./firmware/flash.sh          flash whatever is plugged in - all of it
+#   ./firmware/flash.sh <env>    flash only the board(s) that image belongs on
 set -euo pipefail
 
 PIO="$(command -v pio || echo "$HOME/.platformio/penv/bin/pio")"
@@ -28,49 +28,59 @@ AMOLED_ENV="esp32-s3-touch-amoled-175c"
 
 want="${1:-}"
 
-port() { ls /dev | grep '^cu\.usbmodem' | head -1; }
+ports() { ls /dev | grep '^cu\.usbmodem' || true; }
 
-# The node renames itself between resets, so it is looked up every time rather
-# than once.
-# Allowed to find nothing, which is the whole point of the next three lines -
-# under `set -e` a bare assignment from a failing grep takes the script out
-# before it can say what is wrong.
-p="$(port || true)"
-if [ -z "$p" ]; then
+# A node renames itself between resets, so "the board that was just flashed" is
+# found again as whichever port the boards left alone do not account for.
+findAgain() {
+  if [ -n "$1" ]; then
+    ports | grep -vxF "$1" | head -1
+  else
+    ports | head -1
+  fi
+}
+
+boards="$(ports)"
+if [ -z "$boards" ]; then
   echo "no board on USB - press PWR for 1s, and check it is not the hub" >&2
   exit 1
 fi
 
-size="$("$PY" -m esptool --port "/dev/$p" flash-id 2>/dev/null |
-        sed -n 's/.*Detected flash size: *//p' | head -1 || true)"
-case "$size" in
-  16MB) found="$LCD_ENV" ;;
-  32MB) found="$AMOLED_ENV" ;;
-  "")   echo "could not read the flash chip on /dev/$p - is the board awake?" >&2; exit 1 ;;
-  *)    echo "unknown board: $size of flash is neither of the two this builds for" >&2; exit 1 ;;
-esac
+flashed=0
+for p in $boards; do
+  others="$(ports | grep -vx "$p" || true)"
 
-if [ -n "$want" ] && [ "$want" != "$found" ]; then
-  echo "refusing: asked for $want, but the board on /dev/$p has $size of flash," >&2
-  echo "which is $found. The other image would drive the wrong pins." >&2
-  exit 1
-fi
+  size="$("$PY" -m esptool --port "/dev/$p" flash-id 2>/dev/null |
+          sed -n 's/.*Detected flash size: *//p' | head -1 || true)"
+  case "$size" in
+    16MB) found="$LCD_ENV" ;;
+    32MB) found="$AMOLED_ENV" ;;
+    "")   echo "skipping /dev/$p: could not read its flash chip - is it awake?" >&2; continue ;;
+    *)    echo "skipping /dev/$p: $size of flash is neither of the two this builds for" >&2
+          continue ;;
+  esac
 
-echo "board: $size of flash -> $found"
-"$PIO" run -d "$HERE" -e "$found" -t upload --upload-port "/dev/$p"
+  if [ -n "$want" ] && [ "$want" != "$found" ]; then
+    echo "skipping /dev/$p: it has $size of flash, which is $found"
+    continue
+  fi
 
-# esptool resets the chip itself after an upload, and on this board that reset
-# lands often enough in the ROM bootloader that the sketch never runs and the
-# panel stays dark - which reads as a bad flash. A second, explicit reset costs
-# a second and takes the question away.
-sleep 1
-p="$(port)"
-"$PY" -m esptool --port "/dev/$p" --after hard-reset flash-id >/dev/null 2>&1 || true
+  echo "board on /dev/$p: $size of flash -> $found"
+  "$PIO" run -d "$HERE" -e "$found" -t upload --upload-port "/dev/$p"
+  flashed=1
 
-sleep 2
-p="$(port)"
-echo "--- boot log ---"
-"$PY" - "$p" <<'BOOTLOG'
+  # esptool resets the chip itself after an upload, and that reset lands often
+  # enough in the ROM bootloader that the sketch never runs and the panel stays
+  # dark - which reads as a bad flash. A second, explicit reset costs a second
+  # and takes the question away.
+  sleep 1
+  p="$(findAgain "$others")"
+  "$PY" -m esptool --port "/dev/$p" --after hard-reset flash-id >/dev/null 2>&1 || true
+
+  sleep 2
+  p="$(findAgain "$others")"
+  echo "--- boot log ($found) ---"
+  "$PY" - "$p" <<'BOOTLOG'
 import serial, sys, time
 s = serial.Serial()
 s.port = '/dev/' + sys.argv[1]
@@ -93,3 +103,9 @@ for line in buf.splitlines():
                                        'touch', 'audio', 'reset:', 'boot:', 'framebuffer')):
         print(' ', line)
 BOOTLOG
+done
+
+if [ "$flashed" = 0 ]; then
+  echo "nothing flashed" >&2
+  exit 1
+fi
