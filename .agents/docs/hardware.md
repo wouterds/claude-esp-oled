@@ -196,6 +196,18 @@ on that board's status line yet.
 centre rather than anything that looks like a fault - and eight is the other
 candidate, the same offset counted from the far side.
 
+**Flushing less than a whole row of the panel has been tried and did not
+work.** The face knows the columns it painted as well as the rows, so sending
+only that box should be free bandwidth - two thirds of the flush on this board,
+36 frames a second up to 53. It renders wrong: the face leaves vertical slivers
+of itself behind on both sides and fragments hanging off the mouth, which are
+old columns the panel was never told to erase. The box handed to the flush is
+derived from the same `dirtyLeft`/`dirtyRight` the face clears with and on the
+face of it covers exactly what was cleared, so whatever the reason is, it is not
+in that arithmetic - suspect the sub-window against `x_gap` and the mirrored
+MADCTL, or the band buffer being re-cut to a different number of rows. See the
+revert of be54577. Worth another go, but not without a panel in front of you.
+
 **The AMOLED board does not reach sixty frames a second.** It has 1.67x the
 pixels of the LCD board, and a scene drawn a pixel at a time costs all of them.
 Measured over 35 seconds of ordinary running: 15ms of drawing against 12.5ms of
