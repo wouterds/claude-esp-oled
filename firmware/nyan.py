@@ -52,6 +52,9 @@ TALL = 21
 # fractional cell boundaries; tiled after the fact it smears into something with
 # no period at all, which is what the measurement says when it is tried.
 TRAIL_PX = 240
+# The LCD board gets less. Its glass is the tighter of the two, and at the row
+# the sprite sits on the full trail runs to within a few pixels of the circle.
+TRAIL_LCD_PX = 168
 # Columns of sprite over which the far end of the trail closes to a point. Cut
 # square it reads as a rainbow somebody sawed the end off; drawn back to nothing
 # it reads as something the cat is leaving behind. Narrow at the tip and
@@ -322,7 +325,8 @@ def build():
     print("nyan.py: {} columns of trail in rows {}..{}, repeating every {}"
           " ({:.0f}% agree)".format(run, roof, floor, period, score * 100))
 
-    grow = TRAIL_PX if period else 0
+    lcd = "-DBOARD_LCD_185B" in " ".join(env.get("BUILD_FLAGS", []))  # noqa: F821
+    grow = (TRAIL_LCD_PX if lcd else TRAIL_PX) if period else 0
     left = x0 - grow
 
     def source(x):
