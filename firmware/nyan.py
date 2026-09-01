@@ -407,6 +407,11 @@ def flame(sw, sh, out):
     trail goes solid, then ragged, then a scatter of bits still flying along
     behind, then nothing. The odds are lower at the edges than up the middle,
     which is what keeps a core to it.
+
+    The outline is the half of this the eye reads first, so it is curved and it
+    is rolled again every frame. Straight and standing still it comes out a
+    triangle however finely the inside of it is eaten away, which is what this
+    was: the holes moved and the two edges holding them never did.
     """
     if FLAME <= 0 or FLAME >= sw:
         return
@@ -418,15 +423,32 @@ def flame(sw, sh, out):
             mid = (rows[0] + rows[-1]) / 2.0
             full = max((rows[-1] - rows[0]) / 2.0, 1.0)
             t = (j + 0.5) / FLAME
-            # Height comes back fast, so only the last few columns are narrow
-            # and the rest is full width with holes in it.
-            half = full * min(1.0, t * 1.7)
+            # Height comes back along a curve rather than up a slope, so the tip
+            # is a point and the shoulders behind it are round - a straight rise
+            # is a wedge, and a wedge is what a triangle is.
+            #
+            # A flame also has tongues, and a tongue is a bulge in the outline
+            # that travels along it. One slow wave down the columns carried a
+            # whole turn over the loop is that - a whole turn, or frame seven
+            # meets frame nought with a step in it - and the wander on top is
+            # what stops the wave reading as a wave. Both die away towards the
+            # solid trail, which has no business rippling.
+            wave = math.sin(j * 0.55 + 2.0 * math.pi * f / len(out))
+            tongue = 1.0 + (1.0 - t) * (0.42 * wave + 0.34 * (_noise(f, j, 7) - 0.5))
+            half = full * min(1.0, 1.5 * (t ** 0.62) * tongue)
             for y in range(sh):
                 if not cells[y * sw + j]:
                     continue
                 off = abs(y - mid)
                 if off > half:
-                    cells[y * sw + j] = 0
+                    # Past the outline and still alight: the bits that have
+                    # broken off it. Their odds come off a grid twice as coarse
+                    # as the cells are, so these arrive in flecks of two and
+                    # three - one cell on its own is dust, and dust does not
+                    # read as fire.
+                    spark = 0.4 * t * max(0.0, 1.0 - (off - half) / full)
+                    if _noise(f, j // 2, y // 2) > spark:
+                        cells[y * sw + j] = 0
                     continue
                 live = (t ** 0.45) * (1.0 - 0.5 * (off / full))
                 if _noise(f, j, y) > live:
