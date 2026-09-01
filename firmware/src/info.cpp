@@ -34,7 +34,7 @@ namespace {
 // pixel off the ends of the bar they are meant to line up with.
 constexpr float MIDDLE = (float)(SCREEN_W - 1) * 0.5f;
 constexpr float BAR_X = MIDDLE;
-constexpr float BAR_Y = 232.0f * SCENE;
+constexpr float BAR_Y = 236.0f * SCENE;
 constexpr float BAR_HW = 134.0f * SCENE;
 // Thin, because it is long now. The old block was nine half-high and eighty
 // across; at three times the length the same thickness reads as a slab rather
@@ -45,7 +45,7 @@ constexpr float BAR_HH = 5.0f * SCENE;
 constexpr float BAR_R = 5.0f * SCENE;
 // Above the bar, where the dials carry theirs underneath - each title sits on
 // the side its own shape leaves room on.
-constexpr int16_t BAR_TITLE_TOP = (int16_t)(208 * SCENE);
+constexpr int16_t BAR_TITLE_TOP = (int16_t)(212 * SCENE);
 
 // The two dials, one either side of the bar. A half circle standing on its
 // flat side rather than a bar: the bars down the edges of the face already mean
