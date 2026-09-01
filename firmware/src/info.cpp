@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "audio.h"
 #include "battery.h"
 #include "board.h"
 #include "gauge.h"
@@ -687,6 +688,7 @@ void infoTapped(int16_t, int16_t along) {
   big = !big;
   fresh = true;
   starsSeed();
+  audioSong(big);
 #endif
 }
 

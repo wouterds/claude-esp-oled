@@ -84,10 +84,56 @@ constexpr Note ERRORED[] = {{1760, 60, 50}, {1245, 150, 90}, {1760, 60, 50}, {12
 // the board and near the bottom of what this speaker can move at all - it comes
 // out soft and buzzy, which is the point.
 constexpr Note DIED[] = {{1568, 620, 140, 600}, {415, 420, 0}};
+// The forever song, for as long as the cat has the glass: daniwell's tune, as
+// the one voice this has - the melody and none of what sits under it, which is
+// what it sounds like out of anything with a piezo in it. A rest is a note with
+// no length and a gap the length of the rest, so the engine never has to know.
+// Sixteenths at a hundred and forty-two to the minute, as written.
+constexpr Note NYAN[] = {
+    {740, 212, 0}, {831, 212, 0}, {622, 106, 0}, {622, 106, 0}, {0, 0, 106}, {494, 106, 0},
+    {587, 106, 0}, {554, 106, 0}, {494, 106, 0}, {0, 0, 106}, {494, 212, 0}, {554, 212, 0},
+    {587, 212, 0}, {587, 106, 0}, {554, 106, 0}, {494, 106, 0}, {554, 106, 0}, {622, 106, 0},
+    {740, 106, 0}, {831, 106, 0}, {622, 106, 0}, {740, 106, 0}, {554, 106, 0}, {622, 106, 0},
+    {494, 106, 0}, {554, 106, 0}, {494, 106, 0}, {622, 212, 0}, {740, 212, 0}, {831, 106, 0},
+    {622, 106, 0}, {740, 106, 0}, {554, 106, 0}, {622, 106, 0}, {494, 106, 0}, {587, 106, 0},
+    {622, 106, 0}, {587, 106, 0}, {554, 106, 0}, {494, 106, 0}, {554, 106, 0}, {587, 212, 0},
+    {494, 106, 0}, {554, 106, 0}, {622, 106, 0}, {740, 106, 0}, {554, 106, 0}, {622, 106, 0},
+    {554, 106, 0}, {494, 106, 0}, {554, 212, 0}, {494, 212, 0}, {554, 212, 0}, {740, 212, 0},
+    {831, 212, 0}, {622, 106, 0}, {622, 106, 0}, {0, 0, 106}, {494, 106, 0}, {587, 106, 0},
+    {554, 106, 0}, {494, 106, 0}, {0, 0, 106}, {494, 212, 0}, {554, 212, 0}, {587, 212, 0},
+    {587, 106, 0}, {554, 106, 0}, {494, 106, 0}, {554, 106, 0}, {622, 106, 0}, {740, 106, 0},
+    {831, 106, 0}, {622, 106, 0}, {740, 106, 0}, {554, 106, 0}, {622, 106, 0}, {494, 106, 0},
+    {554, 106, 0}, {494, 106, 0}, {622, 212, 0}, {740, 212, 0}, {831, 106, 0}, {622, 106, 0},
+    {740, 106, 0}, {554, 106, 0}, {622, 106, 0}, {494, 106, 0}, {587, 106, 0}, {622, 106, 0},
+    {587, 106, 0}, {554, 106, 0}, {494, 106, 0}, {554, 106, 0}, {587, 212, 0}, {494, 106, 0},
+    {554, 106, 0}, {622, 106, 0}, {740, 106, 0}, {554, 106, 0}, {622, 106, 0}, {554, 106, 0},
+    {494, 106, 0}, {554, 212, 0}, {494, 212, 0}, {554, 212, 0}, {494, 212, 0}, {370, 106, 0},
+    {415, 106, 0}, {494, 212, 0}, {370, 106, 0}, {415, 106, 0}, {494, 106, 0}, {554, 106, 0},
+    {622, 106, 0}, {494, 106, 0}, {659, 106, 0}, {622, 106, 0}, {659, 106, 0}, {740, 106, 0},
+    {494, 212, 0}, {494, 212, 0}, {370, 106, 0}, {415, 106, 0}, {494, 106, 0}, {370, 106, 0},
+    {659, 106, 0}, {622, 106, 0}, {554, 106, 0}, {494, 106, 0}, {370, 106, 0}, {311, 106, 0},
+    {330, 106, 0}, {370, 106, 0}, {494, 212, 0}, {370, 106, 0}, {415, 106, 0}, {494, 212, 0},
+    {370, 106, 0}, {415, 106, 0}, {494, 106, 0}, {494, 106, 0}, {554, 106, 0}, {622, 106, 0},
+    {494, 106, 0}, {370, 106, 0}, {415, 106, 0}, {370, 106, 0}, {494, 212, 0}, {494, 106, 0},
+    {466, 106, 0}, {494, 106, 0}, {370, 106, 0}, {415, 106, 0}, {330, 106, 0}, {659, 106, 0},
+    {622, 106, 0}, {659, 106, 0}, {740, 106, 0}, {494, 212, 0}, {466, 212, 0}, {494, 212, 0},
+    {370, 106, 0}, {415, 106, 0}, {494, 212, 0}, {370, 106, 0}, {415, 106, 0}, {494, 106, 0},
+    {554, 106, 0}, {622, 106, 0}, {494, 106, 0}, {659, 106, 0}, {622, 106, 0}, {659, 106, 0},
+    {740, 106, 0}, {494, 212, 0}, {494, 212, 0}, {370, 106, 0}, {415, 106, 0}, {494, 106, 0},
+    {370, 106, 0}, {659, 106, 0}, {622, 106, 0}, {554, 106, 0}, {494, 106, 0}, {370, 106, 0},
+    {311, 106, 0}, {330, 106, 0}, {370, 106, 0}, {494, 212, 0}, {370, 106, 0}, {415, 106, 0},
+    {494, 212, 0}, {370, 106, 0}, {415, 106, 0}, {494, 106, 0}, {494, 106, 0}, {554, 106, 0},
+    {622, 106, 0}, {494, 106, 0}, {370, 106, 0}, {415, 106, 0}, {370, 106, 0}, {494, 212, 0},
+    {494, 106, 0}, {466, 106, 0}, {494, 106, 0}, {370, 106, 0}, {415, 106, 0}, {494, 106, 0},
+    {659, 106, 0}, {622, 106, 0}, {659, 106, 0}, {740, 106, 0}, {494, 212, 0}, {554, 212, 0},
+};
+constexpr uint16_t NYAN_NOTES = sizeof(NYAN) / sizeof(NYAN[0]);
 
 I2SClass i2s;
 bool ready = false;
 volatile uint8_t wanted = 0;
+volatile bool singing = false;
+bool amped = false;
 // One note's worth at a time rather than a whole sound: a sixteenth of a second
 // of samples is a kilobyte, and a whole sound would be several.
 int16_t chunk[512];
@@ -197,18 +243,32 @@ void note(const Note &n) {
   }
 }
 
-void play(const Note *notes, uint8_t count) {
-  digitalWrite(AUDIO_PA, HIGH);
+void amp(bool on) {
+  if (on == amped) {
+    return;
+  }
+  amped = on;
+  digitalWrite(AUDIO_PA, on ? HIGH : LOW);
   // The amplifier takes a moment to come up, and whatever is written into it
   // before it has is the click of it coming up.
-  delay(8);
+  if (on) {
+    delay(8);
+  }
+}
+
+void play(const Note *notes, uint8_t count) {
+  amp(true);
   for (uint8_t i = 0; i < count; i++) {
     note(notes[i]);
   }
-  digitalWrite(AUDIO_PA, LOW);
+  // Left up through a song, or every sound in it would come with the click.
+  if (!singing) {
+    amp(false);
+  }
 }
 
 void task(void *) {
+  uint16_t at = 0;
   for (;;) {
     uint8_t want = wanted;
     if (want != 0) {
@@ -223,6 +283,17 @@ void task(void *) {
         play(DIED, sizeof(DIED) / sizeof(DIED[0]));
       }
     }
+    // A note at a time round the loop rather than the whole song in one go, so
+    // the flag is seen between notes and a sound asked for lands between two of
+    // them rather than after all of them.
+    if (singing) {
+      amp(true);
+      note(NYAN[at]);
+      at = (uint16_t)((at + 1) % NYAN_NOTES);
+      continue;
+    }
+    at = 0;
+    amp(false);
     vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
@@ -256,6 +327,8 @@ void audioBegin() {
 }
 
 void audioVolume(uint8_t percent) { volume = percent > 100 ? 100 : percent; }
+
+void audioSong(bool on) { singing = ready && on; }
 
 void audioPlugged() {
   if (ready) {

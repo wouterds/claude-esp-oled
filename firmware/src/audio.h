@@ -31,3 +31,7 @@ void audioErrored();
 
 // The face has just spent the lot.
 void audioDied();
+
+// The forever song, round and round from the top until it is asked to stop -
+// which it does at the end of the note it is on.
+void audioSong(bool on);
