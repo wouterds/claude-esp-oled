@@ -33,7 +33,8 @@ bool panelBegin(esp_lcd_panel_handle_t *out, esp_lcd_panel_io_color_trans_done_c
   // it drives rather than anything this one asked for, and at 40 a full 466x466
   // frame is 22ms of wire time on its own, which is the frame rate's ceiling
   // before anything has been drawn. Halving it is worth about twelve frames a
-  // second here. A QSPI bus run past what the panel will take does not fail, it
+  // second here, measured over the same window on both. A QSPI bus run past what
+  // the panel will take does not fail, it
   // corrupts the picture - so this is the first thing to put back if the glass
   // starts showing torn or speckled frames.
   io.pclk_hz = 80 * 1000 * 1000;

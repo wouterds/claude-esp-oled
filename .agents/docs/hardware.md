@@ -183,17 +183,26 @@ candidate, the same offset counted from the far side.
 
 **The AMOLED board does not reach sixty frames a second.** It has 1.67x the
 pixels of the LCD board, and a scene drawn a pixel at a time costs all of them.
-Measured at 80MHz: about 14ms of drawing against 10ms of flush, so a little over
-40 frames a second where the loop is pacing for 60. Drawing is what to attack,
-not the wire.
+Measured over 35 seconds of ordinary running: 15ms of drawing against 12.5ms of
+flush, for 36 frames a second where the loop is pacing for 60.
 
 **The board's own examples clock this glass at 40MHz, and 80 works.** 40 is the
-graphics library's default for every panel it drives rather than anything this
-one asked for, and it costs about twelve frames a second: a full 466x466 frame
-is 434KB, which is 22ms of wire time at 40MHz and 11 at 80. Note that halving
-the wire time did not halve the flush - the copy down from PSRAM into a buffer
-the DMA can reach is the other half of it and does not care about the clock. A
-QSPI bus run past what the panel takes does not fail, it corrupts the picture,
+graphics library's default for every panel it drives rather than a number this
+one asked for. Measured over the same window, the clock is worth six frames a
+second - 30 against 36, with the flush going from 17.1ms to 12.5ms.
+
+Note what did *not* happen: doubling the clock did not halve the flush. Two
+reasons, and both matter before optimising the wire again. The copy down from
+PSRAM into a buffer the DMA can reach is the other half of a flush and does not
+care about the clock; and the figure the log calls `flush` is timed across
+`statusDraw` as well, so a good part of it is drawing rather than wire.
+
+Take short samples with suspicion. A window caught just after boot, before the
+radio and the usage poll have settled and while the face happens to be quiet,
+reads several frames a second better than the same build does over a minute.
+The two clocks were first compared that way and the answer came out wrong.
+
+A QSPI bus run past what the panel takes does not fail, it corrupts the picture,
 so this is the first thing to put back if frames come up torn or speckled.
 
 **The scene is measured in the LCD board's pixels.** Every length in it was
