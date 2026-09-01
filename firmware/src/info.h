@@ -15,3 +15,11 @@ void infoStep(uint16_t *fb);
 // at the page, which is the one time nothing has changed and all of it still
 // has to go back on the glass.
 void infoForget();
+
+// A double tap has landed on the page, at this spot. On the cat, the cat takes
+// the whole glass; anywhere while it has it, the page comes back.
+void infoTapped(int16_t across, int16_t along);
+
+// The cat has the glass. Nothing turns the page while it does - it is asked to
+// leave the way it was asked in.
+bool infoFullscreen();

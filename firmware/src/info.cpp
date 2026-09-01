@@ -147,10 +147,23 @@ constexpr int16_t NYAN_DRAW_W = (int16_t)(NYAN_W * NYAN_SCALE);
 constexpr int16_t NYAN_DRAW_H = (int16_t)(NYAN_H * NYAN_SCALE);
 constexpr float NYAN_Y = 52.0f * SCENE;
 
+// The cat with the glass to itself, on a double tap. Another whole multiple,
+// and the biggest one that keeps the cat's own box inside the circle - the
+// corner of that box is what runs out of glass first, and the assert under it
+// is what says so. Only the cat is measured: the trail behind it is meant to
+// leave the glass, and the flame on the end of it lands well past the edge.
+constexpr int16_t BIG_SCALE = (int16_t)(8.0f * SCENE);
+constexpr float BIG_HW = (float)(NYAN_CAT_W * BIG_SCALE) * 0.5f;
+constexpr float BIG_HH = (float)(NYAN_H * BIG_SCALE) * 0.5f;
+static_assert(BIG_HW * BIG_HW + BIG_HH * BIG_HH < SCREEN_R * SCREEN_R,
+              "the cat would not fit the glass");
+
 // The field the cat is running through. Not out of the GIF - these are the
 // board's own, so they can cross the whole panel rather than being stuck inside
 // the sprite's box, and so they can turn round when it does.
 constexpr uint8_t STARS = 14;
+// The band's fourteen, over the whole panel instead of a quarter of it.
+constexpr uint8_t BIG_STARS = 48;
 constexpr int16_t STAR_SCALE = 2;
 // A twinkle is five cells square and is drawn about its middle, so it reaches
 // this far either side of wherever it is put. The band below is cleared and sent
@@ -211,6 +224,7 @@ struct Shown {
 
 Shown shown = {255, false, false, 0, 255, 255, 255, {0}, {0}};
 bool fresh = true;
+bool big = false;
 
 float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
@@ -296,7 +310,8 @@ struct Star {
   // own, because it depends on the row it is on.
   float span;
 };
-Star stars[STARS];
+Star stars[BIG_STARS];
+uint8_t starCount = STARS;
 uint32_t sceneSince = 0;
 
 float wander(float lo, float hi) {
@@ -321,12 +336,12 @@ float starSpan(int16_t y) {
 // travelling from.
 void starPlace(Star &s, float dir, bool seed) {
   // Its own reach kept inside the band as well, so everything drawn is inside
-  // what gets cleared.
-  constexpr float TOP_ROW = (float)(SCENE_TOP + STAR_REACH);
-  constexpr float BOTTOM_ROW = (float)(SCENE_BOTTOM - STAR_REACH);
+  // what gets cleared. The whole panel when the cat has it.
+  float topRow = (float)((big ? 0 : SCENE_TOP) + STAR_REACH);
+  float bottomRow = (float)((big ? SCREEN_H - 1 : SCENE_BOTTOM) - STAR_REACH);
   float span = -1.0f;
   for (uint8_t tries = 0; tries < 8 && span < (float)STAR_REACH; tries++) {
-    s.y = (int16_t)wander(TOP_ROW, BOTTOM_ROW);
+    s.y = (int16_t)wander(topRow, bottomRow);
     span = starSpan(s.y);
   }
   // Eight rolls and none of them fit is the very top of the glass, where the
@@ -351,7 +366,8 @@ void starPlace(Star &s, float dir, bool seed) {
 
 void starsSeed() {
   float dir = leftward ? 1.0f : -1.0f;
-  for (uint8_t i = 0; i < STARS; i++) {
+  starCount = big ? BIG_STARS : STARS;
+  for (uint8_t i = 0; i < starCount; i++) {
     starPlace(stars[i], dir, true);
   }
 }
@@ -360,7 +376,7 @@ void starsSeed() {
 // whole of what makes the cat look like the thing that is moving.
 void starsStep(float dt) {
   float dir = leftward ? 1.0f : -1.0f;
-  for (uint8_t i = 0; i < STARS; i++) {
+  for (uint8_t i = 0; i < starCount; i++) {
     stars[i].x += dir * stars[i].speed * dt;
     stars[i].twinkle += dt * 5.0f;
     while (stars[i].twinkle >= 4.0f) {
@@ -375,7 +391,7 @@ void starsStep(float dt) {
 }
 
 void drawStars(uint16_t *fb) {
-  for (uint8_t i = 0; i < STARS; i++) {
+  for (uint8_t i = 0; i < starCount; i++) {
     const uint8_t *art = STAR_ART[(uint8_t)stars[i].twinkle & 3];
     int16_t left = (int16_t)stars[i].x - 2 * STAR_SCALE;
     int16_t top = stars[i].y - 2 * STAR_SCALE;
@@ -421,18 +437,22 @@ bool nyanStep() {
 // Nought is nothing there rather than a colour, which is the whole of what
 // leaving the background out costs at this end: the cell is skipped and whatever
 // the page had there stays.
-void drawNyan(uint16_t *fb) {
+void drawNyan(uint16_t *fb, int16_t scale, int16_t left, int16_t top) {
   const uint8_t *cells = NYAN_CELLS[nyanAt];
-  int16_t left = (int16_t)MIDDLE - NYAN_DRAW_W / 2;
-  int16_t top = (int16_t)NYAN_Y - NYAN_DRAW_H / 2;
   for (int16_t sy = 0; sy < NYAN_H; sy++) {
-    for (int16_t dy = 0; dy < NYAN_SCALE; dy++) {
-      int16_t y = top + sy * NYAN_SCALE + dy;
+    for (int16_t dy = 0; dy < scale; dy++) {
+      int16_t y = top + sy * scale + dy;
       if (y < 0 || y >= SCREEN_H) {
         continue;
       }
       uint16_t *row = boardRow(fb, y);
       for (int16_t sx = 0; sx < NYAN_W; sx++) {
+        // Whole cells off the glass are skipped rather than clipped a pixel at
+        // a time: with the cat filling the panel, most of the trail is.
+        int16_t x0 = (int16_t)(left + sx * scale);
+        if (x0 + scale <= 0 || x0 >= SCREEN_W) {
+          continue;
+        }
         uint8_t v = cells[sy * NYAN_W + (leftward ? NYAN_W - 1 - sx : sx)];
         if (!v) {
           continue;
@@ -440,8 +460,8 @@ void drawNyan(uint16_t *fb) {
         // Already in the panel's byte order, so this is a store rather than a
         // swap and a store - which at five thousand pixels a cell is worth it.
         uint16_t ink = NYAN_PALETTE[v];
-        for (int16_t dx = 0; dx < NYAN_SCALE; dx++) {
-          int16_t x = left + sx * NYAN_SCALE + dx;
+        for (int16_t dx = 0; dx < scale; dx++) {
+          int16_t x = (int16_t)(x0 + dx);
           if (x >= 0 && x < SCREEN_W) {
             row[boardX(x)] = ink;
           }
@@ -454,7 +474,19 @@ void drawNyan(uint16_t *fb) {
 // Stars behind, cat in front.
 void drawScene(uint16_t *fb) {
   drawStars(fb);
-  drawNyan(fb);
+  drawNyan(fb, NYAN_SCALE, (int16_t)MIDDLE - NYAN_DRAW_W / 2, (int16_t)NYAN_Y - NYAN_DRAW_H / 2);
+}
+
+// The whole glass: stars everywhere, and the cat in the middle of it. Centred
+// on the cat rather than on the sprite, so the trail runs off whichever side
+// the cat is leaving - and the flame on the end of it lands well past the edge.
+void sendBig(uint16_t *fb) {
+  memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
+  drawStars(fb);
+  int16_t catLeft = (int16_t)(MIDDLE - BIG_HW);
+  int16_t left = leftward ? catLeft : (int16_t)(catLeft - (NYAN_W - NYAN_CAT_W) * BIG_SCALE);
+  drawNyan(fb, BIG_SCALE, left, (int16_t)(MIDDLE - BIG_HH));
+  boardFlush();
 }
 
 // Its own band, which nothing else is in - it sits clear above the dials. Whole
@@ -645,7 +677,32 @@ void infoForget() {
 #endif
 }
 
+void infoTapped(int16_t, int16_t along) {
+#if NYAN_FRAMES > 0
+  // On the way in it has to be the cat's own band; on the way out, anywhere -
+  // the cat is everywhere.
+  if (!big && along > SCENE_BOTTOM) {
+    return;
+  }
+  big = !big;
+  fresh = true;
+  starsSeed();
+#endif
+}
+
+bool infoFullscreen() { return big; }
+
 void infoStep(uint16_t *fb) {
+#if NYAN_FRAMES > 0
+  if (big) {
+    // Whole, every tick of the scene: everything on it moves.
+    if (sceneStep() || fresh) {
+      fresh = false;
+      sendBig(fb);
+    }
+    return;
+  }
+#endif
   BatteryState battery = batteryRead();
   const char *network = wifiNetwork();
   const char *address = wifiAddress();

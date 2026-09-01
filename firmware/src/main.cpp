@@ -276,6 +276,14 @@ void loop() {
   // to reach the flash.
   settingsKeep();
 
+  // Asked every frame whichever page is up, so a pair of taps on one page is
+  // not waiting to land on the next.
+  int16_t tapAcross = 0;
+  int16_t tapAlong = 0;
+  if (touchDoubleTapped(&tapAcross, &tapAlong) && page == Page::Info) {
+    infoTapped(tapAcross, tapAlong);
+  }
+
   Swipe swipe = touchSwiped();
   // The details are pulled down over the face the way a shade comes down, the
   // settings down over those, and each pushed back up off the glass the way it
@@ -285,7 +293,9 @@ void loop() {
   // Not while a finger is on a slider. A drag along a track wanders up and down
   // as well, and that wander is otherwise the swipe that takes the page away
   // from under the finger setting it.
-  if (settingsHolding()) {
+  // The cat is the same: while it has the glass it goes when it is asked the
+  // way it came, not when the glass is brushed.
+  if (settingsHolding() || infoFullscreen()) {
     swipe = Swipe::None;
   }
   if (swipe == Swipe::Down && page == Page::Main) {
