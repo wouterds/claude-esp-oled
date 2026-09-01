@@ -196,6 +196,20 @@ on that board's status line yet.
 centre rather than anything that looks like a fault - and eight is the other
 candidate, the same offset counted from the far side.
 
+**The AMOLED panel's tearing-effect line is on `GPIO13`.** It is not in
+Waveshare's pin header; it was found by watching every pin the board leaves
+alone for one that ticks, and it carries a clean 60Hz pulse from the moment the
+panel is initialised. Waiting for it before a flush costs eleven frames a second
+here - a frame takes about 25ms and a scan 16.7, so the wait lands on every
+second scan - and it did **not** stop static pixels appearing to move. Writing
+across the scan is not what that is. The pin is written down because it is worth
+knowing and hard to find, not because syncing to it helped.
+
+**This panel does not talk back over QSPI.** Every register read returns zeroes,
+the same as the LCD board, so there is no reading its memory back to compare
+against the framebuffer. What is on the glass cannot be checked from the board -
+only what was sent to it.
+
 **Flushing less than a whole row of the panel has been tried and did not
 work.** The face knows the columns it painted as well as the rows, so sending
 only that box should be free bandwidth - two thirds of the flush on this board,
