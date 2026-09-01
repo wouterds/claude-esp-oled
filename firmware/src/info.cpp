@@ -93,7 +93,12 @@ constexpr float DIAL_DROP = DIAL_R * -DIAL_SWEEP_COS + DIAL_T;
 // Lower in the bowl than it was. The glyphs are the same size whatever the
 // glass, so a smaller dial does not get a smaller number - and higher up, the
 // bowl narrows to less than the 46 pixels "100%" needs.
-constexpr int16_t DIAL_NUMBER_UP = (int16_t)(16 * SCENE);
+//
+// Low enough to sit with the title rather than with the band. The band curves
+// away either side of the number and the title does not, so a number hung
+// halfway between the two by the ruler reads as pinned to the arc and adrift
+// from the word underneath it.
+constexpr int16_t DIAL_NUMBER_UP = (int16_t)(13 * SCENE);
 constexpr int16_t DIAL_TITLE_DOWN = (int16_t)(DIAL_DROP + 5.0f * SCENE);
 // Its own box, which is what gets cleared and sent when only these two moved.
 constexpr int16_t DIAL_HW = (int16_t)(DIAL_R + DIAL_T + 2.0f);
