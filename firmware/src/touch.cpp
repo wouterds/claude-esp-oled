@@ -25,6 +25,11 @@ constexpr uint32_t RELEASE_MS = 200;
 // controller does not always say when a finger leaves, and waiting for it to is
 // waiting for ever.
 constexpr uint32_t WAKE_MS = 50;
+// How far a finger may wobble between landing and lifting and still have
+// tapped rather than dragged.
+constexpr int16_t SLOP = 20;
+// From the first tap lifting to the second landing. Longer apart is two taps.
+constexpr uint32_t DOUBLE_MS = 400;
 
 bool present = false;
 TaskHandle_t reader = nullptr;
@@ -33,9 +38,21 @@ TaskHandle_t reader = nullptr;
 bool down = false;
 bool fired = false;
 int16_t fromAlong = 0;
+int16_t fromAcross = 0;
+int16_t lastAlong = 0;
+int16_t lastAcross = 0;
+uint32_t downAt = 0;
 uint32_t lastReport = 0;
+// The first of a pair, kept until the second lands or the window shuts.
+bool tapped = false;
+uint32_t tapUpAt = 0;
+int16_t tapAlong = 0;
+int16_t tapAcross = 0;
 
 volatile Swipe went = Swipe::None;
+volatile bool doubled = false;
+volatile int16_t doubledAlong = 0;
+volatile int16_t doubledAcross = 0;
 volatile bool fingerDown = false;
 volatile int16_t fingerAcross = 0;
 volatile int16_t fingerAlong = 0;
@@ -48,8 +65,23 @@ void IRAM_ATTR onReport() {
 
 void lift() {
   // A swipe is reported the moment it gets far enough rather than when the
-  // finger comes up, so there is nothing left to decide here - only the state
-  // for the next finger to put back.
+  // finger comes up. A tap is the opposite: a finger that came up having gone
+  // nowhere, and it is only here that that is known.
+  bool tap = !fired && abs(lastAlong - fromAlong) <= SLOP && abs(lastAcross - fromAcross) <= SLOP;
+  if (tap && tapped && downAt - tapUpAt <= DOUBLE_MS && abs(fromAlong - tapAlong) <= 2 * SLOP &&
+      abs(fromAcross - tapAcross) <= 2 * SLOP) {
+    doubledAlong = tapAlong;
+    doubledAcross = tapAcross;
+    doubled = true;
+    tapped = false;
+  } else {
+    tapped = tap;
+    // When the finger was last seen rather than now: a controller that never
+    // said the finger left is only found out RELEASE_MS later.
+    tapUpAt = lastReport;
+    tapAlong = fromAlong;
+    tapAcross = fromAcross;
+  }
   down = false;
   fired = false;
   fingerDown = false;
@@ -73,10 +105,14 @@ void look() {
     }
     return;
   }
+  lastAlong = along;
+  lastAcross = across;
   if (!down) {
     down = true;
     fired = false;
     fromAlong = along;
+    fromAcross = across;
+    downAt = lastReport;
     return;
   }
   if (fired) {
@@ -142,4 +178,14 @@ bool touchFinger(int16_t *across, int16_t *along) {
   *across = fingerAcross;
   *along = fingerAlong;
   return fingerDown;
+}
+
+bool touchDoubleTapped(int16_t *across, int16_t *along) {
+  if (!doubled) {
+    return false;
+  }
+  *across = doubledAcross;
+  *along = doubledAlong;
+  doubled = false;
+  return true;
 }

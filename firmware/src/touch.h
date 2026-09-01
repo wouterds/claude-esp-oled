@@ -23,3 +23,7 @@ Swipe touchSwiped();
 // Where the finger is right now, in the scene's own pixels, or false with
 // nobody on the glass. For the one page with something on it to hold.
 bool touchFinger(int16_t *across, int16_t *along);
+
+// Two taps in quick succession, neither of which went anywhere, and where the
+// first of them landed. Cleared by the asking.
+bool touchDoubleTapped(int16_t *across, int16_t *along);
