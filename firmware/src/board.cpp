@@ -19,7 +19,10 @@ static constexpr uint8_t BRIGHTNESS = 100;
 // so each band is copied down into internal RAM on its way out. The copy is a
 // straight memcpy because the framebuffer already holds the panel's byte order;
 // see boardColour.
+// Even, so that bands cut from an even starting row all start even themselves -
+// see the window alignment in boardFlushRows.
 static constexpr int BAND_ROWS = 40;
+static_assert(BAND_ROWS % 2 == 0, "bands must keep the window alignment");
 static constexpr size_t BAND_BYTES = (size_t)SCREEN_W * BAND_ROWS * 2;
 
 // esp_lcd queues a colour transfer and returns while the DMA is still reading
@@ -92,6 +95,18 @@ void boardFlushRows(int16_t from, int16_t to) {
   }
   if (to > SCREEN_H - 1) {
     to = SCREEN_H - 1;
+  }
+  // The AMOLED's controller ignores the low bit of a window coordinate, so a
+  // band asked to start on an odd row lands one row off instead of failing.
+  // The face's band starts wherever the face is, so its parity changed frame to
+  // frame - and every static pixel in those rows was parked one row up or down
+  // depending on which frame last sent it, which is what figures that never
+  // moved visibly dancing at the frame rate was. Even starts, odd ends, always;
+  // the columns hold this on their own (0..465, and the panel's gap is even),
+  // and the bands hold it because BAND_ROWS is even.
+  if (LCD_EVEN_WINDOWS) {
+    from = (int16_t)(from & ~1);
+    to = (int16_t)(to | 1);
   }
   // Fill, hand over, fill the other one while that one goes out. The wait moves
   // to just before the next hand-over, which is the whole point: the copy for the

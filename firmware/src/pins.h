@@ -36,6 +36,8 @@ static constexpr int LCD_D3 = 41;
 // behind a TCA9554 and firmware written for one comes up black on the other.
 static constexpr int LCD_RST = 3;
 static constexpr int LCD_BL = 5;
+// The ST77916 addresses single pixels; a window may start and end anywhere.
+static constexpr bool LCD_EVEN_WINDOWS = false;
 
 static constexpr int I2C_SDA = 11;
 static constexpr int I2C_SCL = 10;
@@ -85,6 +87,11 @@ static constexpr int LCD_D1 = 5;
 static constexpr int LCD_D2 = 6;
 static constexpr int LCD_D3 = 7;
 static constexpr int LCD_RST = 1;
+// The controller ignores the low bit of a window coordinate: a window asked to
+// start on an odd row or column does not fail, it lands a pixel off. Waveshare's
+// own LVGL glue rounds every area to an even start and an odd end before it is
+// allowed near this glass, and the flush here has to do the same.
+static constexpr bool LCD_EVEN_WINDOWS = true;
 // No LCD_BL. The pixels emit their own light, so there is no backlight to dim
 // and brightness is a register on the panel - see panel_co5300.cpp.
 

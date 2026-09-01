@@ -210,17 +210,28 @@ the same as the LCD board, so there is no reading its memory back to compare
 against the framebuffer. What is on the glass cannot be checked from the board -
 only what was sent to it.
 
-**Flushing less than a whole row of the panel has been tried and did not
-work.** The face knows the columns it painted as well as the rows, so sending
-only that box should be free bandwidth - two thirds of the flush on this board,
-36 frames a second up to 53. It renders wrong: the face leaves vertical slivers
-of itself behind on both sides and fragments hanging off the mouth, which are
-old columns the panel was never told to erase. The box handed to the flush is
-derived from the same `dirtyLeft`/`dirtyRight` the face clears with and on the
-face of it covers exactly what was cleared, so whatever the reason is, it is not
-in that arithmetic - suspect the sub-window against `x_gap` and the mirrored
-MADCTL, or the band buffer being re-cut to a different number of rows. See the
-revert of be54577. Worth another go, but not without a panel in front of you.
+**The AMOLED's controller ignores the low bit of a window coordinate.** A
+window asked to start on an odd row or column does not fail - it lands a pixel
+off. Waveshare's own LVGL glue rounds every area to an even start and an odd end
+before it is allowed near this glass, on both axes, and nothing else in their
+stack ever sends an unaligned window, which is why the requirement is invisible
+until you drive the panel yourself. It cost this project days, twice over:
+
+- The face's flush band starts wherever the face is, so its start row's parity
+  changed frame to frame - and every *static* pixel in those rows was parked one
+  row up or down depending on which frame last sent it. Figures and bars that
+  never moved in the framebuffer visibly danced at the frame rate, the
+  framebuffer checksummed identical the whole time, and syncing to the tearing
+  line changed nothing, because nothing about it was timing.
+- A flush cut down to the face's columns as well as its rows (see the revert of
+  be54577) put odd *column* starts in front of the panel too, and the face left
+  slivers of itself a pixel to the side, where nothing would ever clear them.
+  The box's arithmetic was checked repeatedly and was never wrong; its parity
+  was. That flush is worth re-landing - it was two thirds of the flush and
+  fifteen frames a second - now that windows are aligned.
+
+The LCD board's ST77916 addresses single pixels and has no such rule, which is
+why the same firmware never showed any of this on the other glass.
 
 **The AMOLED board does not reach sixty frames a second.** It has 1.67x the
 pixels of the LCD board, and a scene drawn a pixel at a time costs all of them.
