@@ -136,13 +136,19 @@ constexpr int16_t STAR_SCALE = 2;
 // past that edge, where nothing ever clears them again - which is a line of
 // specks left standing on the glass.
 constexpr int16_t STAR_REACH = 3 * STAR_SCALE;
-// How far above and below the sprite they range. Raw pixels rather than scaled
-// ones, because the sprite they are sized against is raw too - and wider than
-// the cat, so the field reads as something it is inside rather than as a line it
-// is on.
-constexpr int16_t SCENE_BAND = 43;
-constexpr int16_t SCENE_TOP = (int16_t)NYAN_Y - SCENE_BAND;
-constexpr int16_t SCENE_BOTTOM = (int16_t)NYAN_Y + SCENE_BAND;
+// How far above and below the sprite they range. Below, raw pixels rather than
+// scaled ones, because the sprite they are sized against is raw too - and wider
+// than the cat, so the field reads as something it is inside rather than as a
+// line it is on.
+//
+// Above, the glass runs out before anything else does: there is nothing up
+// there for the field to collide with, and a field that stops on a straight
+// line of its own has an edge the round panel never gave it. Row nought is the
+// top of the bounding square rather than of the circle, so the last few rows
+// hold nothing - starSpan is what says which ones, and it says it per row
+// rather than being told once here.
+constexpr int16_t SCENE_TOP = 0;
+constexpr int16_t SCENE_BOTTOM = (int16_t)NYAN_Y + 43;
 // The band is cleared and sent whole, so anything it reaches down into is
 // something it wipes and does not put back. The dials are the next thing down.
 static_assert(SCENE_BOTTOM < DIAL_TOP, "the star band would wipe the dials");
@@ -294,14 +300,21 @@ float starSpan(int16_t y) {
 void starPlace(Star &s, float dir, bool seed) {
   // Its own reach kept inside the band as well, so everything drawn is inside
   // what gets cleared.
-  constexpr float ROOM = (float)(SCENE_BAND - STAR_REACH);
+  constexpr float TOP_ROW = (float)(SCENE_TOP + STAR_REACH);
+  constexpr float BOTTOM_ROW = (float)(SCENE_BOTTOM - STAR_REACH);
   float span = -1.0f;
   for (uint8_t tries = 0; tries < 8 && span < (float)STAR_REACH; tries++) {
-    s.y = (int16_t)(NYAN_Y + wander(-ROOM, ROOM));
+    s.y = (int16_t)wander(TOP_ROW, BOTTOM_ROW);
     span = starSpan(s.y);
   }
+  // Eight rolls and none of them fit is the very top of the glass, where the
+  // circle has all but closed. Put it back on the sprite's own row, which is
+  // the widest there is - the row it last rolled is one a star hangs off the
+  // side of, and calling its span the star's own width does not put it back on
+  // the panel, it only stops the loop complaining.
   if (span < (float)STAR_REACH) {
-    span = (float)STAR_REACH;
+    s.y = (int16_t)NYAN_Y;
+    span = starSpan(s.y);
   }
   s.span = span;
   // A spread of speeds and not one speed, or the field moves like a wall rather
