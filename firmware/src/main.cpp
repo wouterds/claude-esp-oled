@@ -285,10 +285,9 @@ void loop() {
   }
 
   Swipe swipe = touchSwiped();
-  // The details are pulled down over the face the way a shade comes down, the
-  // settings down over those, and each pushed back up off the glass the way it
-  // came. Down-to-open outlived up-to-open on feel alone: the finger starts on
-  // the face and drags the next page onto it.
+  // The details are pushed up over the face, the settings up over those, and
+  // each pulled back down off the glass the way it came: the pages stack upward
+  // from the face, and a swipe walks the stack.
   //
   // Not while a finger is on a slider. A drag along a track wanders up and down
   // as well, and that wander is otherwise the swipe that takes the page away
@@ -298,13 +297,13 @@ void loop() {
   if (settingsHolding() || infoFullscreen()) {
     swipe = Swipe::None;
   }
-  if (swipe == Swipe::Down && page == Page::Main) {
-    turnTo(Page::Info);
-  } else if (swipe == Swipe::Down && page == Page::Info) {
-    turnTo(Page::Settings);
-  } else if (swipe == Swipe::Up && page == Page::Settings) {
+  if (swipe == Swipe::Up && page == Page::Main) {
     turnTo(Page::Info);
   } else if (swipe == Swipe::Up && page == Page::Info) {
+    turnTo(Page::Settings);
+  } else if (swipe == Swipe::Down && page == Page::Settings) {
+    turnTo(Page::Info);
+  } else if (swipe == Swipe::Down && page == Page::Info) {
     turnTo(Page::Main);
   }
 

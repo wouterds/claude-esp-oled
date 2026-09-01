@@ -15,10 +15,10 @@ and the page there takes a claude.ai session token - which is kept on the device
 and only ever sent back to the origin it came from.
 
 Double-tap the glass to put the two percentages up, with a countdown to the next
-reset under the face; double-tap again to take them away. Swipe down for the
-charge, the network, the address and the commit it is running, and down again
+reset under the face; double-tap again to take them away. Swipe up for the
+charge, the network, the address and the commit it is running, and up again
 for brightness and volume - tap or drag either slider, and it remembers. Swipe
-up to send each page back. Double-tap the cat and it takes the whole glass;
+down to send each page back. Double-tap the cat and it takes the whole glass;
 double-tap again to give it back.
 
 Neither button is wired to anything the firmware can use. `PWR` switches the
