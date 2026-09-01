@@ -19,6 +19,7 @@
 #include "net.h"
 #include "outage.h"
 #include "portal.h"
+#include "settings.h"
 #include "text.h"
 #include "usage.h"
 
@@ -30,9 +31,10 @@ static constexpr uint32_t FRAME_US = 16667;
 static uint32_t lastFrame = 0;
 static uint32_t nextFrame = 0;
 
-// Two of them, a swipe apart: the face, and what it is running on. Neither knows
-// the other exists - what turns the page is here.
-enum class Page : uint8_t { Main, Info };
+// Three of them, a swipe apart each: the face, what it is running on, and the
+// two things about it that are somebody's taste. None knows the others exist -
+// what turns the page is here.
+enum class Page : uint8_t { Main, Info, Settings };
 static Page page = Page::Main;
 
 // The frame rate, put on the glass rather than into the log, for when the thing
@@ -196,6 +198,11 @@ static void turnTo(Page to) {
     infoStep(fb);
     return;
   }
+  if (to == Page::Settings) {
+    settingsForget();
+    settingsStep(fb);
+    return;
+  }
   // The bars are a blit of pixels already worked out, and status redraws both
   // its bands when it is told the whole panel was painted over - which it was.
   gaugeDraw(fb, 0, SCREEN_W - 1, 0, SCREEN_H - 1);
@@ -212,7 +219,9 @@ void setup() {
   // writes instead: a truncated log line is cheaper than a frozen panel.
   Serial.setTxTimeoutMs(0);
   Serial.printf("reset: %s\n", why(esp_reset_reason()));
-  if (!boardBegin(100)) {
+  // Before the panel, which comes up at whatever this says.
+  settingsBegin();
+  if (!boardBegin(settingsBrightness())) {
     while (true) {
       delay(1000);
     }
@@ -224,6 +233,7 @@ void setup() {
   touchBegin();
   buttonBegin();
   audioBegin();
+  audioVolume(settingsVolume());
   wifiBegin();
   portalBegin();
   usageBegin();
@@ -262,13 +272,27 @@ void loop() {
   // Both pages, because what it measures is the whole board rather than the page
   // in front of it.
   loadStep();
+  // Both pages as well: a change made just before the page was left still has
+  // to reach the flash.
+  settingsKeep();
 
   Swipe swipe = touchSwiped();
-  // The details are pulled down over the face the way a shade comes down, and
-  // pushed back up off the glass the way they came. Down-to-open outlived
-  // up-to-open on feel alone: the finger starts on the face and drags the next
-  // page onto it.
+  // The details are pulled down over the face the way a shade comes down, the
+  // settings down over those, and each pushed back up off the glass the way it
+  // came. Down-to-open outlived up-to-open on feel alone: the finger starts on
+  // the face and drags the next page onto it.
+  //
+  // Not while a finger is on a slider. A drag along a track wanders up and down
+  // as well, and that wander is otherwise the swipe that takes the page away
+  // from under the finger setting it.
+  if (settingsHolding()) {
+    swipe = Swipe::None;
+  }
   if (swipe == Swipe::Down && page == Page::Main) {
+    turnTo(Page::Info);
+  } else if (swipe == Swipe::Down && page == Page::Info) {
+    turnTo(Page::Settings);
+  } else if (swipe == Swipe::Up && page == Page::Settings) {
     turnTo(Page::Info);
   } else if (swipe == Swipe::Up && page == Page::Info) {
     turnTo(Page::Main);
@@ -292,8 +316,12 @@ void loop() {
     }
   }
 
-  if (page == Page::Info) {
-    infoStep(boardFramebuffer());
+  if (page != Page::Main) {
+    if (page == Page::Info) {
+      infoStep(boardFramebuffer());
+    } else {
+      settingsStep(boardFramebuffer());
+    }
     if (counting) {
       countFrames(boardFramebuffer());
     }
