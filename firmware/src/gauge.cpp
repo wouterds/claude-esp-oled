@@ -187,16 +187,6 @@ uint16_t colourAt(float percent) {
                     ((uint16_t)(g * 63.0f / 255.0f) << 5) | (uint16_t)(b * 31.0f / 255.0f));
 }
 
-// Between two of the panel's colours, in its own five and six bit channels.
-uint16_t between(uint16_t a, uint16_t b, float t) {
-  float ar = (float)((a >> 11) & 0x1F), ag = (float)((a >> 5) & 0x3F), ab = (float)(a & 0x1F);
-  float br = (float)((b >> 11) & 0x1F), bg = (float)((b >> 5) & 0x3F), bb = (float)(b & 0x1F);
-  uint16_t r = (uint16_t)(ar + (br - ar) * t + 0.5f);
-  uint16_t g = (uint16_t)(ag + (bg - ag) * t + 0.5f);
-  uint16_t bl = (uint16_t)(ab + (bb - ab) * t + 0.5f);
-  return (uint16_t)((r << 11) | (g << 5) | bl);
-}
-
 uint16_t shade(uint16_t colour, float coverage) {
   coverage *= alpha;
   uint16_t r = (uint16_t)(((colour >> 11) & 0x1F) * coverage);
@@ -261,11 +251,13 @@ void build(uint8_t side, float percent) {
       // track's throughout and only the colour crosses over.
       float d = sdArc(px, py, track);
       uint16_t colour = TRACK;
-      if (fraction > 0.0f) {
-        float over = clamp01(0.5f - sdArc(px, py, fill));
-        if (over > 0.0f) {
-          colour = over >= 1.0f ? filled : between(TRACK, filled, over);
-        }
+      // The colour crosses on the fill's own edge rather than on a fade of it.
+      // Both distances fall away together across the bar's width, so a fade
+      // driven by one of them greys off every antialiased pixel down both long
+      // edges of the fill - which leaves it fringed rather than filled, and the
+      // fringe shifts along the curve as the bar bends.
+      if (fraction > 0.0f && sdArc(px, py, fill) < 0.5f) {
+        colour = filled;
       }
       float coverage = 0.5f - d;
       if (coverage <= 0.02f) {
