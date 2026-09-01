@@ -35,10 +35,10 @@ namespace {
 constexpr float MIDDLE = (float)(SCREEN_W - 1) * 0.5f;
 constexpr float BAR_X = MIDDLE;
 // Further from its title on the LCD board, whose glass is the tighter: the bar
-// goes down two and the title up one.
+// goes down three and the title up three.
 #if defined(BOARD_LCD_185B)
-constexpr float BAR_DOWN = 2.0f;
-constexpr float BAR_TITLE_UP = 1.0f;
+constexpr float BAR_DOWN = 3.0f;
+constexpr float BAR_TITLE_UP = 3.0f;
 #else
 constexpr float BAR_DOWN = 0.0f;
 constexpr float BAR_TITLE_UP = 0.0f;
