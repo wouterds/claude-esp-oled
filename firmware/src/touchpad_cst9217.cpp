@@ -37,7 +37,7 @@ bool touchpadBegin() {
   return present;
 }
 
-bool touchpadRead(bool *down, int16_t *along) {
+bool touchpadRead(bool *down, int16_t *along, int16_t *across) {
   uint8_t report[REPORT_BYTES];
 
   busTake();
@@ -59,14 +59,16 @@ bool touchpadRead(bool *down, int16_t *along) {
   if ((report[5] & 0x7F) == 0 || (report[0] & 0x0F) != TOUCHING) {
     *down = false;
     *along = 0;
+    *across = 0;
     return true;
   }
 
   // Twelve bits each, sharing the byte between them: the high eight of x, the
   // high eight of y, then their low nibbles packed into one. The controller
   // counts the way the turned scene is drawn - established with a finger, not a
-  // datasheet - so the reading is already the distance it claims to be.
+  // datasheet - so the readings are already the distances they claim to be.
   *down = true;
   *along = (int16_t)((report[2] << 4) | (report[3] & 0x0F));
+  *across = (int16_t)((report[1] << 4) | (report[3] >> 4));
   return true;
 }

@@ -32,10 +32,12 @@ bool touchpadBegin() {
   return present;
 }
 
-bool touchpadRead(bool *down, int16_t *along) {
+bool touchpadRead(bool *down, int16_t *along, int16_t *across) {
   uint8_t fingers = 0;
-  uint8_t high = 0;
-  uint8_t low = 0;
+  uint8_t xHigh = 0;
+  uint8_t xLow = 0;
+  uint8_t yHigh = 0;
+  uint8_t yLow = 0;
 
   busTake();
   Wire.beginTransmission(TOUCH_ADDR);
@@ -44,21 +46,23 @@ bool touchpadRead(bool *down, int16_t *along) {
              Wire.requestFrom((int)TOUCH_ADDR, (int)REPORT_BYTES) == REPORT_BYTES;
   if (got) {
     fingers = Wire.read();
-    high = Wire.read();
-    low = Wire.read();
-    Wire.read();
-    Wire.read();
+    xHigh = Wire.read();
+    xLow = Wire.read();
+    yHigh = Wire.read();
+    yLow = Wire.read();
   }
   busGive();
   if (!got) {
     return false;
   }
 
-  // The top nibble of the high byte is the event, not the coordinate. What is
+  // The top nibble of each high byte is the event, not the coordinate. What is
   // left is the axis the controller calls X, which on this mounting runs down
   // the glass rather than across it - so it is read as a distance from the top,
-  // turned the way everything drawn here is turned.
+  // turned the way everything drawn here is turned - and its Y, which runs
+  // across and the right way round: the sheet is turned, not mirrored.
   *down = fingers != 0;
-  *along = (int16_t)(SCREEN_W - 1 - (((high & 0x0F) << 8) | low));
+  *along = (int16_t)(SCREEN_W - 1 - (((xHigh & 0x0F) << 8) | xLow));
+  *across = (int16_t)(((yHigh & 0x0F) << 8) | yLow);
   return true;
 }

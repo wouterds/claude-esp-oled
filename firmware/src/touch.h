@@ -19,3 +19,7 @@ void touchBegin();
 // A finger crossed the glass, reported while it was still down. Cleared by the
 // asking, so one swipe cannot be acted on twice.
 Swipe touchSwiped();
+
+// Where the finger is right now, in the scene's own pixels, or false with
+// nobody on the glass. For the one page with something on it to hold.
+bool touchFinger(int16_t *across, int16_t *along);

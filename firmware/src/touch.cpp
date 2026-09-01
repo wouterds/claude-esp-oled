@@ -36,6 +36,9 @@ int16_t fromAlong = 0;
 uint32_t lastReport = 0;
 
 volatile Swipe went = Swipe::None;
+volatile bool fingerDown = false;
+volatile int16_t fingerAcross = 0;
+volatile int16_t fingerAlong = 0;
 
 void IRAM_ATTR onReport() {
   BaseType_t woken = pdFALSE;
@@ -49,16 +52,21 @@ void lift() {
   // for the next finger to put back.
   down = false;
   fired = false;
+  fingerDown = false;
 }
 
 void look() {
   bool touching = false;
   int16_t along = 0;
-  if (!touchpadRead(&touching, &along)) {
+  int16_t across = 0;
+  if (!touchpadRead(&touching, &along, &across)) {
     return;
   }
 
   lastReport = millis();
+  fingerAcross = across;
+  fingerAlong = along;
+  fingerDown = touching;
   if (!touching) {
     if (down) {
       lift();
@@ -128,4 +136,10 @@ Swipe touchSwiped() {
   Swipe was = went;
   went = Swipe::None;
   return was;
+}
+
+bool touchFinger(int16_t *across, int16_t *along) {
+  *across = fingerAcross;
+  *along = fingerAlong;
+  return fingerDown;
 }
