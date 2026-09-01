@@ -640,6 +640,13 @@ void line(uint16_t *fb, const char *s, int16_t top, uint16_t colour) {
   textDraw(fb, fits, (int16_t)SCREEN_R, top, LINE_SCALE, boardColour(colour));
 }
 
+#if NYAN_FRAMES > 0
+// Where a tap counts as landing on the cat rather than beside it. Full glass
+// while it is big; its own band at the top of the page while it is small, the
+// same band a tap has to land in to take the glass in the first place.
+bool onCat(int16_t along) { return big || along <= SCENE_BOTTOM; }
+#endif
+
 }  // namespace
 
 void infoForget() {
@@ -655,15 +662,22 @@ void infoForget() {
 
 void infoTapped(int16_t, int16_t along) {
 #if NYAN_FRAMES > 0
-  // On the way in it has to be the cat's own band; on the way out, anywhere -
-  // the cat is everywhere.
-  if (!big && along > SCENE_BOTTOM) {
+  if (!onCat(along)) {
     return;
   }
   big = !big;
   fresh = true;
   starsSeed();
   audioSong(big);
+#endif
+}
+
+void infoSingleTapped(int16_t, int16_t along) {
+#if NYAN_FRAMES > 0
+  if (!onCat(along)) {
+    return;
+  }
+  leftward = !leftward;
 #endif
 }
 

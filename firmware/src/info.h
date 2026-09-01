@@ -20,6 +20,11 @@ void infoForget();
 // the whole glass; anywhere while it has it, the page comes back.
 void infoTapped(int16_t across, int16_t along);
 
+// A single tap has landed on the page, at this spot. On the cat, whichever size
+// it is, it turns round and runs the other way; off it while it is small,
+// nothing happens.
+void infoSingleTapped(int16_t across, int16_t along);
+
 // The cat has the glass. Nothing turns the page while it does - it is asked to
 // leave the way it was asked in.
 bool infoFullscreen();

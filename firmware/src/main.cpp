@@ -282,6 +282,9 @@ void loop() {
   if (touchDoubleTapped(&tapAcross, &tapAlong) && page == Page::Info) {
     infoTapped(tapAcross, tapAlong);
   }
+  if (touchTapped(&tapAcross, &tapAlong) && page == Page::Info) {
+    infoSingleTapped(tapAcross, tapAlong);
+  }
 
   Swipe swipe = touchSwiped();
   // The details are pushed up over the face, the settings up over those, and
