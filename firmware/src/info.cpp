@@ -62,7 +62,7 @@ constexpr float DIAL_R = 35.0f * SCENE;
 // Half the band's thickness. The bars on the face are 3.5 the same way, so the
 // two read as the same weight of line at a glance.
 constexpr float DIAL_T = 3.5f * SCENE;
-constexpr float DIAL_Y = 156.0f * SCENE;
+constexpr float DIAL_Y = 154.0f * SCENE;
 // Centre to centre. Wider than the bar under them rather than flush with its
 // ends, which is what spreads the three across the glass instead of huddling
 // them over it.
