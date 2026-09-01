@@ -42,7 +42,12 @@ constexpr int16_t ALARM_HALF = (int16_t)(15 * SCENE);
 constexpr int16_t WIFI_X = (int16_t)(160 * SCENE);
 constexpr int16_t BATTERY_X = (int16_t)(199 * SCENE);
 
-constexpr int16_t ADDRESS_Y = (int16_t)(310 * SCENE);
+// Held off the rim rather than scaled from the top: the glyphs are the same
+// size on either glass, so what reads the same is the same margin of glass
+// beneath them - scaled instead, the line floats higher the bigger the panel
+// gets. Fifty is the fourteen rows of type plus the thirty-six of margin it
+// has always had, so on the LCD board this is still row 310.
+constexpr int16_t ADDRESS_Y = (int16_t)(SCREEN_H - 50);
 constexpr int16_t BOTTOM_SCALE = 2;
 constexpr int16_t BOTTOM_FROM = ADDRESS_Y - 3;
 constexpr int16_t BOTTOM_TO = ADDRESS_Y + 16;
