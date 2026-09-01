@@ -20,6 +20,7 @@
 #include "portal.h"
 #include "settings.h"
 #include "shape.h"
+#include "soon.h"
 #include "text.h"
 #include "usage.h"
 
@@ -31,10 +32,10 @@ static constexpr uint32_t FRAME_US = 16667;
 static uint32_t lastFrame = 0;
 static uint32_t nextFrame = 0;
 
-// Three of them, a swipe apart each: the face, what it is running on, and the
-// two things about it that are somebody's taste. None knows the others exist -
-// what turns the page is here.
-enum class Page : uint8_t { Main, Info, Settings };
+// Four of them, a swipe apart each: the face, what it is running on, the two
+// things about it that are somebody's taste - and under the face, a page with
+// nothing on it yet. None knows the others exist - what turns the page is here.
+enum class Page : uint8_t { Main, Info, Settings, Soon };
 static Page page = Page::Main;
 
 // The frame rate, put on the glass rather than into the log, for when the thing
@@ -196,6 +197,11 @@ static void turnTo(Page to) {
     settingsStep(fb);
     return;
   }
+  if (to == Page::Soon) {
+    soonDraw(fb);
+    boardFlush();
+    return;
+  }
   // The bars are a blit of pixels already worked out, and status redraws both
   // its bands when it is told the whole panel was painted over - which it was.
   gaugeDraw(fb, 0, SCREEN_W - 1, 0, SCREEN_H - 1);
@@ -280,7 +286,8 @@ void loop() {
   Swipe swipe = touchSwiped();
   // The details are pushed up over the face, the settings up over those, and
   // each pulled back down off the glass the way it came: the pages stack upward
-  // from the face, and a swipe walks the stack.
+  // from the face, and a swipe walks the stack. The one page under the face is
+  // pulled down onto it and pushed back up off it.
   //
   // Not while a finger is on a slider. A drag along a track wanders up and down
   // as well, and that wander is otherwise the swipe that takes the page away
@@ -297,6 +304,10 @@ void loop() {
   } else if (swipe == Swipe::Down && page == Page::Settings) {
     turnTo(Page::Info);
   } else if (swipe == Swipe::Down && page == Page::Info) {
+    turnTo(Page::Main);
+  } else if (swipe == Swipe::Down && page == Page::Main) {
+    turnTo(Page::Soon);
+  } else if (swipe == Swipe::Up && page == Page::Soon) {
     turnTo(Page::Main);
   }
 
@@ -319,9 +330,11 @@ void loop() {
   }
 
   if (page != Page::Main) {
+    // The page under the face has nothing to step: it was drawn whole on the
+    // way in and stays as it is.
     if (page == Page::Info) {
       infoStep(boardFramebuffer());
-    } else {
+    } else if (page == Page::Settings) {
       settingsStep(boardFramebuffer());
     }
     if (counting) {
