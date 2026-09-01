@@ -26,7 +26,10 @@ constexpr float HALF_THICK = 3.5f * SCENE;
 // ninety - so it goes over those rows without going through anything. With the
 // address gone both ends go out together and the bar stays symmetric about the
 // horizontal, which is what it looks like it ought to be.
-constexpr float SWEEP_SHORT = 0.91f;
+// The AMOLED board gets a tenth more of the short one: the line at the bottom
+// is the same size of type on a bigger glass, so it claims less of the circle
+// and the caps have further to go before they crowd it. By eye, as ever.
+constexpr float SWEEP_SHORT = SCENE > 1.0f ? 1.0f : 0.91f;
 constexpr float SWEEP_TOP = 1.13f;
 constexpr float SWEEP_BOTTOM = 1.13f;
 // How long the bars take to pull in behind the numbers, and to come back out
