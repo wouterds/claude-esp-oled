@@ -15,8 +15,8 @@ and the page there takes a claude.ai session token - which is kept on the device
 and only ever sent back to the origin it came from.
 
 Double-tap the glass to put the two percentages up, with a countdown to the next
-reset under the face; double-tap again to take them away. Swipe up for the
-charge, the network, the address and the commit it is running, and down to come
+reset under the face; double-tap again to take them away. Swipe down for the
+charge, the network, the address and the commit it is running, and up to send it
 back.
 
 Neither button is wired to anything the firmware can use. `PWR` switches the

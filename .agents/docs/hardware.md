@@ -204,8 +204,8 @@ cost a day to find the first time.
 **Both glasses are mounted upside down.** The scene is written into the
 framebuffer turned 180 degrees for the LCD board's mounting, and the AMOLED's
 glass turned out to sit the same way - so its panel applies no MADCTL transform
-at all, and its touch controller's readings are turned over in
-touchpad_cst9217.cpp for the same reason.
+at all, and its touch controller already counts the way the turned scene is
+drawn, so its readings are taken as they come.
 
 **The AMOLED panel's tearing-effect line is on `GPIO13`.** It is not in
 Waveshare's pin header; it was found by watching every pin the board leaves

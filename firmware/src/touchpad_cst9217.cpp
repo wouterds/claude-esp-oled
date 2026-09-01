@@ -64,10 +64,9 @@ bool touchpadRead(bool *down, int16_t *along) {
 
   // Twelve bits each, sharing the byte between them: the high eight of x, the
   // high eight of y, then their low nibbles packed into one. The controller
-  // counts from its own top, the glass is mounted the other way up, so the
-  // scene's down is this reading turned over.
+  // counts the way the turned scene is drawn - established with a finger, not a
+  // datasheet - so the reading is already the distance it claims to be.
   *down = true;
-  int16_t y = (int16_t)((report[2] << 4) | (report[3] & 0x0F));
-  *along = (int16_t)(SCREEN_H - 1 - y);
+  *along = (int16_t)((report[2] << 4) | (report[3] & 0x0F));
   return true;
 }

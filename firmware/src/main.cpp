@@ -243,11 +243,13 @@ void loop() {
   wasCharging = charging;
 
   Swipe swipe = touchSwiped();
-  // The other page comes up from below, dragged onto the glass, and is pushed
-  // back down off it the way it came.
-  if (swipe == Swipe::Up && page == Page::Main) {
+  // The details are pulled down over the face the way a shade comes down, and
+  // pushed back up off the glass the way they came. Down-to-open outlived
+  // up-to-open on feel alone: the finger starts on the face and drags the next
+  // page onto it.
+  if (swipe == Swipe::Down && page == Page::Main) {
     turnTo(Page::Info);
-  } else if (swipe == Swipe::Down && page == Page::Info) {
+  } else if (swipe == Swipe::Up && page == Page::Info) {
     turnTo(Page::Main);
   }
 
