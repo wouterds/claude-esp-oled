@@ -53,14 +53,18 @@ constexpr int16_t BOX_Y1 = (int16_t)(342 * SCENE);
 constexpr uint16_t TRACK = 0x4A49;
 
 // Where the two numbers go when they are asked for: level with the middle of
-// the glass and tucked inside their own bar.
-constexpr int16_t FIGURE_X = (int16_t)(46 * SCENE);
+// the glass and tucked inside their own bar. Held off the bar rather than
+// scaled from the middle: the glyphs are the same size on either glass, and
+// scaled, they floated away from the bar they name. Thirty-nine in from the
+// bar's centreline - which on the LCD board is the 46 it always was.
+constexpr int16_t FIGURE_X = (int16_t)(SCREEN_R - RADIUS + 39.0f);
 // The top of the glyphs, because that is what the font is given - measure the
 // box around them from their middle and it comes up four rows short at the
 // bottom, which is exactly the part of a digit that survives being cleared.
-constexpr int16_t FIGURE_TOP = (int16_t)(173 * SCENE);
-constexpr int16_t FIGURE_HEIGHT = (int16_t)(14 * SCENE);
-constexpr int16_t FIGURE_HW = (int16_t)(28 * SCENE);
+// Seven above the middle, and unscaled below it, because the type is.
+constexpr int16_t FIGURE_TOP = (int16_t)(SCREEN_R - 7.0f);
+constexpr int16_t FIGURE_HEIGHT = 14;
+constexpr int16_t FIGURE_HW = 28;
 
 // How fast a bar closes on the number it was given. Exponential rather than a
 // timed ease, so a bar already on its way somewhere just bends.
