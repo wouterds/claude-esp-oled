@@ -16,8 +16,9 @@ and only ever sent back to the origin it came from.
 
 Double-tap the glass to put the two percentages up, with a countdown to the next
 reset under the face; double-tap again to take them away. Swipe down for the
-charge, the network, the address and the commit it is running, and up to send it
-back.
+charge, the network, the address and the commit it is running, and down again
+for brightness and volume - tap or drag either slider, and it remembers. Swipe
+up to send each page back.
 
 Neither button is wired to anything the firmware can use. `PWR` switches the
 power path and the chip cannot see it - it is the small one beside the USB-C,
