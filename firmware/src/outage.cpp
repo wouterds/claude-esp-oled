@@ -5,6 +5,7 @@
 #include <WiFiClientSecure.h>
 
 #include "audio.h"
+#include "net.h"
 #include "wifi.h"
 
 namespace {
@@ -15,10 +16,16 @@ constexpr uint32_t RETRY_MS = 15000;
 // While there is nothing to ask over. Short, because this is the gap between
 // the radio joining and the first answer.
 constexpr uint32_t WAITING_MS = 400;
+// The status page is a couple of kilobytes and has been for as long as it has
+// been asked. Anything claiming to be much larger is not a reply this needs.
+constexpr size_t MOST = 16384;
+// Between bytes, not for the whole read: a reply still arriving has not stalled
+// however long it takes, and one that has stopped is not coming.
+constexpr uint32_t PATIENCE_MS = 6000;
 
 volatile Outage level = Outage::Unknown;
 
-bool get(String &out) {
+bool fetch(String &out) {
   WiFiClientSecure tls;
   // No certificate store on the device, and nothing of ours goes up with it.
   tls.setInsecure();
@@ -35,9 +42,18 @@ bool get(String &out) {
     http.end();
     return false;
   }
-  out = http.getString();
+  bool read = netBody(http, out, MOST, PATIENCE_MS);
   http.end();
-  return true;
+  return read;
+}
+
+// The session is the expensive part and it starts inside fetch, so the lock goes
+// round the whole of it rather than round the socket.
+bool get(String &out) {
+  netTake();
+  bool got = fetch(out);
+  netGive();
+  return got;
 }
 
 // Only the components say what is actually broken. The page's own indicator is
@@ -118,6 +134,21 @@ void task(void *) {
 
 }  // namespace
 
-void outageBegin() { xTaskCreatePinnedToCore(task, "outage", 12288, nullptr, 1, nullptr, 0); }
+// Priority nought, which is the idle task's own, and deliberately.
+//
+// This task spends its time inside HTTPClient, and HTTPClient waits on a socket
+// by polling it in a loop that yields rather than blocks. A task above priority
+// nought that only yields never lets the idle task on its core run at all - and
+// the idle task is what the task watchdog is watching, so a reply that takes its
+// time is not a slow read but a reboot five seconds later, blamed on whichever
+// poller happened to be holding the socket.
+//
+// Neither loop is ours to fix. What is ours is what the spinning can cost:
+// level with the idle task, the two are time sliced against each other, so the
+// idle task is scheduled whatever the framework does in here and the watchdog
+// stays fed. Nothing is given up for it either - this is a poller on a minute's
+// timer sharing a core that is otherwise asleep, and the face is on the other
+// one.
+void outageBegin() { xTaskCreatePinnedToCore(task, "outage", 12288, nullptr, 0, nullptr, 0); }
 
 Outage outageLevel() { return level; }

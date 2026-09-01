@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <math.h>
 #include <string.h>
@@ -14,6 +15,8 @@
 #include "face.h"
 #include "gauge.h"
 #include "info.h"
+#include "load.h"
+#include "net.h"
 #include "outage.h"
 #include "portal.h"
 #include "text.h"
@@ -143,6 +146,18 @@ static const char *why(esp_reset_reason_t reason) {
       return "panic";
     case ESP_RST_BROWNOUT:
       return "brownout";
+    // The four that a reset nobody asked for actually comes back as. Left off,
+    // every one of them reads "other", which is the same thing the log says for
+    // a reset that is entirely ordinary - and telling a watchdog from a monitor
+    // being plugged in is the whole reason the reason is printed.
+    case ESP_RST_TASK_WDT:
+      return "task watchdog";
+    case ESP_RST_INT_WDT:
+      return "interrupt watchdog";
+    case ESP_RST_WDT:
+      return "another watchdog";
+    case ESP_RST_USB:
+      return "usb peripheral";
     default:
       return "other";
   }
@@ -183,7 +198,7 @@ static void turnTo(Page to) {
   }
   // The bars are a blit of pixels already worked out, and status redraws both
   // its bands when it is told the whole panel was painted over - which it was.
-  gaugeDraw(fb);
+  gaugeDraw(fb, 0, SCREEN_W - 1, 0, SCREEN_H - 1);
   statusDraw(fb, 0, SCREEN_H - 1);
   boardFlush();
 }
@@ -203,6 +218,8 @@ void setup() {
     }
   }
   busBegin();
+  netBegin();
+  loadBegin();
   batteryBegin();
   touchBegin();
   buttonBegin();
@@ -241,6 +258,10 @@ void loop() {
     audioPlugged();
   }
   wasCharging = charging;
+
+  // Both pages, because what it measures is the whole board rather than the page
+  // in front of it.
+  loadStep();
 
   Swipe swipe = touchSwiped();
   // The details are pulled down over the face the way a shade comes down, and
@@ -288,9 +309,10 @@ void loop() {
   gaugeStep(boardFramebuffer(), now);
   faceStep(dt);
   faceDraw(boardFramebuffer(), &from, &to, &colFrom, &colTo);
-  // The face clears a box wide enough to reach both bars, so they go back in
-  // before the flush rather than being repaired after it.
-  gaugeDraw(boardFramebuffer());
+  // Whatever of the bars the face just cleared goes back in before the flush
+  // rather than being repaired after it - and only that much of them, since the
+  // rest of the panel is neither cleared nor sent.
+  gaugeDraw(boardFramebuffer(), colFrom, colTo, from, to);
   uint32_t t1 = micros();
   boardFlushRect(colFrom, colTo, from, to);
   statusDraw(boardFramebuffer(), from, to);
@@ -309,6 +331,10 @@ void loop() {
   if (++frames == 60) {
     Serial.printf("frame: draw %lu us, flush %lu us, %lu fps\n", drawUs / frames,
                   flushUs / frames, 1000000UL / ((drawUs + flushUs) / frames));
+    Serial.printf("heap: internal %u free (min %u, largest %u)\n",
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     frames = drawUs = flushUs = 0;
   }
 

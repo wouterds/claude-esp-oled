@@ -30,6 +30,16 @@ float gaugeFiguresLevel();
 // bar on the panel itself.
 void gaugeStep(uint16_t *fb, uint32_t now);
 
-// Puts them back into the framebuffer. Cheap: a blit of the pixels gaugeBegin
-// worked out, not the shapes again.
-void gaugeDraw(uint16_t *fb);
+// The colour a reading of this size wears, off the one ramp the whole device
+// shares: the teal it starts at, through yellow and amber, to the brand's pink
+// at the top. Anything that puts a percentage on the glass takes its colour from
+// here, or the same number means one thing on the face and another beside it.
+uint16_t gaugeColour(uint8_t percent);
+
+// Puts them back into the framebuffer, over the box about to be sent and no
+// wider - the box arrives the way boardFlushRect takes it. A blit of the pixels
+// gaugeBegin worked out rather than the shapes again, but there are twenty
+// thousand of them and the face's box is a fifth of the panel across: outside
+// it nothing was cleared and nothing is going out, so a pixel written there is
+// a write into PSRAM that no eye ever sees.
+void gaugeDraw(uint16_t *fb, int16_t x0, int16_t x1, int16_t from, int16_t to);

@@ -95,6 +95,15 @@ enum class Phase : uint8_t { Hidden, Fading, Live };
 
 Pixel *pixels = nullptr;
 uint16_t count[2] = {0, 0};
+// The box each side's pixels actually land in. A bar is a thin arc against one
+// edge of the glass and the face's box is a fifth of the panel across, so on
+// almost every frame the two do not meet at all - and the cheapest way to put
+// back the part of a bar that was painted over is to notice, in two comparisons,
+// that none of it was.
+int16_t edgeX0[2] = {0, 0};
+int16_t edgeX1[2] = {0, 0};
+int16_t edgeY0[2] = {0, 0};
+int16_t edgeY1[2] = {0, 0};
 Phase phase = Phase::Hidden;
 float alpha = 0.0f;
 // Nought while the address has the bottom of the glass, one when it does not.
@@ -228,6 +237,10 @@ bool ringSpan(float py, int16_t &x0, int16_t &x1) {
 void build(uint8_t side, float percent) {
   bool right = side == 1;
   count[side] = 0;
+  edgeX0[side] = SCREEN_W;
+  edgeX1[side] = -1;
+  edgeY0[side] = SCREEN_H;
+  edgeY1[side] = -1;
   uint16_t filled = colourAt(percent);
   float fraction = clamp01(percent / 100.0f);
 
@@ -271,8 +284,12 @@ void build(uint8_t side, float percent) {
         continue;
       }
       if (count[side] < SIDE_PIXELS) {
-        pixels[side * SIDE_PIXELS + count[side]++] = {
-            right ? (int16_t)(SCREEN_W - 1 - x) : x, y, shade(colour, clamp01(coverage))};
+        int16_t at = right ? (int16_t)(SCREEN_W - 1 - x) : x;
+        pixels[side * SIDE_PIXELS + count[side]++] = {at, y, shade(colour, clamp01(coverage))};
+        if (at < edgeX0[side]) edgeX0[side] = at;
+        if (at > edgeX1[side]) edgeX1[side] = at;
+        if (y < edgeY0[side]) edgeY0[side] = y;
+        if (y > edgeY1[side]) edgeY1[side] = y;
       }
     }
   }
@@ -342,7 +359,8 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
     wipe(fb);
     build(0, shown[0]);
     build(1, shown[1]);
-    gaugeDraw(fb);
+    gaugeDraw(fb, 0, SCREEN_W - 1, (int16_t)(SCREEN_H - 1 - BOX_Y1),
+              (int16_t)(SCREEN_H - 1 - BOX_Y0));
     boardFlushRows((int16_t)(SCREEN_H - 1 - BOX_Y1), (int16_t)(SCREEN_H - 1 - BOX_Y0));
     return;
   }
@@ -404,7 +422,8 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
   }
   build(0, shown[0]);
   build(1, shown[1]);
-  gaugeDraw(fb);
+  gaugeDraw(fb, 0, SCREEN_W - 1, (int16_t)(SCREEN_H - 1 - BOX_Y1),
+            (int16_t)(SCREEN_H - 1 - BOX_Y0));
   boardFlushRows((int16_t)(SCREEN_H - 1 - BOX_Y1), (int16_t)(SCREEN_H - 1 - BOX_Y0));
 }
 
@@ -422,10 +441,28 @@ void gaugeFigures() {
 
 float gaugeFiguresLevel() { return figuresLevel; }
 
-void gaugeDraw(uint16_t *fb) {
+uint16_t gaugeColour(uint8_t percent) { return colourAt((float)percent); }
+
+void gaugeDraw(uint16_t *fb, int16_t x0, int16_t x1, int16_t from, int16_t to) {
+  // The box comes in screen coordinates and the pixels were worked out in the
+  // scene's, so the box is turned once here rather than every pixel being turned
+  // to meet it.
+  const int16_t yLo = (int16_t)(SCREEN_H - 1 - to);
+  const int16_t yHi = (int16_t)(SCREEN_H - 1 - from);
+  const int16_t xLo = (int16_t)(SCREEN_W - 1 - x1);
+  const int16_t xHi = (int16_t)(SCREEN_W - 1 - x0);
   for (uint8_t side = 0; side < 2; side++) {
+    // Nothing of this bar is in the box, so none of its pixels are worth
+    // walking - which is the usual answer, and the whole saving.
+    if (edgeX1[side] < xLo || edgeX0[side] > xHi || edgeY1[side] < yLo ||
+        edgeY0[side] > yHi) {
+      continue;
+    }
     const Pixel *p = pixels + side * SIDE_PIXELS;
     for (uint16_t i = 0; i < count[side]; i++) {
+      if (p[i].y < yLo || p[i].y > yHi || p[i].x < xLo || p[i].x > xHi) {
+        continue;
+      }
       boardRow(fb, p[i].y)[boardX(p[i].x)] = p[i].colour;
     }
   }

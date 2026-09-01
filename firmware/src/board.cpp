@@ -19,11 +19,20 @@ static constexpr uint8_t BRIGHTNESS = 100;
 // so each band is copied down into internal RAM on its way out. The copy is a
 // straight memcpy because the framebuffer already holds the panel's byte order;
 // see boardColour.
-// Even, so that bands cut from an even starting row all start even themselves -
-// see the window alignment in boardFlushRows.
-static constexpr int BAND_ROWS = 40;
-static_assert(BAND_ROWS % 2 == 0, "bands must keep the window alignment");
-static constexpr size_t BAND_BYTES = (size_t)SCREEN_W * BAND_ROWS * 2;
+// A budget in bytes rather than a count of rows, and a small one, because this
+// is the scarcest memory on the board: internal RAM the DMA can reach. Two
+// buffers sized off the panel's width came to seventy-four kilobytes of it on
+// the AMOLED, and what that costs is not drawing - it is the radio. A TLS
+// handshake wants a contiguous thirty-odd kilobytes and there is only so much
+// internal RAM to begin with, so the panel holding that much of it is the
+// difference between a handshake that fits and one that comes back
+// `BIGNUM - Memory allocation failed`, which reads as the network being down.
+//
+// Sixteen kilobytes is still a transfer worth setting up - four hundred
+// microseconds of wire against a few tens of a of setup - and past that the
+// extra rows buy nothing. The row count each flush cuts from this is worked out
+// below and kept even there, so nothing here has to be.
+static constexpr size_t BAND_BYTES = 16 * 1024;
 
 // esp_lcd queues a colour transfer and returns while the DMA is still reading
 // the buffer it was handed. Refilling that buffer for the next band walks over

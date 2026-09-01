@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "audio.h"
+#include "net.h"
 #include "portal.h"
 #include "wifi.h"
 
@@ -18,6 +19,12 @@ constexpr uint32_t RETRY_MS = 15000;
 // this is the gap between the radio joining and the bars filling, and a retry
 // timer spent waiting on the handshake is fifteen seconds of empty track.
 constexpr uint32_t WAITING_MS = 400;
+// The usage reply is under two kilobytes and the list of organisations is
+// smaller again. The cap is not a size either of them approaches - it is there
+// so a reply that is not what this asked for cannot take the heap with it.
+constexpr size_t MOST = 16384;
+// Between bytes, not for the whole read.
+constexpr uint32_t PATIENCE_MS = 6000;
 
 char org[40] = {0};
 volatile bool ready = false;
@@ -118,7 +125,7 @@ void dress(HTTPClient &http, const char *token) {
       "Version/17.0 Safari/605.1.15");
 }
 
-bool get(const String &url, const char *token, String &out) {
+bool fetch(const String &url, const char *token, String &out) {
   WiFiClientSecure tls;
   // No certificate store on the device, and the only thing being carried is a
   // token going back to the host that issued it.
@@ -145,9 +152,18 @@ bool get(const String &url, const char *token, String &out) {
     heard = said;
     heardAt = millis();
   }
-  out = http.getString();
+  bool read = netBody(http, out, MOST, PATIENCE_MS);
   http.end();
-  return true;
+  return read;
+}
+
+// Held across the one request rather than across the pair of them below, so the
+// other poller gets its turn in between instead of waiting on both.
+bool get(const String &url, const char *token, String &out) {
+  netTake();
+  bool got = fetch(url, token, out);
+  netGive();
+  return got;
 }
 
 // Which organisation the account is in, which the address of everything else
@@ -290,7 +306,22 @@ void task(void *) {
 
 }  // namespace
 
-void usageBegin() { xTaskCreatePinnedToCore(task, "usage", 12288, nullptr, 1, nullptr, 0); }
+// Priority nought, which is the idle task's own, and deliberately.
+//
+// This task spends its time inside HTTPClient, and HTTPClient waits on a socket
+// by polling it in a loop that yields rather than blocks. A task above priority
+// nought that only yields never lets the idle task on its core run at all - and
+// the idle task is what the task watchdog is watching, so a reply that takes its
+// time is not a slow read but a reboot five seconds later, blamed on whichever
+// poller happened to be holding the socket.
+//
+// Neither loop is ours to fix. What is ours is what the spinning can cost:
+// level with the idle task, the two are time sliced against each other, so the
+// idle task is scheduled whatever the framework does in here and the watchdog
+// stays fed. Nothing is given up for it either - this is a poller on a minute's
+// timer sharing a core that is otherwise asleep, and the face is on the other
+// one.
+void usageBegin() { xTaskCreatePinnedToCore(task, "usage", 12288, nullptr, 0, nullptr, 0); }
 
 void usageWake() { wake = true; }
 
