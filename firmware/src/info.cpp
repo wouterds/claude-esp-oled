@@ -62,7 +62,14 @@ constexpr float DIAL_R = 35.0f * SCENE;
 // Half the band's thickness. The bars on the face are 3.5 the same way, so the
 // two read as the same weight of line at a glance.
 constexpr float DIAL_T = 3.5f * SCENE;
-constexpr float DIAL_Y = 154.0f * SCENE;
+// A few rows up on the LCD board, whose glass is the tighter. The titles do not
+// come with it - the lift goes into the gap under the number instead.
+#if defined(BOARD_LCD_185B)
+constexpr float DIAL_LIFT = 4.0f;
+#else
+constexpr float DIAL_LIFT = 0.0f;
+#endif
+constexpr float DIAL_Y = 154.0f * SCENE - DIAL_LIFT;
 // Centre to centre. Wider than the bar under them rather than flush with its
 // ends, which is what spreads the three across the glass instead of huddling
 // them over it.
@@ -99,7 +106,7 @@ constexpr float DIAL_DROP = DIAL_R * -DIAL_SWEEP_COS + DIAL_T;
 // halfway between the two by the ruler reads as pinned to the arc and adrift
 // from the word underneath it.
 constexpr int16_t DIAL_NUMBER_UP = (int16_t)(13 * SCENE);
-constexpr int16_t DIAL_TITLE_DOWN = (int16_t)(DIAL_DROP + 5.0f * SCENE);
+constexpr int16_t DIAL_TITLE_DOWN = (int16_t)(DIAL_DROP + 5.0f * SCENE + DIAL_LIFT);
 // Its own box, which is what gets cleared and sent when only these two moved.
 constexpr int16_t DIAL_HW = (int16_t)(DIAL_R + DIAL_T + 2.0f);
 constexpr int16_t DIAL_TOP = (int16_t)(DIAL_Y - DIAL_R - DIAL_T - 2.0f);
