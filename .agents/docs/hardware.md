@@ -113,8 +113,23 @@ a soft power path, so the power button is a power button and not a reset:
 presents *no* USB device at all - not a broken one, none - so this reads as a
 dead cable or a dead board rather than as a board that is simply switched off.
 `ls /dev | grep cu.usbmodem` empty, and `ioreg -p IOUSB -w0 -l | grep 12346`
-finding nothing, is what it looks like. Established on the LCD board; the AMOLED
-board has a PMIC of its own and its power behaviour has not been tested.
+finding nothing, is what it looks like.
+
+**The AMOLED board holds off for longer than you will.** Its button goes to the
+AXP2101 rather than to a power path, and the PMIC decides what a press means:
+**a short press turns it on, and a hold of about six seconds turns it off**. Six
+is the figure in the part, not a guess - `0x27` reads `0x14`, which is its
+power-off level of 6s and its power-on level of 128ms - and it is twice the hold
+the LCD board wants. Let go at the two or three seconds that work on the other
+board and nothing happens at all, which reads as a button that does not work.
+
+If it still will not go off, read `0x21` (`PWROFF_STATUS`) and `0x20`
+(`PWRON_STATUS`) off the PMIC, and enable the power key's four interrupts in
+`0x41` to watch `0x49` for them. The key's presses, releases, short and long
+holds are all bits in there, so unlike the LCD board's button this one is
+visible to the firmware - which is worth knowing before anything is built on
+"there is no second button here". Whether they actually fire on this board has
+not been confirmed.
 
 **The power button is the small one, beside the USB port.** Not the larger one
 next to it, whatever the schematic calls them: pressed short, for one second,

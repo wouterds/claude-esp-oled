@@ -77,10 +77,12 @@ Invisible in the code until they are broken.
 - **Partial flushes only clear what they redraw.** Whatever owns a band of rows
   clears and sends that band itself, so a band sized wider than the thing being
   written takes a bite out of whatever else lives in those rows
-- **The power button is not wired to the chip.** It switches the power path,
-  supports no custom function, and cannot be read, intercepted or stood in for -
-  so there is no firmware answer to "turn it off", only a deep sleep. It is the
-  small button beside the USB port, not the larger one; see the hardware guide
+- **The power button is not wired to the chip.** On the LCD board it switches the
+  power path, supports no custom function, and cannot be read, intercepted or
+  stood in for - so there is no firmware answer to "turn it off", only a deep
+  sleep. It is the small button beside the USB port, not the larger one. On the
+  AMOLED board it goes to the PMIC instead, which wants a six second hold rather
+  than two, and which does report the press over I2C; see the hardware guide
 - **The Type-C does not power the board on**, **the boot strap held low traps it
   in the bootloader**, and **opening the serial port resets it**. All three
   present as a dead or possessed board and none of them says so; see the
