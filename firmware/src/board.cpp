@@ -86,27 +86,48 @@ uint16_t *boardFramebuffer() { return framebuffer; }
 
 void boardFlush() { boardFlushRows(0, SCREEN_H - 1); }
 
-// Only the rows that changed. The face is a third of the panel and the label a
+void boardFlushRows(int16_t from, int16_t to) { boardFlushRect(0, SCREEN_W - 1, from, to); }
+
+// Only the box that changed. The face is a third of the panel and the label a
 // twentieth of it, so most frames leave the rest of the glass alone - and the
 // wire, not the drawing, is what a frame waits on.
-void boardFlushRows(int16_t from, int16_t to) {
+void boardFlushRect(int16_t x0, int16_t x1, int16_t from, int16_t to) {
   if (from < 0) {
     from = 0;
   }
   if (to > SCREEN_H - 1) {
     to = SCREEN_H - 1;
   }
+  if (x0 < 0) {
+    x0 = 0;
+  }
+  if (x1 > SCREEN_W - 1) {
+    x1 = SCREEN_W - 1;
+  }
+  if (from > to || x0 > x1) {
+    return;
+  }
   // The AMOLED's controller ignores the low bit of a window coordinate, so a
-  // band asked to start on an odd row lands one row off instead of failing.
-  // The face's band starts wherever the face is, so its parity changed frame to
-  // frame - and every static pixel in those rows was parked one row up or down
-  // depending on which frame last sent it, which is what figures that never
-  // moved visibly dancing at the frame rate was. Even starts, odd ends, always;
-  // the columns hold this on their own (0..465, and the panel's gap is even),
-  // and the bands hold it because BAND_ROWS is even.
+  // window asked to start on an odd row or column lands a pixel off instead of
+  // failing. The face's box starts wherever the face is, so its parity changed
+  // frame to frame - rows parked static figures one pixel up or down depending
+  // on which frame last sent them, and columns left slivers of the face's own
+  // edge behind it, a pixel to the side of where anything would clear them.
+  // Even starts, odd ends, both axes, always; the bands below keep it because
+  // their row counts stay even.
   if (LCD_EVEN_WINDOWS) {
     from = (int16_t)(from & ~1);
     to = (int16_t)(to | 1);
+    x0 = (int16_t)(x0 & ~1);
+    x1 = (int16_t)(x1 | 1);
+  }
+  // A narrower box holds more rows in the same buffer, so the number of bands
+  // goes down as the box gets thinner rather than the buffer going to waste.
+  // Kept even, or every second band would start on an odd row after all.
+  const int16_t wide = (int16_t)(x1 - x0 + 1);
+  int16_t bandRows = (int16_t)((BAND_BYTES / ((size_t)wide * 2)) & ~(size_t)1);
+  if (bandRows < 2) {
+    bandRows = 2;
   }
   // Fill, hand over, fill the other one while that one goes out. The wait moves
   // to just before the next hand-over, which is the whole point: the copy for the
@@ -115,13 +136,17 @@ void boardFlushRows(int16_t from, int16_t to) {
   // for it.
   uint8_t slot = 0;
   bool flying = false;
-  for (int16_t y = from; y <= to; y += BAND_ROWS) {
-    int16_t rows = (y + BAND_ROWS <= to + 1) ? BAND_ROWS : (to + 1 - y);
-    memcpy(band[slot], framebuffer + (int32_t)y * SCREEN_W, (size_t)rows * SCREEN_W * 2);
+  for (int16_t y = from; y <= to; y += bandRows) {
+    int16_t rows = (y + bandRows <= to + 1) ? bandRows : (int16_t)(to + 1 - y);
+    // A row of the box at a time now, because the box is not the whole row.
+    for (int16_t r = 0; r < rows; r++) {
+      memcpy(band[slot] + (size_t)r * wide,
+             framebuffer + (int32_t)(y + r) * SCREEN_W + x0, (size_t)wide * 2);
+    }
     if (flying) {
       xSemaphoreTake(bandSent, portMAX_DELAY);
     }
-    esp_lcd_panel_draw_bitmap(panel, 0, y, SCREEN_W, y + rows, band[slot]);
+    esp_lcd_panel_draw_bitmap(panel, x0, y, x1 + 1, y + rows, band[slot]);
     flying = true;
     slot ^= 1;
   }

@@ -8,6 +8,7 @@
 void faceBegin();
 void faceStep(float dt);
 
-// Draws, and reports the band of framebuffer rows it touched so the flush can
-// leave the rest of the panel alone.
-void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo);
+// Draws, and reports the box of framebuffer rows and columns it touched so the
+// flush can leave the rest of the panel alone. The columns matter as much as
+// the rows: the bars and the figures share these rows and never move.
+void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom, int16_t *colTo);

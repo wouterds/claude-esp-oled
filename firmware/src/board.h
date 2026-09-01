@@ -44,3 +44,10 @@ inline uint16_t *boardRow(uint16_t *fb, int16_t y) {
 inline int16_t boardX(int16_t x) { return SCREEN_W - 1 - x; }
 void boardFlush();
 void boardFlushRows(int16_t from, int16_t to);
+
+// Only the box that changed. The face is about half the width of the glass, so
+// flushing whole rows for it sends the bars and the figures beside it again on
+// every frame - bandwidth spent on pixels that did not move, and the panel
+// rewritten under its own scan for nothing, which is what static text beside a
+// moving face is seen to shimmer from.
+void boardFlushRect(int16_t x0, int16_t x1, int16_t from, int16_t to);

@@ -689,7 +689,8 @@ void faceStep(float dt) {
 
 
 
-void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
+void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom,
+              int16_t *colTo) {
   // The float: a slow rise and fall that never quite repeats, plus a shiver
   // while it is excited.
   float floatY = sinf(me.clock * 1.5f) * 4.0f + sinf(me.clock * 0.61f) * 2.5f;
@@ -882,4 +883,9 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo) {
   int16_t sBottom = dirtyBottom > SCREEN_H - 1 ? SCREEN_H - 1 : (int16_t)dirtyBottom;
   *rowFrom = (int16_t)(SCREEN_H - 1 - sBottom);
   *rowTo = (int16_t)(SCREEN_H - 1 - sTop);
+  // Columns run the other way too, for the same reason.
+  int16_t sLeft = dirtyLeft < 0.0f ? 0 : (int16_t)dirtyLeft;
+  int16_t sRight = dirtyRight > SCREEN_W - 1 ? SCREEN_W - 1 : (int16_t)dirtyRight;
+  *colFrom = (int16_t)(SCREEN_W - 1 - sRight);
+  *colTo = (int16_t)(SCREEN_W - 1 - sLeft);
 }
