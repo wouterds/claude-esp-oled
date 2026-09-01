@@ -190,11 +190,22 @@ spent bringing up a PMIC that was never in the way. Waveshare's own
 `gfx->begin()`. The PMIC does own the battery, which is why there is no charge
 on that board's status line yet.
 
-**The CO5300's visible columns do not start at zero.** Its RAM is wider than the
-466 that are lit and the panel is addressed from column six, which is the
-`X_GAP` in `panel_co5300.cpp`. Wrong, this is a scene sitting a few pixels off
-centre rather than anything that looks like a fault - and eight is the other
-candidate, the same offset counted from the far side.
+**The CO5300's visible columns do not start at zero.** Its RAM is wider than
+the 466 that are lit and the panel is addressed from column six, the vendor's
+own figure - valid for a panel written the way round it is scanned, which this
+firmware does. The trap is what happens if anyone mirrors the panel in MADCTL:
+the gap is added to the address *before* the controller mirrors it, so the
+window lands two columns off and the two columns at the near edge are never
+addressed at all. They keep whatever the previous firmware left in panel RAM,
+through reboots and reflashes both, and read as a stray line beside the bars
+that nothing will ever clear. Mirrored, the right gap is eight, not six - this
+cost a day to find the first time.
+
+**Both glasses are mounted upside down.** The scene is written into the
+framebuffer turned 180 degrees for the LCD board's mounting, and the AMOLED's
+glass turned out to sit the same way - so its panel applies no MADCTL transform
+at all, and its touch controller's readings are turned over in
+touchpad_cst9217.cpp for the same reason.
 
 **The AMOLED panel's tearing-effect line is on `GPIO13`.** It is not in
 Waveshare's pin header; it was found by watching every pin the board leaves

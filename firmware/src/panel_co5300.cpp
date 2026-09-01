@@ -6,20 +6,18 @@
 #include "pins.h"
 
 // The visible glass does not start at the controller's first column: its RAM is
-// wider than the 466 that are lit, and the panel's own examples address it from
-// column six.
+// wider than the 466 that are lit and the panel is addressed from column six,
+// which is the vendor's own figure for a panel written the way round it is
+// scanned - and this one is, see below.
 //
-// Six is right for a panel written the way round it is scanned. This one is
-// mirrored below, and the gap is added to the address *before* the controller
-// mirrors it - so a window of 6..471 comes out at the far end of the frame
-// instead, two columns off. Those two columns at the near edge are then never
-// addressed at all, and hold whatever was in the panel's RAM before this
-// firmware ever ran: they survive a reboot, they survive a reflash, and they
-// look like a stray line drawn just outside the bars that nothing will clear.
-//
-// The gap that lands the window back on the glass is the frame's width less the
-// last visible column - eight on a 480 wide frame.
-static constexpr int X_GAP = 8;
+// Beware of six the moment anyone mirrors the panel in MADCTL: the gap is added
+// to the address *before* the controller mirrors it, so the window comes out at
+// the far end of the frame, two columns off, and the two columns at the near
+// edge are never addressed at all. They keep whatever the previous firmware
+// left in panel RAM - through reboots and reflashes both - and read as a stray
+// line beside the bars that nothing will ever clear. Mirrored, the right gap is
+// the frame's width less the last visible column: eight, not six.
+static constexpr int X_GAP = 6;
 
 static esp_lcd_panel_handle_t lit = nullptr;
 
@@ -72,11 +70,11 @@ bool panelBegin(esp_lcd_panel_handle_t *out, esp_lcd_panel_io_color_trans_done_c
   }
 
   esp_lcd_panel_set_gap(*out, X_GAP, 0);
-  // A half turn, undoing the one the drawing applies. Every scene here is
-  // written into the framebuffer upside down because the LCD board's glass is
-  // mounted that way; this one is not, so the panel turns it back rather than
-  // the drawing being taught which board it is on.
-  esp_lcd_panel_mirror(*out, true, true);
+  // No transform. Every scene is written into the framebuffer upside down
+  // because the LCD board's glass is mounted that way - and so, it turns out,
+  // is this one, so the turn already in the framebuffer is exactly the turn
+  // this glass wants and MADCTL is left alone. Held next to the other board,
+  // both faces look the same way up.
 
   rc = esp_lcd_panel_disp_on_off(*out, true);
   Serial.printf("panel on: %s\n", esp_err_to_name(rc));

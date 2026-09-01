@@ -36,8 +36,9 @@ inline uint16_t boardColour(uint16_t rgb565) {
 // the flush touches every pixel on the glass and would have to give up its
 // memcpy, and MADCTL would leave every coordinate in here reasoning about a
 // screen that is the other way up. Drawing touches a few thousand pixels and
-// can afford it. The AMOLED board is not mounted that way and its panel undoes
-// this turn in MADCTL, so that scenes stay written the one way.
+// can afford it. The AMOLED board's glass is mounted the same way up, so the
+// turn written here is already the one it wants and its panel applies no
+// transform at all - scenes stay written the one way on both.
 inline uint16_t *boardRow(uint16_t *fb, int16_t y) {
   return fb + (int32_t)(SCREEN_H - 1 - y) * SCREEN_W;
 }
