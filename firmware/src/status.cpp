@@ -33,7 +33,7 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + (int16_t)(10 * SCENE);
 // well under this band.
 constexpr int16_t ALARM_Y = (int16_t)(63 * SCENE);
 constexpr int16_t ALARM_TOP = (int16_t)(49 * SCENE);
-constexpr int16_t ALARM_BOTTOM = (int16_t)(76 * SCENE);
+constexpr int16_t ALARM_BOTTOM = (int16_t)(77 * SCENE);
 constexpr int16_t ALARM_HALF = (int16_t)(15 * SCENE);
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
@@ -250,9 +250,11 @@ void drawBattery(uint16_t *fb, uint8_t percent, uint16_t colour) {
   float fillTo = -HW + 1.6f + (2.0f * HW - 3.2f) * (percent / 100.0f);
 
   // Reach in the panel's pixels, far enough ahead to hold the nub off the end.
+  // Reach enough to hold the shell's wall, the nub off its end and the pixel of
+  // edge past both. A box that stops on the shape cuts it off square.
   constexpr int16_t BACK = (int16_t)(14 * SCENE);
   constexpr int16_t AHEAD = (int16_t)(17 * SCENE);
-  constexpr int16_t TALL = (int16_t)(8 * SCENE);
+  constexpr int16_t TALL = (int16_t)(9 * SCENE);
 
   for (int16_t y = MIDDLE - TALL; y <= MIDDLE + TALL; y++) {
     for (int16_t x = BATTERY_X - BACK; x <= BATTERY_X + AHEAD; x++) {
@@ -296,8 +298,13 @@ void drawWifi(uint16_t *fb, uint8_t bars, bool online) {
   uint16_t middle = bars >= 2 ? lit : DIM;
   uint16_t centre = bars >= 1 ? lit : DIM;
 
-  constexpr int16_t WIDE = (int16_t)(12 * SCENE);
-  constexpr int16_t TALL = (int16_t)(9 * SCENE);
+  // The outer arc is the widest thing here: eleven of radius and most of two of
+  // thickness, and a pixel of edge past that again - so the box has to reach
+  // nearly fourteen, and higher still because the arcs sit above the middle.
+  // Short, the arc is cut off flat at the top and the ends, which reads as a
+  // notch taken out of the glyph rather than as a box that is too small.
+  constexpr int16_t WIDE = (int16_t)(14 * SCENE);
+  constexpr int16_t TALL = (int16_t)(11 * SCENE);
   for (int16_t y = MIDDLE - TALL; y <= MIDDLE + TALL; y++) {
     for (int16_t x = WIFI_X - WIDE; x <= WIFI_X + WIDE; x++) {
       // Measured from the bottom of the glyph, which is where the arcs and the
