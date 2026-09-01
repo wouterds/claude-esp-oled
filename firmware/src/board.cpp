@@ -42,6 +42,23 @@ static uint16_t *framebuffer = nullptr;
 // and hides whichever of the two is quicker behind the other.
 static uint16_t *band[2] = {nullptr, nullptr};
 
+// The last edge the tearing-effect line reported, and the wait for the next.
+// Both are nothing at all on a board without one.
+void boardWaitBetweenFrames() {
+  if (LCD_TE < 0) {
+    return;
+  }
+  int was = digitalRead(LCD_TE);
+  uint32_t until = millis() + 20;
+  while (millis() < until) {
+    int now = digitalRead(LCD_TE);
+    if (now != was && now == HIGH) {
+      return;
+    }
+    was = now;
+  }
+}
+
 bool boardBegin() {
   bandSent = xSemaphoreCreateBinary();
   framebuffer = (uint16_t *)heap_caps_malloc((size_t)SCREEN_W * SCREEN_H * 2, MALLOC_CAP_SPIRAM);
@@ -69,6 +86,9 @@ bool boardBegin() {
 
   if (!panelBegin(&panel, bandDone)) {
     return false;
+  }
+  if (LCD_TE >= 0) {
+    pinMode(LCD_TE, INPUT);
   }
   Serial.printf("panel up, psram free %u\n", (unsigned)ESP.getFreePsram());
   boardFlush();

@@ -288,6 +288,10 @@ void loop() {
   // before the flush rather than being repaired after it.
   gaugeDraw(boardFramebuffer());
   uint32_t t1 = micros();
+  // The face's rows carry the bars and the figures too, and those never move.
+  // Sending them again underneath the panel's own scan is what makes them look
+  // like they do, so the frame goes out between scans rather than across one.
+  boardWaitBetweenFrames();
   boardFlushRows(from, to);
   statusDraw(boardFramebuffer(), from, to);
   if (counting) {

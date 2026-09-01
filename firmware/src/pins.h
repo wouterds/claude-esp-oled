@@ -36,6 +36,9 @@ static constexpr int LCD_D3 = 41;
 // behind a TCA9554 and firmware written for one comes up black on the other.
 static constexpr int LCD_RST = 3;
 static constexpr int LCD_BL = 5;
+// No tearing-effect line found on this board's header. Writing the panel while
+// it scans is not known to show here anyway - see board.cpp.
+static constexpr int LCD_TE = -1;
 
 static constexpr int I2C_SDA = 11;
 static constexpr int I2C_SCL = 10;
@@ -85,6 +88,11 @@ static constexpr int LCD_D1 = 5;
 static constexpr int LCD_D2 = 6;
 static constexpr int LCD_D3 = 7;
 static constexpr int LCD_RST = 1;
+// The panel's tearing-effect line. Not in Waveshare's own header, and found by
+// watching every pin this board leaves alone for one that ticks: this one
+// carries a 60Hz pulse from the moment the panel is initialised, which is the
+// glass telling us when it is between frames.
+static constexpr int LCD_TE = 13;
 // No LCD_BL. The pixels emit their own light, so there is no backlight to dim
 // and brightness is a register on the panel - see panel_co5300.cpp.
 

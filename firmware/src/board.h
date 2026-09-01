@@ -44,3 +44,10 @@ inline uint16_t *boardRow(uint16_t *fb, int16_t y) {
 inline int16_t boardX(int16_t x) { return SCREEN_W - 1 - x; }
 void boardFlush();
 void boardFlushRows(int16_t from, int16_t to);
+
+// Waits until the panel is between frames, where a board has a line that says
+// so. Writing a panel's memory underneath its own scan is what makes something
+// that never moves look like it is moving: the pixels are the same, the write
+// is not, and an emissive panel shows the write. Returns having waited at most
+// one frame, so a panel that stops talking cannot stop the loop.
+void boardWaitBetweenFrames();
