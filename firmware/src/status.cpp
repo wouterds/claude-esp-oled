@@ -31,9 +31,13 @@ constexpr int16_t BAR_BOTTOM = MIDDLE + (int16_t)(10 * SCENE);
 // It reaches further down than the note above suggests is safe, and that note is
 // the conservative one: the face's box begins at HOME_Y - ROAM - 80, which is
 // well under this band.
-constexpr int16_t ALARM_Y = (int16_t)(63 * SCENE);
-constexpr int16_t ALARM_TOP = (int16_t)(49 * SCENE);
-constexpr int16_t ALARM_BOTTOM = (int16_t)(77 * SCENE);
+// A step lower on the AMOLED board, by eye: the bigger glass left it floating
+// between the icons above it and the face below, which keeps a clear nine rows
+// under the dropped band even at the top of its drift.
+constexpr int16_t ALARM_DROP = SCENE > 1.0f ? 8 : 0;
+constexpr int16_t ALARM_Y = (int16_t)(63 * SCENE) + ALARM_DROP;
+constexpr int16_t ALARM_TOP = (int16_t)(49 * SCENE) + ALARM_DROP;
+constexpr int16_t ALARM_BOTTOM = (int16_t)(77 * SCENE) + ALARM_DROP;
 constexpr int16_t ALARM_HALF = (int16_t)(15 * SCENE);
 
 // The pair centred on the panel, wifi then battery. The glass is a circle: at
