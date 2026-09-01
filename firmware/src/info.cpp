@@ -53,15 +53,15 @@ constexpr int16_t BAR_TITLE_TOP = (int16_t)(208 * SCENE);
 // doing right now, and a different shape is what says so before the titles are
 // read.
 //
-// Pulled in from the cell and up off the lines under it. The glass is round, so
-// the far top corner of the left dial's box is the pixel that decides how big
-// this can be: at 36 of radius it lands 169 out from the middle of a panel that
-// stops at 180, and a few more would put it past the edge - where it would be
-// drawn, paid for and never seen.
-constexpr float DIAL_R = 32.0f * SCENE;
+// Pulled in from the cell and up off the lines under it. What runs out first is
+// not the glass - the far top corner of the left dial's box lands 168 out from
+// the middle of a panel that stops at 180, and the band itself is nowhere near
+// that - it is the star field overhead, which these grow up into. The assert
+// under it is what says so.
+constexpr float DIAL_R = 35.0f * SCENE;
 // Half the band's thickness. The bars on the face are 3.5 the same way, so the
 // two read as the same weight of line at a glance.
-constexpr float DIAL_T = 3.0f * SCENE;
+constexpr float DIAL_T = 3.5f * SCENE;
 constexpr float DIAL_Y = 152.0f * SCENE;
 // Centre to centre. Wider than the bar under them rather than flush with its
 // ends, which is what spreads the three across the glass instead of huddling
@@ -69,7 +69,7 @@ constexpr float DIAL_Y = 152.0f * SCENE;
 //
 // The ceiling is the top outer corner of an outer dial's box: the glass is round
 // and that corner is the furthest point from the middle of it, so it is what
-// runs out of panel first. At this row it lands 165 out of the 180 there is.
+// runs out of panel first. At this row it lands 168 out of the 180 there is.
 constexpr float DIAL_STEP = 112.0f * SCENE;
 constexpr int16_t DIAL_SCALE = 2;
 // How far round from straight up each end reaches. Ninety is a half circle by
