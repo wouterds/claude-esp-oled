@@ -53,6 +53,9 @@ volatile Swipe went = Swipe::None;
 volatile bool doubled = false;
 volatile int16_t doubledAlong = 0;
 volatile int16_t doubledAcross = 0;
+volatile bool singled = false;
+volatile int16_t singledAlong = 0;
+volatile int16_t singledAcross = 0;
 volatile bool fingerDown = false;
 volatile int16_t fingerAcross = 0;
 volatile int16_t fingerAlong = 0;
@@ -68,6 +71,11 @@ void lift() {
   // finger comes up. A tap is the opposite: a finger that came up having gone
   // nowhere, and it is only here that that is known.
   bool tap = !fired && abs(lastAlong - fromAlong) <= SLOP && abs(lastAcross - fromAcross) <= SLOP;
+  if (tap) {
+    singledAlong = fromAlong;
+    singledAcross = fromAcross;
+    singled = true;
+  }
   if (tap && tapped && downAt - tapUpAt <= DOUBLE_MS && abs(fromAlong - tapAlong) <= 2 * SLOP &&
       abs(fromAcross - tapAcross) <= 2 * SLOP) {
     doubledAlong = tapAlong;
@@ -187,5 +195,15 @@ bool touchDoubleTapped(int16_t *across, int16_t *along) {
   *across = doubledAcross;
   *along = doubledAlong;
   doubled = false;
+  return true;
+}
+
+bool touchTapped(int16_t *across, int16_t *along) {
+  if (!singled) {
+    return false;
+  }
+  *across = singledAcross;
+  *along = singledAlong;
+  singled = false;
   return true;
 }
