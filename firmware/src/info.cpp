@@ -124,7 +124,13 @@ constexpr int16_t DIAL_BOTTOM =
 
 constexpr int16_t NETWORK_TOP = (int16_t)(272 * SCENE);
 constexpr int16_t ADDRESS_TOP = (int16_t)(296 * SCENE);
-constexpr int16_t COMMIT_TOP = (int16_t)(338 * SCENE);
+// Up a few rows on the LCD board, whose glass is the tighter down there.
+#if defined(BOARD_LCD_185B)
+constexpr int16_t COMMIT_UP = 3;
+#else
+constexpr int16_t COMMIT_UP = 0;
+#endif
+constexpr int16_t COMMIT_TOP = (int16_t)(338 * SCENE) - COMMIT_UP;
 constexpr int16_t LINE_SCALE = 2;
 // What fits between the edges of the glass down there, in glyphs. A network can
 // be called anything up to thirty-two characters and the ones that long run off
