@@ -43,9 +43,10 @@ static_assert(VOLUME_Y - BRIGHTNESS_Y > 2 * REACH, "the sliders would answer to 
 constexpr int16_t BAND_UP = (int16_t)(TITLE_UP + 1);
 constexpr int16_t BAND_DOWN = (int16_t)(KNOB_R + 2.0f);
 
-// Never all the way down. The LCD's backlight is the only light there is and a
-// glass with none is a glass nothing can be set on, this page included - and
-// on the AMOLED the same floor is what keeps the pixels lit.
+// What nought on the slider reaches the panel as. The slider runs the whole way
+// down, the way a slider does, but the LCD's backlight is the only light there
+// is and a glass with none is a glass nothing can be set on, this page
+// included - and on the AMOLED the same floor is what keeps the pixels lit.
 constexpr uint8_t BRIGHTNESS_MIN = 5;
 constexpr uint8_t BRIGHTNESS_DEFAULT = 100;
 // A third of the way up, which through the square in audio.cpp is the tenth of
@@ -62,7 +63,6 @@ constexpr uint16_t FAINT = 0x4A49;
 enum Slider : uint8_t { BRIGHTNESS, VOLUME, SLIDERS };
 
 constexpr float AT[SLIDERS] = {BRIGHTNESS_Y, VOLUME_Y};
-constexpr uint8_t FLOOR[SLIDERS] = {BRIGHTNESS_MIN, 0};
 const char *const NAMED[SLIDERS] = {"BRIGHTNESS", "VOLUME"};
 
 Preferences store;
@@ -104,7 +104,7 @@ float sdRoundBox(float px, float py, float hx, float hy, float r) {
 
 void apply(uint8_t which) {
   if (which == BRIGHTNESS) {
-    panelBrightness(value[which]);
+    panelBrightness(settingsBrightness());
   } else {
     audioVolume(value[which]);
   }
@@ -150,11 +150,7 @@ void follow() {
     }
   }
   float t = clamp01(((float)across - (TRACK_X - TRACK_HW)) / (2.0f * TRACK_HW));
-  uint8_t percent = (uint8_t)(t * 100.0f + 0.5f);
-  if (percent < FLOOR[held]) {
-    percent = FLOOR[held];
-  }
-  set((uint8_t)held, percent);
+  set((uint8_t)held, (uint8_t)(t * 100.0f + 0.5f));
 }
 
 void drawSlider(uint16_t *fb, uint8_t which, bool send) {
@@ -222,9 +218,6 @@ void settingsBegin() {
   value[BRIGHTNESS] = store.getUChar("brightness", BRIGHTNESS_DEFAULT);
   value[VOLUME] = store.getUChar("volume", VOLUME_DEFAULT);
   for (uint8_t i = 0; i < SLIDERS; i++) {
-    if (value[i] < FLOOR[i]) {
-      value[i] = FLOOR[i];
-    }
     if (value[i] > 100) {
       value[i] = 100;
     }
@@ -232,7 +225,9 @@ void settingsBegin() {
   Serial.printf("settings: brightness %u%%, volume %u%%\n", value[BRIGHTNESS], value[VOLUME]);
 }
 
-uint8_t settingsBrightness() { return value[BRIGHTNESS]; }
+uint8_t settingsBrightness() {
+  return (uint8_t)(BRIGHTNESS_MIN + (100 - BRIGHTNESS_MIN) * value[BRIGHTNESS] / 100);
+}
 
 uint8_t settingsVolume() { return value[VOLUME]; }
 

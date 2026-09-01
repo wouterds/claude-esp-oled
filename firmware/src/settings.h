@@ -10,6 +10,8 @@
 // up at whatever this says rather than at full and then jumping.
 void settingsBegin();
 
+// What to light the panel at. The slider goes to nought and this never does:
+// nought on it is the dimmest glass that can still be seen.
 uint8_t settingsBrightness();
 uint8_t settingsVolume();
 
