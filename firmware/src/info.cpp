@@ -10,6 +10,7 @@
 #include "gauge.h"
 #include "load.h"
 #include "nyan.h"
+#include "shape.h"
 #include "text.h"
 #include "version.h"
 #include "wifi.h"
@@ -226,32 +227,6 @@ struct Shown {
 Shown shown = {255, false, false, 0, 255, 255, 255, {0}, {0}};
 bool fresh = true;
 bool big = false;
-
-float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
-
-void plot(uint16_t *fb, int16_t x, int16_t y, float coverage, uint16_t colour) {
-  if (coverage <= 0.02f || x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) {
-    return;
-  }
-  coverage = clamp01(coverage);
-  uint16_t r = (uint16_t)(((colour >> 11) & 0x1F) * coverage);
-  uint16_t g = (uint16_t)(((colour >> 5) & 0x3F) * coverage);
-  uint16_t b = (uint16_t)((colour & 0x1F) * coverage);
-  boardRow(fb, y)[boardX(x)] = boardColour((uint16_t)((r << 11) | (g << 5) | b));
-}
-
-float sdRoundBox(float px, float py, float hx, float hy, float r) {
-  float limit = hx < hy ? hx : hy;
-  if (r > limit) {
-    r = limit;
-  }
-  float qx = fabsf(px) - hx + r;
-  float qy = fabsf(py) - hy + r;
-  float ax = qx > 0.0f ? qx : 0.0f;
-  float ay = qy > 0.0f ? qy : 0.0f;
-  float inner = qx > qy ? qx : qy;
-  return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
-}
 
 // A half circle standing on its flat side. Within the sweep it is the band
 // itself: the distance to a circle of this radius, folded about zero so both

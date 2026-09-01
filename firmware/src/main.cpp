@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <esp_system.h>
-#include <math.h>
 #include <string.h>
 
 #include "audio.h"
@@ -20,6 +19,7 @@
 #include "outage.h"
 #include "portal.h"
 #include "settings.h"
+#include "shape.h"
 #include "text.h"
 #include "usage.h"
 
@@ -100,14 +100,7 @@ static void countFrames(uint16_t *fb) {
       float px = (float)x + 0.5f - cx;
       // A signed distance rather than a span, so the corners come out round and
       // the edge comes out smooth without a second pass over it.
-      float qx = fabsf(px) - (hx - FPS_RADIUS);
-      float qy = fabsf(py) - (hy - FPS_RADIUS);
-      float ax = qx > 0.0f ? qx : 0.0f;
-      float ay = qy > 0.0f ? qy : 0.0f;
-      float most = qx > qy ? qx : qy;
-      float d = sqrtf(ax * ax + ay * ay) + (most < 0.0f ? most : 0.0f) - FPS_RADIUS;
-
-      float cover = 0.5f - d;
+      float cover = 0.5f - sdRoundBox(px, py, hx, hy, FPS_RADIUS);
       if (cover <= 0.0f) {
         // Outside the badge, and outside is somebody else's pixel.
         continue;
