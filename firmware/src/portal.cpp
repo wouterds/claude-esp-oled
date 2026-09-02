@@ -138,7 +138,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 const $ = (id) => document.getElementById(id);
 const who = $('who');
 
-const SPIN = '<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill=none>' +
+const spin = (size) => '<svg class="' + size + ' animate-spin" viewBox="0 0 24 24" fill=none>' +
   '<circle class="opacity-25" cx=12 cy=12 r=10 stroke=currentColor stroke-width=4></circle>' +
   '<path class="opacity-75" fill=currentColor d="M4 12a8 8 0 0 1 8-8V0C5.4 0 0 5.4 0 12h4z"></path></svg>';
 
@@ -149,7 +149,8 @@ const bytes = (n) => (n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB');
 
 function busy(btn, on) {
   btn.disabled = on;
-  btn.innerHTML = (on ? SPIN : '') + '<span>' + (on ? btn.dataset.busy : btn.dataset.label) + '</span>';
+  btn.innerHTML =
+    (on ? spin('h-4 w-4') : '') + '<span>' + (on ? btn.dataset.busy : btn.dataset.label) + '</span>';
 }
 
 // Said and then taken back: the answer is about the press that caused it, and
@@ -196,7 +197,15 @@ async function refresh() {
   }
 }
 
+// A forget in flight owns the list: the five second tick would otherwise redraw
+// it underneath the button and replace the one that is spinning with a fresh
+// one, which reads as the click having been dropped.
+let forgetting = false;
+
 async function networks() {
+  if (forgetting) {
+    return;
+  }
   let list;
   try {
     list = await (await fetch('/networks')).json();
@@ -214,8 +223,10 @@ async function networks() {
         px-2 py-0.5 text-[10px] font-medium text-emerald-400"><span
         class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Connected</span>` : ''}
       ${n.stored
-        ? `<button data-ssid="${esc(n.ssid)}" class="rounded-md border border-neutral-700 px-2.5 py-1
-             text-xs text-neutral-400 hover:border-red-500/50 hover:text-red-400">Forget</button>`
+        ? `<button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
+             border border-neutral-700 px-2.5 py-1 text-xs text-neutral-400
+             hover:border-red-500/50 hover:text-red-400 disabled:cursor-not-allowed
+             disabled:opacity-50">Forget</button>`
         : `<span class="text-[10px] text-neutral-600">Built in</span>`}
     </div>
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-neutral-500">None known.</li>';
@@ -315,14 +326,21 @@ $('netList').addEventListener('click', async (e) => {
   // password is gone rather than hidden - both are worth a second's thought.
   if (!confirm('Forget "' + ssid + '"? Its password is deleted with it.')) return;
   btn.disabled = true;
-  btn.textContent = '...';
+  btn.innerHTML = spin('h-3 w-3') + '<span>Forgetting</span>';
+  forgetting = true;
   try {
     await post('/forget', {ssid: ssid});
     $('netMsg').classList.add('hidden');
   } catch (err) {
     say($('netMsg'), 'Not forgotten: ' + err.message, false);
+  } finally {
+    forgetting = false;
   }
-  tick();
+  // Awaited, so the button spins until the row it sits in has actually gone
+  // rather than until the board said it would. A refusal redraws it as it was.
+  await networks();
+  refresh();
+  requests();
 });
 
 function tick() {
