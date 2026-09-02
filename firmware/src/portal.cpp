@@ -50,7 +50,8 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
                placeholder="sk-ant-sid02-..."
                class="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm
                       text-neutral-100 placeholder-neutral-600 outline-none
-                      focus:border-blue-500 disabled:opacity-50 sm:max-w-sm">
+                      focus:outline focus:outline-[1.5px] focus:outline-offset-0
+                      focus:outline-blue-500 disabled:opacity-50 sm:max-w-sm">
         <p id=state class="text-sm text-neutral-500">&nbsp;</p>
       </div>
       <p class="mt-2 text-sm text-neutral-500">Leave it empty and save to forget the one it has.</p>
