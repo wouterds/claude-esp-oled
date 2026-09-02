@@ -50,7 +50,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
                         text-neutral-100 placeholder-neutral-600 outline-none
                         focus:outline focus:outline-[1.5px] focus:outline-offset-0
                         focus:outline-blue-500 disabled:opacity-50">
-          <p class="mt-2 text-xs text-neutral-500">Leave it empty to clear the token</p>
+          <p class="mt-2 text-xs text-neutral-500">Leave empty to clear the token</p>
           <button id=tokenSave data-label="Save token" data-busy="Saving"
                   class="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-500 px-4 py-2
                          text-sm font-medium text-white hover:bg-blue-500/85
