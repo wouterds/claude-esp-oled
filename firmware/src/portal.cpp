@@ -333,7 +333,9 @@ $('netList').addEventListener('click', async (e) => {
   const ssid = btn.dataset.ssid;
   // Removing the one the board is on takes this page down with it, and the
   // password goes rather than being hidden - both are worth a second's thought.
-  if (!confirm('Remove "' + ssid + '"? You will need its password again to add it back.')) return;
+  const sure = 'Are you sure you want to remove the Wi-Fi network "' + ssid +
+      '"? You will need its password to add it back.';
+  if (!confirm(sure)) return;
   btn.disabled = true;
   btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
   forgetting = true;
