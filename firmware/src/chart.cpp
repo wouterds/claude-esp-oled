@@ -43,18 +43,17 @@ constexpr float HEADROOM = 0.08f;
 constexpr float WASH = 0.45f;
 constexpr float WASH_ALPHA = 0.30f;
 
-// A ring of tapered spokes with one leading and the rest fading behind it,
-// which is what reads as turning - a ring of even spokes rotating reads as
-// nothing at all, because every frame of it looks like the last.
-constexpr uint8_t SPOKES = 8;
-constexpr float SPIN_IN = 9.0f * SCENE;
-constexpr float SPIN_OUT = 18.0f * SCENE;
-constexpr float SPIN_HALF = 1.8f * SCENE;
-constexpr uint32_t SPIN_MS = 800;
-constexpr float SPIN_CY = PRICE_Y + 14.0f * SCENE;
-constexpr int16_t SPIN_REACH = (int16_t)(SPIN_OUT + SPIN_HALF + 2);
-constexpr int16_t SPIN_TOP = (int16_t)(SPIN_CY) - SPIN_REACH;
-constexpr int16_t SPIN_BOTTOM = (int16_t)(SPIN_CY) + SPIN_REACH;
+// A ring with a quarter cut out of it, turning - the shape every loader has
+// settled on, and the one that needs no legend. Small and a dark grey: it is
+// standing in for a figure, not announcing itself.
+constexpr uint8_t SPIN_STEPS = 14;
+constexpr float SPIN_SWEEP = 4.712389f;
+constexpr float SPIN_R = 13.0f * SCENE;
+constexpr float SPIN_HALF = 1.6f * SCENE;
+constexpr uint32_t SPIN_MS = 900;
+constexpr int16_t SPIN_REACH = (int16_t)(SPIN_R + SPIN_HALF + 2);
+constexpr int16_t SPIN_TOP = (int16_t)SCREEN_R - SPIN_REACH;
+constexpr int16_t SPIN_BOTTOM = (int16_t)SCREEN_R + SPIN_REACH;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x8410;
@@ -209,47 +208,37 @@ void drawPlot(uint16_t *fb, const Market &m, uint16_t ink) {
 
 void drawSpinner(uint16_t *fb) {
   float cx = (float)SCREEN_R;
-  float cy = SPIN_CY;
-  // Worked out once rather than per pixel. There are eight of them and eleven
-  // hundred pixels to ask about each one, and none of this varies across them.
-  float ax[SPOKES];
-  float ay[SPOKES];
-  float bx[SPOKES];
-  float by[SPOKES];
-  float lit[SPOKES];
-  uint8_t lead = (uint8_t)((millis() / (SPIN_MS / SPOKES)) % SPOKES);
-  for (uint8_t i = 0; i < SPOKES; i++) {
-    float turn = (float)i / (float)SPOKES * 2.0f * (float)M_PI;
-    float c = cosf(turn);
-    float s = sinf(turn);
-    ax[i] = cx + c * SPIN_IN;
-    ay[i] = cy + s * SPIN_IN;
-    bx[i] = cx + c * SPIN_OUT;
-    by[i] = cy + s * SPIN_OUT;
-    // How far behind the leading spoke this one is, which is how faded it is.
-    uint8_t behind = (uint8_t)((lead + SPOKES - i) % SPOKES);
-    lit[i] = 1.0f - (float)behind / (float)SPOKES * 0.82f;
+  float cy = (float)SCREEN_R;
+  float turn = (float)(millis() % SPIN_MS) / (float)SPIN_MS * 2.0f * (float)M_PI;
+  // Worked out once. There are fourteen of these and a thousand pixels to ask
+  // about each one, and none of it varies across them.
+  float ax[SPIN_STEPS + 1];
+  float ay[SPIN_STEPS + 1];
+  for (uint8_t i = 0; i <= SPIN_STEPS; i++) {
+    float a = turn + SPIN_SWEEP * (float)i / (float)SPIN_STEPS;
+    ax[i] = cx + cosf(a) * SPIN_R;
+    ay[i] = cy + sinf(a) * SPIN_R;
   }
 
   for (int16_t y = SPIN_TOP; y <= SPIN_BOTTOM; y++) {
     for (int16_t x = (int16_t)cx - SPIN_REACH; x <= (int16_t)cx + SPIN_REACH; x++) {
-      float px = (float)x + 0.5f;
-      float py = (float)y + 0.5f;
-      // The nearest spoke and its own brightness together: taking the nearest
-      // distance and somebody else's brightness is how a spoke ends up wearing
-      // its neighbour's place in the tail.
+      float px = (float)x + 0.5f - cx;
+      float py = (float)y + 0.5f - cy;
+      // Everything but the ring itself thrown out before the segments are asked
+      // about, which is the difference between a thousand distances a frame and
+      // fifty thousand.
+      float out = sqrtf(px * px + py * py);
+      if (fabsf(out - SPIN_R) > SPIN_HALF + 2.0f) {
+        continue;
+      }
       float near = 1e9f;
-      float bright = 0.0f;
-      for (uint8_t i = 0; i < SPOKES; i++) {
-        float d = sdSegment(px, py, ax[i], ay[i], bx[i], by[i]);
-        if (d < near) {
-          near = d;
-          bright = lit[i];
-        }
+      for (uint8_t i = 0; i < SPIN_STEPS; i++) {
+        near = fminf(near, sdSegment((float)x + 0.5f, (float)y + 0.5f, ax[i], ay[i], ax[i + 1],
+                                     ay[i + 1]));
       }
       float cover = 0.5f - (near - SPIN_HALF);
       if (cover > 0.02f) {
-        plot(fb, x, y, cover * bright, WHITE);
+        plot(fb, x, y, cover, FAINT);
       }
     }
   }
@@ -259,9 +248,10 @@ void drawAll(uint16_t *fb, const Market &m, bool coin) {
   clearOwned(fb, OWNED_TOP, (int16_t)(SCREEN_H - 1));
   centred(fb, m.name, NAME_Y, NAME_SCALE, GREY);
 
+  // What is wrong is worth saying; what is merely not here yet is not, and gets
+  // the ring instead. Figures without a line is its own state - the list gives
+  // a price before the coin's own call gives it a week - and it gets both.
   if (!m.ready) {
-    // Nothing to say yet, and the name above is as much as is known. What is
-    // wrong is worth saying; what is merely not here yet is not.
     if (m.failed) {
       centred(fb, "NO DATA", PRICE_Y, MOVE_SCALE, FAINT);
     } else {
@@ -280,8 +270,12 @@ void drawAll(uint16_t *fb, const Market &m, bool coin) {
   snprintf(said, sizeof(said), "%+.2f%%", (double)m.change);
   centred(fb, said, MOVE_Y, MOVE_SCALE, ink);
 
-  drawPlot(fb, m, ink);
-  centred(fb, m.span, SPAN_Y, SPAN_SCALE, FAINT);
+  if (m.count >= 2) {
+    drawPlot(fb, m, ink);
+    centred(fb, m.span, SPAN_Y, SPAN_SCALE, FAINT);
+  } else if (!m.failed) {
+    drawSpinner(fb);
+  }
 }
 
 }  // namespace
@@ -306,7 +300,7 @@ void chartStep(uint16_t *fb, uint8_t screen) {
   }
   // Nothing has changed and there are no figures yet, so the pulse is the only
   // thing on here that moves - and its own rows are all it moves in.
-  if (!m.ready && !m.failed) {
+  if (m.count < 2 && !m.failed) {
     clearOwned(fb, SPIN_TOP, SPIN_BOTTOM);
     drawSpinner(fb);
     boardFlushRows(bandFrom(SPIN_BOTTOM), bandTo(SPIN_TOP));
