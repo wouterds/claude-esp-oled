@@ -71,11 +71,6 @@ void lift() {
   // finger comes up. A tap is the opposite: a finger that came up having gone
   // nowhere, and it is only here that that is known.
   bool tap = !fired && abs(lastAlong - fromAlong) <= SLOP && abs(lastAcross - fromAcross) <= SLOP;
-  if (tap) {
-    singledAlong = fromAlong;
-    singledAcross = fromAcross;
-    singled = true;
-  }
   if (tap && tapped && downAt - tapUpAt <= DOUBLE_MS && abs(fromAlong - tapAlong) <= 2 * SLOP &&
       abs(fromAcross - tapAcross) <= 2 * SLOP) {
     doubledAlong = tapAlong;
@@ -146,6 +141,15 @@ void look() {
 void task(void *) {
   for (;;) {
     if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(WAKE_MS)) == 0) {
+      // A tap on its own is only known to be on its own once the window for a
+      // second one has shut - fired on the way up, every double tap would ring
+      // the single first, and the two mean different things here.
+      if (tapped && millis() - tapUpAt > DOUBLE_MS) {
+        tapped = false;
+        singledAlong = tapAlong;
+        singledAcross = tapAcross;
+        singled = true;
+      }
       if (down && millis() - lastReport > RELEASE_MS) {
         lift();
       }

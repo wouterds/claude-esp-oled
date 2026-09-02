@@ -28,7 +28,8 @@ bool touchFinger(int16_t *across, int16_t *along);
 // first of them landed. Cleared by the asking.
 bool touchDoubleTapped(int16_t *across, int16_t *along);
 
-// One tap, landed and lifted without going anywhere, at where it landed.
-// Cleared by the asking. The first half of a double tap reports here too - the
-// two are counted separately rather than one swallowing the other.
+// One tap, landed and lifted without going anywhere and with no second one
+// behind it, at where it landed. Cleared by the asking. Reported a window late
+// rather than on the way up: a tap is only a single once nothing has followed
+// it, or every double tap would ring this first.
 bool touchTapped(int16_t *across, int16_t *along);
