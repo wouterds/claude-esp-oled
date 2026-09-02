@@ -167,6 +167,11 @@ function say(el, text, ok) {
   fading.set(el, setTimeout(() => el.classList.add('hidden'), SAID_MS));
 }
 
+// Blurred the moment a form is sent: the answer appears under the field, and a
+// field still holding focus with a ring around it reads as still wanting
+// something typed. It also puts a phone's keyboard away.
+const unfocus = (form) => form.querySelectorAll('input').forEach((i) => i.blur());
+
 async function post(url, fields) {
   const r = await fetch(url, {
     method: 'POST',
@@ -283,6 +288,7 @@ $('every').addEventListener('change', async () => {
 
 $('tokenForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  unfocus(e.target);
   const btn = $('tokenSave');
   busy(btn, true);
   $('tokenMsg').classList.add('hidden');
@@ -303,6 +309,7 @@ $('tokenForm').addEventListener('submit', async (e) => {
 
 $('netForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  unfocus(e.target);
   const btn = $('netAdd');
   busy(btn, true);
   $('netMsg').classList.add('hidden');
