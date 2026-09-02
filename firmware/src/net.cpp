@@ -9,8 +9,9 @@ namespace {
 SemaphoreHandle_t held = nullptr;
 
 NetCall *calls = nullptr;
-uint8_t kept = 0;
-uint8_t nextCall = 0;
+uint16_t kept = 0;
+uint16_t nextCall = 0;
+uint32_t made = 0;
 uint32_t heard = 0;
 uint32_t heardAt = 0;
 
@@ -97,15 +98,18 @@ void netRecord(const char *url, uint32_t began, int code, uint32_t size) {
   c.size = size;
   // Last, so a reader that catches this mid-write sees the slot before it
   // rather than half of the one being filled.
-  nextCall = (uint8_t)((nextCall + 1) % NET_CALLS);
+  nextCall = (uint16_t)((nextCall + 1) % NET_CALLS);
   if (kept < NET_CALLS) {
     kept++;
   }
+  made++;
 }
 
-uint8_t netCallCount() { return calls ? kept : 0; }
+uint16_t netCallCount() { return calls ? kept : 0; }
 
-bool netCallAt(uint8_t i, NetCall *out) {
+uint32_t netCallsMade() { return made; }
+
+bool netCallAt(uint16_t i, NetCall *out) {
   if (!calls || i >= kept) {
     return false;
   }

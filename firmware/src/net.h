@@ -56,7 +56,9 @@ struct NetCall {
   int16_t code;   // an HTTP status, negative for a client failure, nought for no connection
   char url[80];
 };
-constexpr uint8_t NET_CALLS = 100;
+// Sixteen bits deliberately: a thousand does not fit in the eight this was, and
+// silently wrapping to 232 would have looked like a log that simply forgot.
+constexpr uint16_t NET_CALLS = 1000;
 
 // Whether the page the readings are drawn on is the one in front of somebody.
 // Nothing is asked for while it is not: a reply that lands on a page nobody is
@@ -94,10 +96,16 @@ void netHeard(uint32_t unix);
 void netRecord(const char *url, uint32_t began, int code, uint32_t size);
 
 // How many are worth reading, newest first.
-uint8_t netCallCount();
+uint16_t netCallCount();
+
+// How many have ever been recorded. Only changes when the board actually calls
+// something, so it is what says whether the log is worth fetching again - a
+// thousand rows is a hundred kilobytes and pulling that every few seconds to
+// find it unchanged is most of what the board would be doing.
+uint32_t netCallsMade();
 
 // The nth newest, copied out; false past the end. One at a time rather than the
-// lot: a hundred of them is nine kilobytes and no caller should be putting that
-// on a task stack. Copied rather than pointed at, so a row read while it is
+// lot: a thousand of them is ninety kilobytes and no caller should be putting
+// that on a task stack. Copied rather than pointed at, so a row read while it is
 // being written over is a wrong row rather than a crash.
-bool netCallAt(uint8_t i, NetCall *out);
+bool netCallAt(uint16_t i, NetCall *out);

@@ -212,6 +212,10 @@ async function refresh() {
   }
   who.classList.add('hidden');
   $('tokenState').textContent = s.stored ? 'Stored' : 'None set';
+  if (s.calls !== drawn) {
+    drawn = s.calls;
+    requests();
+  }
   // Not while it is being dragged, or the poll would drag it back every five
   // seconds under the finger holding it.
   if (document.activeElement !== $('every')) {
@@ -255,6 +259,12 @@ async function networks() {
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None known.</li>';
 }
 
+// What the board had made last time the rows were drawn. A thousand of them is
+// a hundred kilobytes of JSON and as many table rows to build, and none of it
+// changes between calls - so the rows are fetched when that number moves rather
+// than on the clock.
+let drawn = -1;
+
 async function requests() {
   let list;
   try {
@@ -262,6 +272,10 @@ async function requests() {
   } catch (e) {
     return;
   }
+  // Held across the redraw, or reading back through the log would throw
+  // somebody to the top every time the board made a call.
+  const box = $('rows').closest('div');
+  const wasAt = box.scrollTop;
   $('quiet').classList.toggle('hidden', list.length > 0);
   // Only the ones that came back with something. A call that failed has no size
   // to speak of and averaging its nought in says the replies are smaller than
@@ -270,7 +284,7 @@ async function requests() {
   $('totals').classList.toggle('hidden', done.length === 0);
   if (done.length) {
     const avg = (of) => done.reduce((sum, c) => sum + of(c), 0) / done.length;
-      $('avgLabel').textContent =
+    $('avgLabel').textContent =
       'Average of ' + done.length + (done.length === 1 ? ' reply' : ' replies');
     $('avgMs').textContent = Math.round(avg((c) => c.ms)) + ' ms';
     $('avgSize').textContent = bytes(Math.round(avg((c) => c.size)));
@@ -288,6 +302,7 @@ async function requests() {
     <td class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums
         text-white/45">${bytes(c.size)}</td>
   </tr>`).join('');
+  box.scrollTop = wasAt;
 }
 
 function showEvery() {
@@ -369,13 +384,13 @@ $('netList').addEventListener('click', async (e) => {
   // rather than until the board said it would. A refusal redraws it as it was.
   await networks();
   refresh();
-  requests();
 });
 
+// requests() is not in here: refresh() asks for it when the board says there is
+// something new to ask for.
 function tick() {
   refresh();
   networks();
-  requests();
 }
 tick();
 // None of this changes because the page did it: another tab, the board joining
@@ -407,6 +422,8 @@ void handleState() {
   appendQuoted(json, wifiAddress() ? wifiAddress() : "");
   json += ",\"every\":";
   json += usageEvery();
+  json += ",\"calls\":";
+  json += netCallsMade();
   json += "}";
   server.send(200, "application/json", json);
 }
@@ -489,8 +506,8 @@ void handleRequests() {
 
   String out = "[";
   NetCall c;
-  uint8_t n = netCallCount();
-  for (uint8_t i = 0; i < n; i++) {
+  uint16_t n = netCallCount();
+  for (uint16_t i = 0; i < n; i++) {
     if (!netCallAt(i, &c)) {
       break;
     }
