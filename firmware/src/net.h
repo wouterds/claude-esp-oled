@@ -45,7 +45,7 @@ bool netBody(HTTPClient &http, String &out, size_t cap, uint32_t patience);
 // read both come through here, so this is the one place that sees all of them.
 // A debug view rather than a record: it is in RAM and goes with the power.
 struct NetCall {
-  uint32_t at;    // UTC seconds, or nought before anything said what the time was
+  uint32_t at;    // UTC seconds, or nought while nothing has said what the time is
   uint32_t size;  // bytes of body read
   uint16_t ms;
   int16_t code;   // an HTTP status, negative for a client failure, nought for no connection

@@ -34,7 +34,10 @@ void netRecord(const char *url, uint32_t began, int code, uint32_t size) {
   NetCall &c = calls[nextCall];
   strncpy(c.url, url, sizeof(c.url) - 1);
   c.url[sizeof(c.url) - 1] = '\0';
-  c.at = heard ? heard + (millis() - heardAt) / 1000 : 0;
+  // Device time. The clock arrives on a reply, which is later than the first
+  // calls out, so what a call gets stamped with is worked out on the way out
+  // rather than here - by then there may be a clock that there was not yet.
+  c.at = millis();
   c.ms = (uint16_t)(millis() - began);
   c.code = (int16_t)code;
   c.size = size;
@@ -51,6 +54,10 @@ uint8_t netCalls(NetCall *out, uint8_t max) {
   for (uint8_t i = 0; i < n; i++) {
     out[i] = calls[(nextCall + NET_CALLS - 1 - i) % NET_CALLS];
     out[i].url[sizeof(out[i].url) - 1] = '\0';
+    // Signed, and either way round: a call made before the clock landed is a
+    // negative distance from it, which is exactly the time it happened at.
+    int32_t since = (int32_t)(out[i].at - heardAt);
+    out[i].at = heard ? (uint32_t)((int32_t)heard + since / 1000) : 0;
   }
   return n;
 }
