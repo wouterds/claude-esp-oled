@@ -69,7 +69,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
           <p class="mt-2 text-xs text-neutral-500">Leave it empty to clear the token</p>
           <button id=tokenSave data-label="Save token" data-busy="Saving"
                   class="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-500 px-4 py-2
-                         text-sm font-medium text-white hover:bg-blue-400
+                         text-sm font-medium text-white hover:bg-blue-500/85
                          disabled:cursor-not-allowed disabled:opacity-50"><span>Save token</span></button>
           <p id=tokenMsg class="mt-3 hidden text-sm"></p>
         </form>
@@ -101,7 +101,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
           </p>
           <button id=netAdd data-label="Add network" data-busy="Adding"
                   class="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-500 px-4 py-2
-                         text-sm font-medium text-white hover:bg-blue-400
+                         text-sm font-medium text-white hover:bg-blue-500/85
                          disabled:cursor-not-allowed disabled:opacity-50"><span>Add network</span></button>
           <p id=netMsg class="mt-3 hidden text-sm"></p>
         </form>
