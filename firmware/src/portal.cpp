@@ -226,7 +226,7 @@ async function networks() {
         ? `<button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
              border border-neutral-700 px-2.5 py-1 text-xs text-neutral-400
              hover:border-red-500/50 hover:text-red-400 disabled:cursor-not-allowed
-             disabled:opacity-50">Forget</button>`
+             disabled:opacity-50">Remove</button>`
         : `<span class="text-[10px] text-neutral-600">Built in</span>`}
     </div>
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-neutral-500">None known.</li>';
@@ -324,15 +324,15 @@ $('netList').addEventListener('click', async (e) => {
   const ssid = btn.dataset.ssid;
   // Forgetting the one the board is on takes this page down with it, and the
   // password is gone rather than hidden - both are worth a second's thought.
-  if (!confirm('Forget "' + ssid + '"? Its password is deleted with it.')) return;
+  if (!confirm('Remove "' + ssid + '"? Its password is deleted with it.')) return;
   btn.disabled = true;
-  btn.innerHTML = spin('h-3 w-3') + '<span>Forgetting</span>';
+  btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
   forgetting = true;
   try {
     await post('/forget', {ssid: ssid});
     $('netMsg').classList.add('hidden');
   } catch (err) {
-    say($('netMsg'), 'Not forgotten: ' + err.message, false);
+    say($('netMsg'), 'Not removed: ' + err.message, false);
   } finally {
     forgetting = false;
   }
