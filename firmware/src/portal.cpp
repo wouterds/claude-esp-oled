@@ -50,15 +50,15 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
                placeholder="sk-ant-sid02-..."
                class="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm
                       text-neutral-100 placeholder-neutral-600 outline-none
-                      focus:border-indigo-500 disabled:opacity-50 sm:max-w-sm">
+                      focus:border-blue-500 disabled:opacity-50 sm:max-w-sm">
         <p id=state class="text-sm text-neutral-500">&nbsp;</p>
       </div>
       <p class="mt-2 text-sm text-neutral-500">Leave it empty and save to forget the one it has.</p>
 
       <div class="mt-5 flex items-center gap-3">
         <button id=save
-                class="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-2 text-sm
-                       font-medium text-white hover:bg-indigo-400 disabled:cursor-not-allowed
+                class="inline-flex items-center gap-2 rounded-md bg-blue-500 px-4 py-2 text-sm
+                       font-medium text-white hover:bg-blue-400 disabled:cursor-not-allowed
                        disabled:opacity-50">
           <svg id=spin class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill=none>
             <circle class="opacity-25" cx=12 cy=12 r=10 stroke=currentColor stroke-width=4></circle>
