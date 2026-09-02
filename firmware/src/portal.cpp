@@ -30,11 +30,12 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 <title>buddy</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <body class="bg-neutral-950 text-neutral-200 antialiased">
-<main class="max-w-3xl px-8 py-10">
+<main class="max-w-7xl px-8 py-10">
   <h1 class="text-2xl font-bold text-white">Settings</h1>
   <p id=who class="mt-1 text-sm text-neutral-500">&nbsp;</p>
 
-  <section class="mt-8 rounded-xl border border-neutral-800 bg-neutral-900/40">
+  <div class="mt-8 grid items-start gap-6 lg:grid-cols-[24rem_minmax(0,1fr)]">
+  <section class="rounded-xl border border-neutral-800 bg-neutral-900/40">
     <form id=form class="px-6 py-5">
       <label for=token class="block text-sm text-neutral-300">Claude session token</label>
       <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -65,6 +66,27 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
       <p id=msg class="mt-4 hidden text-sm"></p>
     </form>
   </section>
+
+  <section class="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40">
+    <div class="flex items-baseline justify-between border-b border-neutral-800 px-5 py-3">
+      <h2 class="text-xs uppercase tracking-wider text-neutral-400">Requests</h2>
+      <p id=meta class="text-xs text-neutral-500">&nbsp;</p>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-xs uppercase tracking-wider text-neutral-500">
+          <th class="px-5 py-2 text-left font-normal">Time</th>
+          <th class="px-5 py-2 text-left font-normal">Endpoint</th>
+          <th class="px-5 py-2 text-right font-normal">Status</th>
+          <th class="px-5 py-2 text-right font-normal">Took</th>
+          <th class="px-5 py-2 text-right font-normal">Size</th>
+        </tr>
+      </thead>
+      <tbody id=rows class="divide-y divide-neutral-800"></tbody>
+    </table>
+    <p id=quiet class="px-5 py-6 text-sm text-neutral-500">Nothing asked for yet.</p>
+  </section>
+  </div>
 </main>
 
 <script>
@@ -76,6 +98,37 @@ const label = document.getElementById('label');
 const msg = document.getElementById('msg');
 const state = document.getElementById('state');
 const who = document.getElementById('who');
+const meta = document.getElementById('meta');
+const rows = document.getElementById('rows');
+const quiet = document.getElementById('quiet');
+
+// The board keeps only the path, because it only ever asks the one host - so
+// the host is written here as well rather than sent back thirty times over.
+const HOST = 'https://claude.ai';
+
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+const clock = (at) => (at ? new Date(at * 1000).toISOString().slice(11, 19) : '--:--:--');
+const bytes = (n) => (n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB');
+
+async function requests() {
+  let list;
+  try {
+    list = await (await fetch('/requests')).json();
+  } catch (e) {
+    return;
+  }
+  quiet.classList.toggle('hidden', list.length > 0);
+  meta.textContent = HOST + ' · ' + list.length + (list.length === 1 ? ' call' : ' calls') + ', UTC';
+  rows.innerHTML = list.map((c) => `<tr>
+    <td class="whitespace-nowrap px-5 py-2.5 tabular-nums text-neutral-400">${clock(c.at)}</td>
+    <td class="whitespace-nowrap px-5 py-2.5 text-neutral-200"><span
+        class="text-neutral-600">${HOST}</span>${esc(c.path)}</td>
+    <td class="px-5 py-2.5 text-right tabular-nums ${
+      c.code === 200 ? 'text-emerald-400' : 'text-red-400'}">${c.code || 'no reply'}</td>
+    <td class="px-5 py-2.5 text-right tabular-nums text-neutral-400">${c.ms} ms</td>
+    <td class="px-5 py-2.5 text-right tabular-nums text-neutral-400">${bytes(c.size)}</td>
+  </tr>`).join('');
+}
 
 function say(text, ok) {
   msg.textContent = text;
@@ -119,9 +172,13 @@ form.addEventListener('submit', async (e) => {
 });
 
 refresh();
+requests();
 // The network line and whether anything is stored can both change without this
 // page having done it - another tab, or the board joining a different network.
-setInterval(refresh, 5000);
+setInterval(() => {
+  refresh();
+  requests();
+}, 5000);
 </script>
 )HTML";
 
@@ -153,6 +210,30 @@ void handleState() {
   json += ",\"address\":";
   appendQuoted(json, wifiAddress() ? wifiAddress() : "");
   json += "}";
+  server.send(200, "application/json", json);
+}
+
+void handleRequests() {
+  UsageCall calls[USAGE_CALLS];
+  uint8_t n = usageCalls(calls, USAGE_CALLS);
+  String json = "[";
+  for (uint8_t i = 0; i < n; i++) {
+    if (i) {
+      json += ',';
+    }
+    json += "{\"at\":";
+    json += calls[i].at;
+    json += ",\"ms\":";
+    json += calls[i].ms;
+    json += ",\"code\":";
+    json += calls[i].code;
+    json += ",\"size\":";
+    json += calls[i].size;
+    json += ",\"path\":";
+    appendQuoted(json, calls[i].path);
+    json += '}';
+  }
+  json += ']';
   server.send(200, "application/json", json);
 }
 
@@ -200,10 +281,13 @@ void portalBegin() {
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/state", HTTP_GET, handleState);
+  server.on("/requests", HTTP_GET, handleRequests);
   server.on("/token", HTTP_POST, handleSave);
   server.onNotFound(handleRoot);
-  // Core 0, with the radio. Nothing here may sit in the way of a frame.
-  xTaskCreatePinnedToCore(task, "portal", 8192, nullptr, 1, nullptr, 0);
+  // Core 0, with the radio. Nothing here may sit in the way of a frame. The
+  // stack carries a copy of the whole call log on its way out, which is most of
+  // two kilobytes that was not here before.
+  xTaskCreatePinnedToCore(task, "portal", 12288, nullptr, 1, nullptr, 0);
 }
 
 const char *portalToken() { return token[0] ? token : nullptr; }
