@@ -123,6 +123,14 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
           </tr>
         </thead>
         <tbody id=rows class="divide-y divide-neutral-800"></tbody>
+        <tfoot id=totals class="hidden">
+          <tr class="border-t border-neutral-800 text-neutral-500">
+            <td colspan=3 id=avgLabel
+                class="py-2 pl-5 pr-3 text-[10px] uppercase tracking-wider"></td>
+            <td id=avgMs class="whitespace-nowrap px-3 py-2 text-right tabular-nums"></td>
+            <td id=avgSize class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums"></td>
+          </tr>
+        </tfoot>
       </table>
       <p id=quiet class="px-5 py-6 text-sm text-neutral-500">Nothing asked for yet.</p>
     </section>
@@ -215,6 +223,18 @@ async function requests() {
     return;
   }
   $('quiet').classList.toggle('hidden', list.length > 0);
+  // Only the ones that came back with something. A call that failed has no size
+  // to speak of and averaging its nought in says the replies are smaller than
+  // any of them was.
+  const done = list.filter((c) => c.code === 200);
+  $('totals').classList.toggle('hidden', done.length === 0);
+  if (done.length) {
+    const avg = (of) => done.reduce((sum, c) => sum + of(c), 0) / done.length;
+    $('avgLabel').textContent =
+      'Average of ' + done.length + (done.length === 1 ? ' reply' : ' replies');
+    $('avgMs').textContent = Math.round(avg((c) => c.ms)) + ' ms';
+    $('avgSize').textContent = bytes(Math.round(avg((c) => c.size)));
+  }
   $('rows').innerHTML = list.map((c) => `<tr>
     <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-neutral-500">${clock(c.at)}</td>
     <td class="truncate px-3 py-2"><a href="${esc(c.url)}" target=_blank
