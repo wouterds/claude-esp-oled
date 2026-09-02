@@ -15,6 +15,10 @@ namespace {
 // samples of a rate that would also be. The codec wants 256 of its own clocks
 // per sample, which is the row every ordinary rate has in Espressif's table.
 constexpr uint32_t RATE = 16000;
+// What the I2S has taken but not yet played. Six descriptors of 240 frames is
+// ninety milliseconds at this rate, and write() returns once the samples are in
+// there rather than once they have come out of the part.
+constexpr uint32_t DMA_FRAMES = 6 * 240;
 // A part of full scale, done in the samples rather than in the codec. The
 // part's own volume register is in half decibels, so a percentage written
 // straight into it is a percentage of nothing anybody can hear - a fraction of
@@ -250,9 +254,31 @@ void note(const Note &n) {
   }
 }
 
+// Silence enough to push everything real out of the DMA. write() blocks once
+// the descriptors are full, so by the time this much has gone into them, what
+// was queued ahead of it has been clocked out.
+void drain() {
+  memset(chunk, 0, sizeof(chunk));
+  uint32_t left = DMA_FRAMES;
+  while (left > 0) {
+    uint32_t take = left > sizeof(chunk) / sizeof(chunk[0]) ? sizeof(chunk) / sizeof(chunk[0])
+                                                            : left;
+    i2s.write((uint8_t *)chunk, take * sizeof(chunk[0]));
+    left -= take;
+  }
+}
+
 void amp(bool on) {
   if (on == amped) {
     return;
+  }
+  // On the way down, and before the pin rather than after it. Every sound was
+  // losing the ninety milliseconds still sitting in the DMA when the amplifier
+  // went - which for a long one is a clipped tail nobody went looking for, and
+  // for one shorter than the buffer is the whole sound. The shutter is a
+  // hundred milliseconds and could not be heard at all.
+  if (!on) {
+    drain();
   }
   amped = on;
   digitalWrite(AUDIO_PA, on ? HIGH : LOW);
