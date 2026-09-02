@@ -31,10 +31,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>buddy</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- The panels are a transparent white over this rather than a colour of their
-     own, so they lift by the same amount wherever they sit. -->
-<script>tailwind.config = {theme: {extend: {colors: {ink: '#0A0B0D'}}}}</script>
-<body class="bg-ink text-neutral-200 antialiased">
+<body class="bg-gray-950 text-neutral-200 antialiased">
 <main class="max-w-7xl px-8 py-10">
   <h1 class="text-2xl font-bold text-white">Settings</h1>
   <p id=who class="mt-1 hidden text-sm text-red-400"></p>
@@ -50,7 +47,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
         <form id=tokenForm class="px-5 py-4">
           <input id=token name=token type=password autocomplete=off spellcheck=false
                  placeholder="sk-ant-sid02-..."
-                 class="w-full rounded-md border border-neutral-800 bg-ink px-3 py-2 text-sm
+                 class="w-full rounded-md border border-neutral-800 bg-gray-950 px-3 py-2 text-sm
                         text-neutral-100 placeholder-neutral-600 outline-none
                         focus:outline focus:outline-[1.5px] focus:outline-offset-0
                         focus:outline-blue-500 disabled:opacity-50">
@@ -73,13 +70,13 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
           <div class="grid gap-2 sm:grid-cols-2">
             <input id=ssid name=ssid autocomplete=off spellcheck=false maxlength=32
                    placeholder="Network name"
-                   class="rounded-md border border-neutral-800 bg-ink px-3 py-2 text-sm
+                   class="rounded-md border border-neutral-800 bg-gray-950 px-3 py-2 text-sm
                           text-neutral-100 placeholder-neutral-600 outline-none
                           focus:outline focus:outline-[1.5px] focus:outline-offset-0
                           focus:outline-blue-500 disabled:opacity-50">
             <input id=pass name=password type=password autocomplete=new-password maxlength=63
                    placeholder="Password"
-                   class="rounded-md border border-neutral-800 bg-ink px-3 py-2 text-sm
+                   class="rounded-md border border-neutral-800 bg-gray-950 px-3 py-2 text-sm
                           text-neutral-100 placeholder-neutral-600 outline-none
                           focus:outline focus:outline-[1.5px] focus:outline-offset-0
                           focus:outline-blue-500 disabled:opacity-50">
