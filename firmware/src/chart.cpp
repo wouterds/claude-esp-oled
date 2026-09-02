@@ -43,13 +43,18 @@ constexpr float HEADROOM = 0.08f;
 constexpr float WASH = 0.45f;
 constexpr float WASH_ALPHA = 0.30f;
 
-// Three of them, chasing. It says the same thing a word would and does not have
-// to be read.
-constexpr float DOT_R = 4.5f * SCENE;
-constexpr float DOT_GAP = 20.0f * SCENE;
-constexpr uint32_t DOT_CYCLE_MS = 1200;
-constexpr int16_t DOT_TOP = (int16_t)(PRICE_Y + 2 * SCENE);
-constexpr int16_t DOT_BOTTOM = (int16_t)(PRICE_Y + 2 * SCENE + 2 * DOT_R + 4);
+// A ring of tapered spokes with one leading and the rest fading behind it,
+// which is what reads as turning - a ring of even spokes rotating reads as
+// nothing at all, because every frame of it looks like the last.
+constexpr uint8_t SPOKES = 8;
+constexpr float SPIN_IN = 9.0f * SCENE;
+constexpr float SPIN_OUT = 18.0f * SCENE;
+constexpr float SPIN_HALF = 1.8f * SCENE;
+constexpr uint32_t SPIN_MS = 800;
+constexpr float SPIN_CY = PRICE_Y + 14.0f * SCENE;
+constexpr int16_t SPIN_REACH = (int16_t)(SPIN_OUT + SPIN_HALF + 2);
+constexpr int16_t SPIN_TOP = (int16_t)(SPIN_CY) - SPIN_REACH;
+constexpr int16_t SPIN_BOTTOM = (int16_t)(SPIN_CY) + SPIN_REACH;
 
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x8410;
@@ -202,24 +207,49 @@ void drawPlot(uint16_t *fb, const Market &m, uint16_t ink) {
   }
 }
 
-void drawDots(uint16_t *fb) {
-  float turn = (float)(millis() % DOT_CYCLE_MS) / (float)DOT_CYCLE_MS;
-  float cy = (float)DOT_TOP + DOT_R;
-  for (int8_t i = -1; i <= 1; i++) {
-    float cx = (float)SCREEN_R + (float)i * DOT_GAP;
-    // A travelling pulse rather than three that blink together, which reads as
-    // one thing working instead of three things flashing.
-    float phase = turn - (float)(i + 1) * 0.15f;
-    float wave = sinf(phase * 2.0f * (float)M_PI);
-    float lit = 0.18f + 0.82f * (wave > 0.0f ? wave : 0.0f);
-    for (int16_t y = (int16_t)(cy - DOT_R - 1); y <= (int16_t)(cy + DOT_R + 1); y++) {
-      for (int16_t x = (int16_t)(cx - DOT_R - 1); x <= (int16_t)(cx + DOT_R + 1); x++) {
-        float dx = (float)x + 0.5f - cx;
-        float dy = (float)y + 0.5f - cy;
-        float cover = 0.5f - (sqrtf(dx * dx + dy * dy) - DOT_R);
-        if (cover > 0.02f) {
-          plot(fb, x, y, cover * lit, WHITE);
+void drawSpinner(uint16_t *fb) {
+  float cx = (float)SCREEN_R;
+  float cy = SPIN_CY;
+  // Worked out once rather than per pixel. There are eight of them and eleven
+  // hundred pixels to ask about each one, and none of this varies across them.
+  float ax[SPOKES];
+  float ay[SPOKES];
+  float bx[SPOKES];
+  float by[SPOKES];
+  float lit[SPOKES];
+  uint8_t lead = (uint8_t)((millis() / (SPIN_MS / SPOKES)) % SPOKES);
+  for (uint8_t i = 0; i < SPOKES; i++) {
+    float turn = (float)i / (float)SPOKES * 2.0f * (float)M_PI;
+    float c = cosf(turn);
+    float s = sinf(turn);
+    ax[i] = cx + c * SPIN_IN;
+    ay[i] = cy + s * SPIN_IN;
+    bx[i] = cx + c * SPIN_OUT;
+    by[i] = cy + s * SPIN_OUT;
+    // How far behind the leading spoke this one is, which is how faded it is.
+    uint8_t behind = (uint8_t)((lead + SPOKES - i) % SPOKES);
+    lit[i] = 1.0f - (float)behind / (float)SPOKES * 0.82f;
+  }
+
+  for (int16_t y = SPIN_TOP; y <= SPIN_BOTTOM; y++) {
+    for (int16_t x = (int16_t)cx - SPIN_REACH; x <= (int16_t)cx + SPIN_REACH; x++) {
+      float px = (float)x + 0.5f;
+      float py = (float)y + 0.5f;
+      // The nearest spoke and its own brightness together: taking the nearest
+      // distance and somebody else's brightness is how a spoke ends up wearing
+      // its neighbour's place in the tail.
+      float near = 1e9f;
+      float bright = 0.0f;
+      for (uint8_t i = 0; i < SPOKES; i++) {
+        float d = sdSegment(px, py, ax[i], ay[i], bx[i], by[i]);
+        if (d < near) {
+          near = d;
+          bright = lit[i];
         }
+      }
+      float cover = 0.5f - (near - SPIN_HALF);
+      if (cover > 0.02f) {
+        plot(fb, x, y, cover * bright, WHITE);
       }
     }
   }
@@ -235,7 +265,7 @@ void drawAll(uint16_t *fb, const Market &m, bool coin) {
     if (m.failed) {
       centred(fb, "NO DATA", PRICE_Y, MOVE_SCALE, FAINT);
     } else {
-      drawDots(fb);
+      drawSpinner(fb);
     }
     return;
   }
@@ -277,8 +307,8 @@ void chartStep(uint16_t *fb, uint8_t screen) {
   // Nothing has changed and there are no figures yet, so the pulse is the only
   // thing on here that moves - and its own rows are all it moves in.
   if (!m.ready && !m.failed) {
-    clearOwned(fb, DOT_TOP, DOT_BOTTOM);
-    drawDots(fb);
-    boardFlushRows(bandFrom(DOT_BOTTOM), bandTo(DOT_TOP));
+    clearOwned(fb, SPIN_TOP, SPIN_BOTTOM);
+    drawSpinner(fb);
+    boardFlushRows(bandFrom(SPIN_BOTTOM), bandTo(SPIN_TOP));
   }
 }
