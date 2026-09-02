@@ -256,7 +256,10 @@ $('tokenForm').addEventListener('submit', async (e) => {
     say($('tokenMsg'), 'Not saved: ' + err.message, false);
   } finally {
     busy(btn, false);
-    refresh();
+    // Everything, not just the token's own line: saving one sets the poller off
+    // and what that turns up belongs on the page now rather than in five
+    // seconds' time.
+    tick();
   }
 });
 
@@ -273,7 +276,7 @@ $('netForm').addEventListener('submit', async (e) => {
     say($('netMsg'), 'Not added: ' + err.message, false);
   } finally {
     busy(btn, false);
-    networks();
+    tick();
   }
 });
 
@@ -292,7 +295,7 @@ $('netList').addEventListener('click', async (e) => {
   } catch (err) {
     say($('netMsg'), 'Not forgotten: ' + err.message, false);
   }
-  networks();
+  tick();
 });
 
 function tick() {
