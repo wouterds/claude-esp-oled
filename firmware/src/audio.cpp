@@ -84,6 +84,13 @@ constexpr Note ERRORED[] = {{1760, 60, 50}, {1245, 150, 90}, {1760, 60, 50}, {12
 // the board and near the bottom of what this speaker can move at all - it comes
 // out soft and buzzy, which is the point.
 constexpr Note DIED[] = {{1568, 620, 140, 600}, {415, 420, 0}};
+// Two clips at one pitch, which is a mechanism rather than a tune. Every other
+// sound here goes somewhere, and an interval - any interval - would make this
+// one a small piece of music about a file being written; a shutter is two
+// halves of a single movement and neither half is higher than the other. Short,
+// because what it acknowledges is a button that has already been held for three
+// seconds and nobody wants a fourth.
+constexpr Note SHUTTERED[] = {{2093, 30, 40}, {2093, 30, 0}};
 // The forever song, for as long as the cat has the glass: daniwell's tune, as
 // the one voice this has - the melody and none of what sits under it, which is
 // what it sounds like out of anything with a piezo in it. A rest is a note with
@@ -279,8 +286,10 @@ void task(void *) {
         play(CHEERED, sizeof(CHEERED) / sizeof(CHEERED[0]));
       } else if (want == 3) {
         play(ERRORED, sizeof(ERRORED) / sizeof(ERRORED[0]));
-      } else {
+      } else if (want == 4) {
         play(DIED, sizeof(DIED) / sizeof(DIED[0]));
+      } else {
+        play(SHUTTERED, sizeof(SHUTTERED) / sizeof(SHUTTERED[0]));
       }
     }
     // A note at a time round the loop rather than the whole song in one go, so
@@ -359,5 +368,11 @@ void audioErrored() {
 void audioDied() {
   if (ready) {
     wanted = 4;
+  }
+}
+
+void audioShuttered() {
+  if (ready) {
+    wanted = 5;
   }
 }
