@@ -8,9 +8,10 @@ constexpr int16_t GLYPH_W = 5;
 constexpr int16_t GLYPH_H = 7;
 
 // Column-major, one byte per column, bit 0 at the top. Space, then A-Z, then
-// 0-9, then a full stop, a percent, a colon, an apostrophe and a hyphen - which
-// between them is a mood, an address, a charge level, a clock, a label with its
-// reading after it, and whatever somebody has called their network.
+// 0-9, then a full stop, a percent, a colon, an apostrophe, a hyphen, a comma,
+// a plus, a dollar and an ampersand - which between them is a mood, an address,
+// a charge level, a clock, a label with its reading after it, whatever somebody
+// has called their network, and a price with the way it has moved beside it.
 const uint8_t GLYPHS[][GLYPH_W] = {
     {0x00, 0x00, 0x00, 0x00, 0x00}, {0x7E, 0x11, 0x11, 0x11, 0x7E},
     {0x7F, 0x49, 0x49, 0x49, 0x36}, {0x3E, 0x41, 0x41, 0x41, 0x22},
@@ -33,7 +34,9 @@ const uint8_t GLYPHS[][GLYPH_W] = {
     {0x36, 0x49, 0x49, 0x49, 0x36}, {0x06, 0x49, 0x49, 0x29, 0x1E},
     {0x00, 0x60, 0x60, 0x00, 0x00}, {0x23, 0x13, 0x08, 0x64, 0x62},
     {0x00, 0x66, 0x66, 0x00, 0x00}, {0x00, 0x03, 0x03, 0x00, 0x00},
-    {0x00, 0x08, 0x08, 0x08, 0x00},
+    {0x00, 0x08, 0x08, 0x08, 0x00}, {0x00, 0x50, 0x30, 0x00, 0x00},
+    {0x08, 0x08, 0x3E, 0x08, 0x08}, {0x24, 0x2A, 0x7F, 0x2A, 0x12},
+    {0x36, 0x49, 0x55, 0x22, 0x50},
 };
 
 constexpr uint8_t DIGIT_0 = 27;
@@ -42,6 +45,10 @@ constexpr uint8_t PERCENT = 38;
 constexpr uint8_t COLON = 39;
 constexpr uint8_t APOSTROPHE = 40;
 constexpr uint8_t HYPHEN = 41;
+constexpr uint8_t COMMA = 42;
+constexpr uint8_t PLUS = 43;
+constexpr uint8_t DOLLAR = 44;
+constexpr uint8_t AMPERSAND = 45;
 
 // Anything the font does not carry lands on the blank, which keeps a typo from
 // walking off the end of the table.
@@ -60,6 +67,18 @@ inline const uint8_t *glyph(char c) {
   }
   if (c == '%') {
     return GLYPHS[PERCENT];
+  }
+  if (c == ',') {
+    return GLYPHS[COMMA];
+  }
+  if (c == '+') {
+    return GLYPHS[PLUS];
+  }
+  if (c == '$') {
+    return GLYPHS[DOLLAR];
+  }
+  if (c == '&') {
+    return GLYPHS[AMPERSAND];
   }
   if (c == ':') {
     return GLYPHS[COLON];
