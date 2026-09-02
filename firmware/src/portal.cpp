@@ -251,11 +251,15 @@ async function tokens() {
     return;
   }
   $('tokenState').textContent = list.length ? list.length + ' stored' : 'None set';
+  // The radio is drawn rather than accented: accent-color fills the whole disc
+  // and puts a white dot in it, which against a dark page reads as a blob and
+  // not as a ring with a chosen one inside it.
   $('tokenList').innerHTML = list.map((t, i) => `<li class="flex items-center justify-between
     gap-3 px-5 py-3">
     <label class="flex min-w-0 cursor-pointer items-center gap-3">
       <input type=radio name=pick value=${i} ${t.picked ? 'checked' : ''}
-             class="h-4 w-4 shrink-0 cursor-pointer accent-blue-500">
+             class="h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-full border-2
+                    border-white/25 text-blue-500 checked:border-blue-500 checked:bg-[radial-gradient(circle_at_center,currentColor_0_3px,transparent_3.5px)]">
       <span class="truncate font-mono text-sm ${t.picked ? 'text-white' : 'text-white/60'}"
         >${esc(t.hint)}</span>
     </label>
