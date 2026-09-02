@@ -4,8 +4,10 @@
 #include <Preferences.h>
 #include <WebServer.h>
 #include <string.h>
+#include <uri/UriBraces.h>
 
 #include "net.h"
+#include "shot.h"
 #include "usage.h"
 #include "wifi.h"
 
@@ -105,61 +107,84 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
     </div>
 
-    <section class="flex max-h-[200px] flex-col overflow-hidden rounded-xl border border-white/10
-                    bg-white/[0.05] xl:max-h-[calc(100vh-10rem)]">
-      <div class="flex flex-none flex-wrap items-center justify-between gap-x-4 gap-y-2
-                  border-b border-white/[0.06] px-5 py-3">
-        <h2 class="text-xs uppercase tracking-wider text-white/60">Requests</h2>
-        <div class="flex items-center gap-3">
-          <label for=every class="text-xs text-white/45">Refresh interval</label>
-          <input id=every type=range min=1 max=5 step=1 value=1
-                 class="h-1 w-28 cursor-pointer appearance-none rounded-full bg-white/10
-                        accent-blue-500">
-          <span id=everyLabel
-                class="w-12 shrink-0 text-right text-xs tabular-nums text-white/80">&nbsp;</span>
+    <!-- The column, rather than the one card that used to be here. The cap on
+         how tall it gets moved up to this: the screenshots take what they need
+         and the requests take the rest, so the two together stop where the one
+         did instead of running the page off the bottom. -->
+    <div class="grid min-w-0 gap-6 xl:max-h-[calc(100vh-10rem)]
+                xl:grid-rows-[auto_minmax(0,1fr)]">
+
+      <section class="rounded-xl border border-white/10 bg-white/[0.05]">
+        <div class="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Screenshots</h2>
+          <span id=shotCount class="text-xs text-white/45">&nbsp;</span>
         </div>
-      </div>
-      <!-- The rows scroll and the two ends hold still. They stay inside the one
-           table so the columns cannot drift apart, which is what a second table
-           for the head would risk the moment a scrollbar took a width off this
-           one. A stuck row has to be opaque or the rows pass through it, and
-           #10131E is this panel's own colour resolved - the one fixed value on
-           the page, and only because there is no way to name a composite. -->
-      <div class="min-h-0 flex-1 overflow-y-auto">
-        <!-- Fixed, so a path longer than the column ends in an ellipsis rather
-             than widening the table until the last column is outside the card. -->
-        <table class="w-full table-fixed text-xs">
-          <thead>
-            <tr class="text-[10px] uppercase tracking-wider text-white/45">
-              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
-                         pl-5 pr-3 text-left font-normal">Time</th>
-              <th class="sticky top-0 z-10 border-b border-white/[0.06] bg-[#10131E] px-3 py-2
-                         text-left font-normal">Endpoint</th>
-              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
-                         py-2 text-right font-normal">Status</th>
-              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
-                         py-2 text-right font-normal">Took</th>
-              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
-                         pl-3 pr-5 text-right font-normal">Size</th>
-            </tr>
-          </thead>
-          <tbody id=rows class="divide-y divide-white/[0.06]"></tbody>
-          <tfoot id=totals class="hidden">
-            <tr class="text-white/45">
-              <td colspan=3 id=avgLabel
-                  class="sticky bottom-0 z-10 border-t border-white/[0.06] bg-[#10131E] py-2 pl-5
-                         pr-3 text-[10px] uppercase tracking-wider"></td>
-              <td id=avgMs class="sticky bottom-0 z-10 whitespace-nowrap border-t
-                         border-white/[0.06] bg-[#10131E] px-3 py-2 text-right tabular-nums"></td>
-              <td id=avgSize class="sticky bottom-0 z-10 whitespace-nowrap border-t
-                         border-white/[0.06] bg-[#10131E] py-2 pl-3 pr-5 text-right
-                         tabular-nums"></td>
-            </tr>
-          </tfoot>
-        </table>
-        <p id=quiet class="px-5 py-6 text-sm text-white/45">Nothing asked for yet.</p>
-      </div>
-    </section>
+        <!-- Capped and scrolling rather than as tall as it needs. Ten rows is
+             most of the column on a laptop, and what it would be taking that
+             from is the request log underneath - which is the thing on this
+             page somebody is actually reading. The cap cuts a row in half on
+             purpose: a list that ends flush with its own border looks like the
+             whole of it. -->
+        <ul id=shotList class="max-h-72 divide-y divide-white/[0.06] overflow-y-auto"></ul>
+      </section>
+
+      <section class="flex max-h-[200px] min-h-0 flex-col overflow-hidden rounded-xl
+                      border border-white/10 bg-white/[0.05] xl:max-h-none">
+        <div class="flex flex-none flex-wrap items-center justify-between gap-x-4 gap-y-2
+                    border-b border-white/[0.06] px-5 py-3">
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Requests</h2>
+          <div class="flex items-center gap-3">
+            <label for=every class="text-xs text-white/45">Refresh interval</label>
+            <input id=every type=range min=1 max=5 step=1 value=1
+                   class="h-1 w-28 cursor-pointer appearance-none rounded-full bg-white/10
+                          accent-blue-500">
+            <span id=everyLabel
+                  class="w-12 shrink-0 text-right text-xs tabular-nums text-white/80">&nbsp;</span>
+          </div>
+        </div>
+        <!-- The rows scroll and the two ends hold still. They stay inside the one
+             table so the columns cannot drift apart, which is what a second table
+             for the head would risk the moment a scrollbar took a width off this
+             one. A stuck row has to be opaque or the rows pass through it, and
+             #10131E is this panel's own colour resolved - the one fixed value on
+             the page, and only because there is no way to name a composite. -->
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <!-- Fixed, so a path longer than the column ends in an ellipsis rather
+               than widening the table until the last column is outside the card. -->
+          <table class="w-full table-fixed text-xs">
+            <thead>
+              <tr class="text-[10px] uppercase tracking-wider text-white/45">
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
+                           pl-5 pr-3 text-left font-normal">Time</th>
+                <th class="sticky top-0 z-10 border-b border-white/[0.06] bg-[#10131E] px-3 py-2
+                           text-left font-normal">Endpoint</th>
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
+                           py-2 text-right font-normal">Status</th>
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
+                           py-2 text-right font-normal">Took</th>
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
+                           pl-3 pr-5 text-right font-normal">Size</th>
+              </tr>
+            </thead>
+            <tbody id=rows class="divide-y divide-white/[0.06]"></tbody>
+            <tfoot id=totals class="hidden">
+              <tr class="text-white/45">
+                <td colspan=3 id=avgLabel
+                    class="sticky bottom-0 z-10 border-t border-white/[0.06] bg-[#10131E] py-2 pl-5
+                           pr-3 text-[10px] uppercase tracking-wider"></td>
+                <td id=avgMs class="sticky bottom-0 z-10 whitespace-nowrap border-t
+                           border-white/[0.06] bg-[#10131E] px-3 py-2 text-right tabular-nums"></td>
+                <td id=avgSize class="sticky bottom-0 z-10 whitespace-nowrap border-t
+                           border-white/[0.06] bg-[#10131E] py-2 pl-3 pr-5 text-right
+                           tabular-nums"></td>
+              </tr>
+            </tfoot>
+          </table>
+          <p id=quiet class="px-5 py-6 text-sm text-white/45">Nothing asked for yet.</p>
+        </div>
+      </section>
+
+    </div>
   </div>
 </main>
 
@@ -239,6 +264,7 @@ async function refresh() {
 // one, which reads as the click having been dropped.
 let forgetting = false;
 let trashing = false;
+let binning = false;
 
 async function tokens() {
   if (trashing) {
@@ -295,6 +321,35 @@ async function networks() {
         disabled:opacity-50">Remove</button>
     </div>
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None known.</li>';
+}
+
+async function shots() {
+  if (binning) {
+    return;
+  }
+  let list;
+  try {
+    list = await (await fetch('/shots')).json();
+  } catch (e) {
+    return;
+  }
+  $('shotCount').textContent = list.length ? list.length + ' kept' : 'None yet';
+  // The name is the link. It goes to its own path rather than to a query, so
+  // the tab it opens is called what the file is called and saving it out of the
+  // browser keeps that name.
+  $('shotList').innerHTML = list.map((s) => `<li class="flex items-center justify-between gap-3
+    px-5 py-3">
+    <a href="/shots/${esc(s.name)}" target=_blank rel="noopener noreferrer"
+       class="min-w-0 truncate font-mono text-xs text-white/80 hover:text-white hover:underline"
+      >${esc(s.name)}</a>
+    <div class="flex shrink-0 items-center gap-3">
+      <span class="text-xs tabular-nums text-white/45">${bytes(s.size)}</span>
+      <button data-shot="${esc(s.name)}" class="inline-flex items-center gap-1.5 rounded-md
+        border border-white/15 px-2.5 py-1 text-xs text-white/60 hover:border-rose-500/50
+        hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50">Remove</button>
+    </div>
+  </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None yet. Hold the button on ' +
+    'the board for three seconds.</li>';
 }
 
 // What the board had made last time the rows were drawn. A thousand of them is
@@ -459,12 +514,35 @@ $('netList').addEventListener('click', async (e) => {
   refresh();
 });
 
+$('shotList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-shot]');
+  if (!btn) return;
+  // The frame it was taken of is long gone, so this is the only copy of it.
+  if (!confirm('Are you sure you want to remove ' + btn.dataset.shot + '?')) return;
+  btn.disabled = true;
+  btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
+  binning = true;
+  try {
+    await post('/shots/trash', {name: btn.dataset.shot});
+  } catch (err) {
+    // Nothing to say here that the list does not say better. A removal only
+    // fails because the board no longer has that one, and what it does have is
+    // what gets drawn below.
+  } finally {
+    binning = false;
+  }
+  // Awaited, so the button spins until the row it sits in has actually gone
+  // rather than until the board said it would.
+  await shots();
+});
+
 // requests() is not in here: refresh() asks for it when the board says there is
 // something new to ask for.
 function tick() {
   refresh();
   tokens();
   networks();
+  shots();
 }
 tick();
 // None of this changes because the page did it: another tab, the board joining
@@ -780,6 +858,56 @@ void handleTrashToken() {
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
+// Names and sizes. Ten of them, so this is built and sent rather than streamed
+// the way the call log has to be.
+void handleShots() {
+  String json = "[";
+  char name[SHOT_NAME_MAX];
+  uint32_t bytes = 0;
+  for (uint8_t i = 0; shotAt(i, name, &bytes); i++) {
+    if (i) {
+      json += ',';
+    }
+    json += "{\"name\":";
+    appendQuoted(json, name);
+    json += ",\"size\":";
+    json += bytes;
+    json += '}';
+  }
+  json += ']';
+  server.send(200, "application/json", json);
+}
+
+// Under its own name rather than behind a query, so the tab it opens in is
+// called what the file is called and saving it out of the browser keeps that
+// name. The segment cannot hold a slash and shotOpen only answers to a name it
+// already has, so there is nothing here to walk out of the directory on.
+void handleShotFile() {
+  // Held across the transfer and not merely across the open: screenshots are
+  // taken on the other core, and the one being sent is exactly the one an
+  // eleventh would evict out from under this handle.
+  shotHold();
+  bool sent = false;
+  File f = shotOpen(server.pathArg(0).c_str());
+  if (f) {
+    server.streamFile(f, "image/png");
+    f.close();
+    sent = true;
+  }
+  shotDrop();
+  if (!sent) {
+    server.send(404, "application/json", "{\"ok\":false,\"error\":\"it has no such screenshot\"}");
+  }
+}
+
+void handleTrashShot() {
+  if (!shotTrash(server.arg("name").c_str())) {
+    server.send(409, "application/json", "{\"ok\":false,\"error\":\"that is not one it has\"}");
+    return;
+  }
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
 void task(void *) {
   server.begin();
   for (;;) {
@@ -806,6 +934,11 @@ void portalBegin() {
   server.on("/tokens", HTTP_POST, handleAddToken);
   server.on("/tokens/pick", HTTP_POST, handlePickToken);
   server.on("/tokens/trash", HTTP_POST, handleTrashToken);
+  server.on("/shots", HTTP_GET, handleShots);
+  server.on("/shots/trash", HTTP_POST, handleTrashShot);
+  // Last of the three, and a pattern rather than a path. The two above are
+  // exact and are matched first, so neither is read as the name of a file.
+  server.on(UriBraces("/shots/{}"), HTTP_GET, handleShotFile);
   server.onNotFound(handleRoot);
   // Core 0, with the radio. Nothing here may sit in the way of a frame. The
   // stack carries a copy of the whole call log on its way out, which is most of
