@@ -7,10 +7,11 @@
 // other core: a TLS handshake takes longer than a frame.
 void usageBegin();
 
-// Try again now rather than at the next poll - for when a token has just been
-// typed in and nobody wants to wait a minute to find out if it was the right
-// one.
-void usageWake();
+// A new token has been stored. Whatever was worked out from the last one is
+// dropped - the organisation before anything else, because that belongs to the
+// account the token was for rather than to the device - and the next read
+// happens now rather than at the next slot.
+void usageTokenChanged();
 
 // How long the poller waits between reads, in whole minutes. One to five, kept
 // in the store, and applied from the next wait rather than to the one already

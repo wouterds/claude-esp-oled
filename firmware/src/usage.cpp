@@ -37,6 +37,7 @@ volatile bool ready = false;
 volatile uint8_t session = 0;
 volatile uint8_t weekly = 0;
 volatile bool wake = false;
+volatile bool switched = false;
 volatile uint8_t still = 0;
 // When each window rolls over, as a deadline on the device's own clock. Nought
 // for one nobody has spent anything in, which is what the endpoint says by
@@ -270,6 +271,14 @@ bool window(const String &body, const char *name, uint8_t &out, uint32_t &reset)
 }
 
 void poll(const char *token) {
+  if (switched) {
+    switched = false;
+    // The organisation was worked out from the token before this one and is not
+    // the same account's. Dropped here rather than where the new token landed,
+    // so this task stays the only one that ever touches it.
+    org[0] = '\0';
+    misses = 0;
+  }
   String body;
   uint8_t hours = 0;
   uint8_t week = 0;
@@ -281,6 +290,16 @@ void poll(const char *token) {
              window(body, "seven_day", week, weekOn);
 
   if (!got) {
+    // A 404 on the usage path is the organisation not being this account's - a
+    // token that changed without this being told, which the portal normally
+    // says. What is stale is the organisation and not the token, so it goes and
+    // is asked for again next round rather than counting as a strike.
+    if (lastCode == 404) {
+      Serial.println("usage: 404, asking which organisation again");
+      org[0] = '\0';
+      misses = 0;
+      return;
+    }
     // Turned away outright is answer enough; anything else gets the benefit of
     // the doubt for a couple of rounds, because a radio drops.
     bool refused = lastCode == 401 || lastCode == 403;
@@ -392,7 +411,10 @@ void usageBegin() {
   xTaskCreatePinnedToCore(task, "usage", 12288, nullptr, 0, nullptr, 0);
 }
 
-void usageWake() { wake = true; }
+void usageTokenChanged() {
+  switched = true;
+  wake = true;
+}
 
 uint8_t usageEvery() { return every; }
 

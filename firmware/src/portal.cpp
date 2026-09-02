@@ -556,7 +556,7 @@ void handleSave() {
   strncpy(token, given.c_str(), TOKEN_MAX - 1);
   token[TOKEN_MAX - 1] = '\0';
   Serial.printf("portal: token %s, %u chars\n", token[0] ? "set" : "cleared", strlen(token));
-  usageWake();
+  usageTokenChanged();
 
   char json[48];
   snprintf(json, sizeof(json), "{\"ok\":true,\"stored\":%s}", token[0] ? "true" : "false");
