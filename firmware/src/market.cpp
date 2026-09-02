@@ -19,23 +19,23 @@ namespace {
 // asked for rarely and the line is asked for one coin at a time, which is the
 // only coin whose screen is up anyway.
 //
-// Eighteen rows to fill ten screens. Fifteen finds eleven keepers today, which
-// is one to spare - eighteen finds fourteen, and the spare is the point: the
-// number of things sitting at a dollar near the top of the list is not fixed,
-// and running out of them means a screen short rather than a wrong screen.
+// Eight rows to fill three screens. The first four hold three keepers today and
+// six of the eight are keepers at all, but the spare is the point: the number of things sitting at a dollar
+// near the top of the list is not fixed, and running out of them means a screen
+// short rather than a wrong screen.
 constexpr char RANK[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc"
-    "&per_page=18&page=1&sparkline=false";
+    "&per_page=8&page=1&sparkline=false";
 constexpr char PRICES[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=true"
     "&price_change_percentage=24h&ids=";
 constexpr uint32_t RANK_MS = 1800000;
 
 // One session, five minutes apiece - the same day the percentage beside it is
-// quoted over. Twenty-four points into an index's morning and a hundred and
-// thirty-five for a contract that trades around the clock, and three to eight
-// kilobytes either way. Two minutes apiece would be eighteen, and the reply is
-// read into internal RAM while the TLS session is holding forty-eight of it.
+// quoted over. A hundred and thirty-five points for a contract that trades
+// nearly around the clock, and eight kilobytes of them. Two minutes apiece
+// would be eighteen, and the reply is read into internal RAM while the TLS
+// session is holding forty-eight of it.
 constexpr char CHART[] = "https://query1.finance.yahoo.com/v8/finance/chart/";
 constexpr char CHART_ARGS[] = "?interval=5m&range=1d";
 
@@ -45,11 +45,7 @@ struct Listing {
   const char *name;
 };
 
-// The caret is a URL's own character and has to go up encoded, or the request
-// is for a symbol that does not exist.
 constexpr Listing LISTINGS[MARKET_INDICES] = {
-    {"%5EGSPC", "SPX", "S&P 500"},
-    {"%5ENDX", "NDX", "NASDAQ 100"},
     {"ES=F", "ES", "S&P 500 FUTURES"},
     {"NQ=F", "NQ", "NASDAQ 100 FUTURES"},
 };

@@ -3,9 +3,9 @@
 #include <stdint.h>
 
 // The screens either side of the face: three coins by market cap to the left of
-// it, two indices and their futures to the right. All of them are the same
-// shape of thing - a name, a price, how far it has moved and a line of where it
-// has been - so all of them are one cache and one poller rather than seven.
+// it, two index futures to the right. All of them are the same shape of thing -
+// a name, a price, how far it has moved and a line of where it has been - so
+// all of them are one cache and one poller rather than five.
 //
 // Nothing is asked for unless its screen is the one up. What was last read is
 // kept when the screen goes away, so coming back to it shows those figures at
@@ -19,11 +19,14 @@
 // to this on the way in.
 constexpr uint8_t MARKET_POINTS = 60;
 
-// Ten rather than three. The ranking is read anyway, so the rest of it costs
-// nothing but screens - and each coin's own line is asked for only when its
-// screen is the one up, which is what keeps ten of them affordable.
-constexpr uint8_t MARKET_COINS = 10;
-constexpr uint8_t MARKET_INDICES = 4;
+// The three largest worth a screen. The ranking reads past them to get there -
+// what sits near the top of that list is mostly priced in dollars rather than
+// against the market, and none of that is worth swiping to.
+constexpr uint8_t MARKET_COINS = 3;
+// The futures only. The cash indices are shut for two thirds of the day and a
+// screen showing Friday's close all weekend is a screen saying nothing; the
+// contracts on them trade nearly around the clock and quote the same number.
+constexpr uint8_t MARKET_INDICES = 2;
 constexpr uint8_t MARKET_SCREENS = MARKET_COINS + MARKET_INDICES;
 
 struct Market {
