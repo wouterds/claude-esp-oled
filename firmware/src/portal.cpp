@@ -46,7 +46,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
                       focus:outline-blue-500 disabled:opacity-50 sm:max-w-sm">
         <p id=state class="text-sm text-neutral-500">&nbsp;</p>
       </div>
-      <p class="mt-2 text-sm text-neutral-500">Leave it empty and save to forget the one it has.</p>
+      <p class="mt-2 text-sm text-neutral-500">Leave it empty to clear the token</p>
 
       <div class="mt-5 flex items-center gap-3">
         <button id=save
