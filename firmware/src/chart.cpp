@@ -39,9 +39,9 @@ constexpr float STROKE = 1.6f * SCENE;
 // itself along the very edge of its own box.
 constexpr float HEADROOM = 0.08f;
 // How far under the line the wash reaches before it is gone. Not to the floor:
-// a fill that fades over the whole height reads as a shape, and over a third of
-// it reads as the line having weight.
-constexpr float WASH = 0.45f;
+// a fill that fades over the whole height reads as a shape, and over two thirds
+// of it reads as the line having weight.
+constexpr float WASH = 0.65f;
 constexpr float WASH_ALPHA = 0.30f;
 
 // A ring with a quarter cut out of it, turning - the shape every loader has
