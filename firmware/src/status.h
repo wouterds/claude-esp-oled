@@ -11,3 +11,11 @@
 // before it draws, so anything of ours inside that box has been wiped and has
 // to go back, whatever it says.
 void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo);
+
+// Just the two figures at the top - the network and the charge. Every page
+// carries those and they mean the same thing on all of them; the rest of what
+// this file draws belongs to the face alone.
+//
+// `wipe` for a page that has only just been cleared. There is nothing on the
+// glass to compare against then, so what was last drawn is not what is there.
+void statusBars(uint16_t *fb, bool wipe);

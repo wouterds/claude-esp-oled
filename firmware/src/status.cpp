@@ -363,14 +363,12 @@ uint8_t wifiBars(bool online) {
   return rssi >= -72 ? 2 : 1;
 }
 
-}  // namespace
-
-void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
+// Its own band and its own reason to be redrawn, so a page that wants nothing
+// else out of this file can still carry it.
+void bars(uint16_t *fb, bool wipe) {
   BatteryState battery = batteryRead();
-  // Only worth the room while somebody still has to type the token into it.
-  const char *address = usageReady() ? nullptr : wifiAddress();
   bool online = wifiConnected();
-  uint8_t bars = wifiBars(online);
+  uint8_t strength = wifiBars(online);
   bool blink = battery.percent <= RED_AT && !battery.charging
                    ? ((millis() / 450) & 1) != 0
                    : false;
@@ -381,11 +379,37 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
                       ? (uint8_t)(battery.percent + (100 - battery.percent) * rise / RISE_STEPS)
                       : battery.percent;
 
-  bool topChanged = battery.percent != shown.percent || battery.charging != shown.charging ||
-                    battery.present != shown.present || bars != shown.bars ||
-                    blink != shown.blink || rise != shown.rise;
+  bool changed = wipe || battery.percent != shown.percent ||
+                 battery.charging != shown.charging || battery.present != shown.present ||
+                 strength != shown.bars || blink != shown.blink || rise != shown.rise;
+  if (!changed) {
+    return;
+  }
+  clearBand(fb, BAR_TOP, BAR_BOTTOM, WIFI_X - (int16_t)(14 * SCENE),
+            BATTERY_X + (int16_t)(19 * SCENE));
+  if (battery.present) {
+    // The bar inside it already says how much, so the number said it twice.
+    drawBattery(fb, level, batteryColour(battery, blink));
+  }
+  drawWifi(fb, strength, online);
+  boardFlushRows(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP));
+  shown.percent = battery.percent;
+  shown.charging = battery.charging;
+  shown.present = battery.present;
+  shown.bars = strength;
+  shown.blink = blink;
+  shown.rise = rise;
+}
+
+}  // namespace
+
+void statusBars(uint16_t *fb, bool wipe) { bars(fb, wipe); }
+
+void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
+  // Only worth the room while somebody still has to type the token into it.
+  const char *address = usageReady() ? nullptr : wifiAddress();
   // Whatever the face just painted over is gone, whether it changed or not.
-  topChanged |= overlaps(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP), faceFrom, faceTo);
+  bars(fb, overlaps(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP), faceFrom, faceTo));
 
   Outage alarm = outageLevel();
   bool outage = alarm == Outage::Partial || alarm == Outage::Major;
@@ -476,27 +500,10 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   bool bottomChanged = reveal != typed || rewrite || dim != shown.clockDim;
   bottomChanged |= overlaps(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM), faceFrom, faceTo);
 
-  if (!topChanged && !alarmChanged && !bottomChanged) {
+  if (!alarmChanged && !bottomChanged) {
     return;
   }
   typed = reveal;
-
-  if (topChanged) {
-    clearBand(fb, BAR_TOP, BAR_BOTTOM, WIFI_X - (int16_t)(14 * SCENE),
-            BATTERY_X + (int16_t)(19 * SCENE));
-    if (battery.present) {
-      // The bar inside it already says how much, so the number said it twice.
-      drawBattery(fb, level, batteryColour(battery, blink));
-    }
-    drawWifi(fb, bars, online);
-    boardFlushRows(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP));
-    shown.percent = battery.percent;
-    shown.charging = battery.charging;
-    shown.present = battery.present;
-    shown.bars = bars;
-    shown.blink = blink;
-    shown.rise = rise;
-  }
 
   if (alarmChanged) {
     clearBand(fb, ALARM_TOP, ALARM_BOTTOM, (int16_t)(SCREEN_R - ALARM_HALF),
