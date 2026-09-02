@@ -6,6 +6,7 @@
 #include "audio.h"
 #include "battery.h"
 #include "board.h"
+#include "chart.h"
 #include "bus.h"
 #include "button.h"
 #include "status.h"
@@ -15,6 +16,7 @@
 #include "gauge.h"
 #include "info.h"
 #include "load.h"
+#include "market.h"
 #include "net.h"
 #include "outage.h"
 #include "portal.h"
@@ -31,11 +33,23 @@ static constexpr uint32_t FRAME_US = 16667;
 static uint32_t lastFrame = 0;
 static uint32_t nextFrame = 0;
 
-// Three of them, a swipe apart each: the face, what it is running on over it,
-// and under it the two things about the board that are somebody's taste. None
-// knows the others exist - what turns the page is here.
-enum class Page : uint8_t { Main, Info, Settings };
+// The face, what it is running on over it, the two things about the board that
+// are somebody's taste under it, and a market screen either side. None knows
+// the others exist - what turns the page is here.
+enum class Page : uint8_t { Main, Info, Settings, Chart };
 static Page page = Page::Main;
+
+// Where along the row the face sits in. The coins are to its left and the
+// indices to its right, so one line runs through all of them with the face in
+// the middle, and a swipe walks it. Up and down only mean anything from the
+// middle: the details above a chart would be a page with no way back to it that
+// anybody would guess.
+static int8_t sideways = 0;
+
+// Which of the market screens that is. Nought is the face and has none.
+static uint8_t screenOf(int8_t at) {
+  return at > 0 ? (uint8_t)(at - 1) : (uint8_t)(MARKET_COINS + (-at) - 1);
+}
 
 // The frame rate, put on the glass rather than into the log, for when the thing
 // being watched is what the drawing costs. Bright pink and across the top of
@@ -188,6 +202,9 @@ static void turnTo(Page to) {
   // The readings are only ever on the face. Off it the pollers stop asking, and
   // coming back to it after long enough asks again at once.
   netWatching(to == Page::Main);
+  // And a market screen is read only while it is the one up, for the same
+  // reason: what came back would be drawn on a page nobody is looking at.
+  marketWatching(to == Page::Chart ? (int8_t)screenOf(sideways) : (int8_t)-1);
   memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
   if (to == Page::Info) {
     infoForget();
@@ -197,6 +214,17 @@ static void turnTo(Page to) {
   if (to == Page::Settings) {
     settingsForget();
     settingsStep(fb);
+    // The two figures at the top mean the same thing here as anywhere.
+    statusBars(fb, true);
+    return;
+  }
+  if (to == Page::Chart) {
+    chartForget();
+    chartStep(fb, screenOf(sideways));
+    statusBars(fb, true);
+    // Both of those sent their own rows; this is for the ones between them,
+    // which were cleared above and belong to nobody.
+    boardFlush();
     return;
   }
   // The bars are a blit of pixels already worked out, and status redraws both
@@ -234,6 +262,7 @@ void setup() {
   portalBegin();
   usageBegin();
   outageBegin();
+  marketBegin();
   faceBegin();
   gaugeBegin();
   // Empty, and on the glass straight away. They have nothing to say until the
@@ -304,6 +333,20 @@ void loop() {
     turnTo(Page::Settings);
   } else if (swipe == Swipe::Up && page == Page::Settings) {
     turnTo(Page::Main);
+  } else if ((swipe == Swipe::Left || swipe == Swipe::Right) &&
+             (page == Page::Main || page == Page::Chart)) {
+    int8_t to = (int8_t)(sideways + (swipe == Swipe::Left ? 1 : -1));
+    // The row ends rather than wrapping. A list that comes back round to where
+    // it started gives no clue how far along it you are.
+    if (to > (int8_t)MARKET_COINS) {
+      to = (int8_t)MARKET_COINS;
+    } else if (to < -(int8_t)MARKET_INDICES) {
+      to = -(int8_t)MARKET_INDICES;
+    }
+    if (to != sideways) {
+      sideways = to;
+      turnTo(sideways == 0 ? Page::Main : Page::Chart);
+    }
   }
 
   // The one button the chip can read, and it means whatever page is in front of
@@ -327,8 +370,12 @@ void loop() {
   if (page != Page::Main) {
     if (page == Page::Info) {
       infoStep(boardFramebuffer());
-    } else {
+    } else if (page == Page::Settings) {
       settingsStep(boardFramebuffer());
+      statusBars(boardFramebuffer(), false);
+    } else {
+      chartStep(boardFramebuffer(), screenOf(sideways));
+      statusBars(boardFramebuffer(), false);
     }
     if (counting) {
       countFrames(boardFramebuffer());
