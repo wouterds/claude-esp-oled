@@ -13,10 +13,17 @@ namespace {
 
 constexpr uint16_t PORT = 80;
 constexpr size_t TOKEN_MAX = 512;
+// One per account somebody wants to watch. Held in RAM rather than read out of
+// the store per request, which is half a kilobyte each and the reason there are
+// four of them rather than a list that grows.
+constexpr uint8_t TOKEN_SLOTS = 4;
 
 Preferences store;
 WebServer server(PORT);
-char token[TOKEN_MAX] = {0};
+char tokens[TOKEN_SLOTS][TOKEN_MAX] = {{0}};
+uint8_t tokenCount = 0;
+// Which one the requests go out with. Always a real slot while there is one.
+uint8_t picked = 0;
 
 // The whole page, and it never changes: what is on it comes from /state and
 // goes back through /token, so the board serves one string out of flash rather
@@ -41,21 +48,25 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
       <section class="rounded-xl border border-white/10 bg-white/[0.05]">
         <div class="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
-          <h2 class="text-xs uppercase tracking-wider text-white/60">Claude session token</h2>
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Claude session tokens</h2>
           <span id=tokenState class="text-xs text-white/45">&nbsp;</span>
         </div>
-        <form id=tokenForm class="px-5 py-4">
+        <ul id=tokenList class="divide-y divide-white/[0.06]"></ul>
+        <form id=tokenForm class="border-t border-white/[0.06] px-5 py-4">
           <input id=token name=token type=password autocomplete=off spellcheck=false
                  placeholder="sk-ant-sid02-..."
                  class="w-full rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
                         text-white/95 placeholder-white/30 outline-none
                         focus:outline focus:outline-[1.5px] focus:outline-offset-0
                         focus:outline-blue-500 disabled:opacity-50">
-          <p class="mt-2 text-xs text-white/45">Leave empty to clear the token</p>
-          <button id=tokenSave data-label="Save token" data-busy="Saving"
+          <p class="mt-2 text-xs text-white/45">
+            Kept on the device. A new one is used straight away; it goes in and is never shown
+            again, here or anywhere.
+          </p>
+          <button id=tokenAdd data-label="Add token" data-busy="Adding"
                   class="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2
                          text-sm font-medium text-white hover:bg-blue-600/85
-                         disabled:cursor-not-allowed disabled:opacity-50"><span>Save token</span></button>
+                         disabled:cursor-not-allowed disabled:opacity-50"><span>Add token</span></button>
           <p id=tokenMsg class="mt-3 hidden text-sm"></p>
         </form>
       </section>
@@ -211,7 +222,6 @@ async function refresh() {
     return;
   }
   who.classList.add('hidden');
-  $('tokenState').textContent = s.stored ? 'Stored' : 'None set';
   if (s.calls !== drawn) {
     drawn = s.calls;
     requests();
@@ -224,10 +234,36 @@ async function refresh() {
   }
 }
 
-// A forget in flight owns the list: the five second tick would otherwise redraw
+// A press in flight owns its list: the five second tick would otherwise redraw
 // it underneath the button and replace the one that is spinning with a fresh
 // one, which reads as the click having been dropped.
 let forgetting = false;
+let trashing = false;
+
+async function tokens() {
+  if (trashing) {
+    return;
+  }
+  let list;
+  try {
+    list = await (await fetch('/tokens')).json();
+  } catch (e) {
+    return;
+  }
+  $('tokenState').textContent = list.length ? list.length + ' stored' : 'None set';
+  $('tokenList').innerHTML = list.map((t, i) => `<li class="flex items-center justify-between
+    gap-3 px-5 py-3">
+    <label class="flex min-w-0 cursor-pointer items-center gap-3">
+      <input type=radio name=pick value=${i} ${t.picked ? 'checked' : ''}
+             class="h-4 w-4 shrink-0 cursor-pointer accent-blue-500">
+      <span class="truncate font-mono text-sm ${t.picked ? 'text-white' : 'text-white/60'}"
+        >${esc(t.hint)}</span>
+    </label>
+    <button data-token=${i} class="inline-flex shrink-0 items-center gap-1.5 rounded-md
+      border border-white/15 px-2.5 py-1 text-xs text-white/60 hover:border-rose-500/50
+      hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50">Remove</button>
+  </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None set.</li>';
+}
 
 async function networks() {
   if (forgetting) {
@@ -322,22 +358,57 @@ $('every').addEventListener('change', async () => {
 $('tokenForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   unfocus(e.target);
-  const btn = $('tokenSave');
+  const btn = $('tokenAdd');
   busy(btn, true);
   $('tokenMsg').classList.add('hidden');
   try {
-    const d = await post('/token', {token: $('token').value});
-    say($('tokenMsg'), d.stored ? 'Saved. The board is using it now.' : 'Forgotten.', true);
+    await post('/tokens', {token: $('token').value});
+    say($('tokenMsg'), 'Added. The board is using it now.', true);
     $('token').value = '';
   } catch (err) {
-    say($('tokenMsg'), 'Not saved: ' + err.message, false);
+    say($('tokenMsg'), 'Not added: ' + err.message, false);
   } finally {
     busy(btn, false);
-    // Everything, not just the token's own line: saving one sets the poller off
+    // Everything, not just the token's own list: adding one sets the poller off
     // and what that turns up belongs on the page now rather than in five
     // seconds' time.
     tick();
   }
+});
+
+$('tokenList').addEventListener('change', async (e) => {
+  const radio = e.target.closest('input[name=pick]');
+  if (!radio) return;
+  try {
+    await post('/tokens/pick', {index: radio.value});
+    $('tokenMsg').classList.add('hidden');
+  } catch (err) {
+    say($('tokenMsg'), 'Not picked: ' + err.message, false);
+  }
+  tick();
+});
+
+$('tokenList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-token]');
+  if (!btn) return;
+  // A token cannot be read back off the board, so there is no getting this one
+  // again without going to claude.ai for a fresh one.
+  if (!confirm('Are you sure you want to remove this token? It cannot be shown again.')) return;
+  btn.disabled = true;
+  btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
+  trashing = true;
+  try {
+    await post('/tokens/trash', {index: btn.dataset.token});
+    $('tokenMsg').classList.add('hidden');
+  } catch (err) {
+    say($('tokenMsg'), 'Not removed: ' + err.message, false);
+  } finally {
+    trashing = false;
+  }
+  // Awaited, so the button spins until the row it sits in has actually gone
+  // rather than until the board said it would.
+  await tokens();
+  refresh();
 });
 
 $('netForm').addEventListener('submit', async (e) => {
@@ -388,6 +459,7 @@ $('netList').addEventListener('click', async (e) => {
 // something new to ask for.
 function tick() {
   refresh();
+  tokens();
   networks();
 }
 tick();
@@ -398,6 +470,58 @@ setInterval(tick, 5000);
 )HTML";
 
 void handleRoot() { server.send_P(200, PSTR("text/html"), PAGE); }
+
+void tokenKey(char *out, size_t size, uint8_t i) { snprintf(out, size, "t%u", i); }
+
+// The whole set, rewritten whenever one of them moves. Anything past the new
+// count is removed rather than left behind: a token is the whole of somebody's
+// login, and it being out of the flash is the only thing trashing it does.
+void saveTokens() {
+  char key[4];
+  for (uint8_t i = 0; i < tokenCount; i++) {
+    tokenKey(key, sizeof(key), i);
+    store.putString(key, tokens[i]);
+  }
+  for (uint8_t i = tokenCount; i < TOKEN_SLOTS; i++) {
+    tokenKey(key, sizeof(key), i);
+    store.remove(key);
+  }
+  store.putUChar("tn", tokenCount);
+  store.putUChar("tp", picked);
+}
+
+void loadTokens() {
+  if (store.isKey("tn")) {
+    tokenCount = store.getUChar("tn", 0);
+    if (tokenCount > TOKEN_SLOTS) {
+      tokenCount = TOKEN_SLOTS;
+    }
+    char key[4];
+    for (uint8_t i = 0; i < tokenCount; i++) {
+      tokenKey(key, sizeof(key), i);
+      store.getString(key, tokens[i], TOKEN_MAX);
+    }
+    picked = store.getUChar("tp", 0);
+    if (picked >= tokenCount) {
+      picked = 0;
+    }
+    return;
+  }
+  // The single token this replaced, carried into the first slot so a board
+  // already reading an account keeps reading it across the flash.
+  store.getString("token", tokens[0], TOKEN_MAX);
+  tokenCount = tokens[0][0] ? 1 : 0;
+  store.remove("token");
+  saveTokens();
+}
+
+// Enough of one to tell two apart and not enough to be one. The tail rather
+// than the head, because every one of these starts sk-ant-sid02-.
+void tokenHint(const char *value, char *out, size_t size) {
+  size_t len = strlen(value);
+  size_t tail = len < 6 ? len : 6;
+  snprintf(out, size, "\u2026%s", value + (len - tail));
+}
 
 // An SSID is somebody else's string and may hold a quote or a backslash. Left
 // raw, one of those ends this object early and the page reads the parse failure
@@ -414,9 +538,7 @@ void appendQuoted(String &json, const char *s) {
 }
 
 void handleState() {
-  String json = "{\"stored\":";
-  json += token[0] ? "true" : "false";
-  json += ",\"address\":";
+  String json = "{\"address\":";
   appendQuoted(json, wifiAddress() ? wifiAddress() : "");
   json += ",\"every\":";
   json += usageEvery();
@@ -532,31 +654,117 @@ void handleRequests() {
   server.sendContent("");
 }
 
-void handleSave() {
+// Hints only, for the same reason /networks is names only: the page that would
+// show a token is the page anybody on this network can open.
+void handleTokens() {
+  String json = "[";
+  char hint[16];
+  for (uint8_t i = 0; i < tokenCount; i++) {
+    if (i) {
+      json += ',';
+    }
+    tokenHint(tokens[i], hint, sizeof(hint));
+    json += "{\"hint\":";
+    appendQuoted(json, hint);
+    json += ",\"picked\":";
+    json += i == picked ? "true" : "false";
+    json += '}';
+  }
+  json += ']';
+  server.send(200, "application/json", json);
+}
+
+void handleAddToken() {
   String given = server.arg("token");
   given.trim();
+  if (!given.length()) {
+    server.send(400, "application/json", "{\"ok\":false,\"error\":\"it needs a token\"}");
+    return;
+  }
   if (given.length() >= TOKEN_MAX) {
     server.send(413, "application/json",
                 "{\"ok\":false,\"error\":\"that is longer than the store will take\"}");
     return;
   }
+  if (tokenCount >= TOKEN_SLOTS) {
+    server.send(409, "application/json",
+                "{\"ok\":false,\"error\":\"there is no room for another one\"}");
+    return;
+  }
+  for (uint8_t i = 0; i < tokenCount; i++) {
+    if (strcmp(tokens[i], given.c_str()) == 0) {
+      server.send(409, "application/json",
+                  "{\"ok\":false,\"error\":\"it already has that one\"}");
+      return;
+    }
+  }
   // The store first and the copy in RAM only if it took: a write that failed
   // would otherwise leave the board using a token the page has just been told
-  // it does not have. Nought written is the refusal - and is also what clearing
-  // it reads as, which is why the empty case is not asked.
-  size_t wrote = store.putString("token", given.c_str());
-  if (wrote == 0 && given.length() > 0) {
+  // it does not have. Nought written is the refusal.
+  char key[4];
+  tokenKey(key, sizeof(key), tokenCount);
+  if (store.putString(key, given.c_str()) == 0) {
     server.send(500, "application/json", "{\"ok\":false,\"error\":\"the flash would not take it\"}");
     return;
   }
-  strncpy(token, given.c_str(), TOKEN_MAX - 1);
-  token[TOKEN_MAX - 1] = '\0';
-  Serial.printf("portal: token %s, %u chars\n", token[0] ? "set" : "cleared", strlen(token));
+  strncpy(tokens[tokenCount], given.c_str(), TOKEN_MAX - 1);
+  tokens[tokenCount][TOKEN_MAX - 1] = '\0';
+  // Onto the new one, which is what typing one in is asking for.
+  picked = tokenCount++;
+  store.putUChar("tn", tokenCount);
+  store.putUChar("tp", picked);
+  Serial.printf("portal: token %u of %u added and picked\n", picked + 1, tokenCount);
   usageTokenChanged();
+  server.send(200, "application/json", "{\"ok\":true}");
+}
 
-  char json[48];
-  snprintf(json, sizeof(json), "{\"ok\":true,\"stored\":%s}", token[0] ? "true" : "false");
-  server.send(200, "application/json", json);
+// Which slot the requests go out with, by position in the list the page drew.
+int tokenAt() {
+  long at = server.arg("index").toInt();
+  return at >= 0 && at < (long)tokenCount ? (int)at : -1;
+}
+
+void handlePickToken() {
+  int at = tokenAt();
+  if (at < 0) {
+    server.send(409, "application/json", "{\"ok\":false,\"error\":\"that is not one it has\"}");
+    return;
+  }
+  if ((uint8_t)at != picked) {
+    picked = (uint8_t)at;
+    store.putUChar("tp", picked);
+    Serial.printf("portal: token %u picked\n", picked + 1);
+    usageTokenChanged();
+  }
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void handleTrashToken() {
+  int at = tokenAt();
+  if (at < 0) {
+    server.send(409, "application/json", "{\"ok\":false,\"error\":\"that is not one it has\"}");
+    return;
+  }
+  bool was = (uint8_t)at == picked;
+  for (uint8_t i = (uint8_t)at; i + 1 < tokenCount; i++) {
+    memcpy(tokens[i], tokens[i + 1], TOKEN_MAX);
+  }
+  tokenCount--;
+  memset(tokens[tokenCount], 0, TOKEN_MAX);
+  // The one that was picked is gone, so the front one takes over rather than
+  // nothing doing: there is still an account to read and the board is for
+  // reading it. The others only slid down a slot and keep their turn.
+  if (was) {
+    picked = 0;
+  } else if (picked > (uint8_t)at) {
+    picked--;
+  }
+  saveTokens();
+  Serial.printf("portal: token %d trashed, %u left\n", at + 1, tokenCount);
+  if (was) {
+    usageTokenChanged();
+  }
+  server.send(200, "application/json", "{\"ok\":true}");
 }
 
 void task(void *) {
@@ -571,8 +779,8 @@ void task(void *) {
 
 void portalBegin() {
   store.begin("buddy", false);
-  store.getString("token", token, TOKEN_MAX);
-  Serial.printf("portal: %s\n", token[0] ? "token in store" : "no token yet");
+  loadTokens();
+  Serial.printf("portal: %u token%s in store\n", tokenCount, tokenCount == 1 ? "" : "s");
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/state", HTTP_GET, handleState);
@@ -581,7 +789,10 @@ void portalBegin() {
   server.on("/networks", HTTP_POST, handleAddNetwork);
   server.on("/forget", HTTP_POST, handleForgetNetwork);
   server.on("/every", HTTP_POST, handleSetEvery);
-  server.on("/token", HTTP_POST, handleSave);
+  server.on("/tokens", HTTP_GET, handleTokens);
+  server.on("/tokens", HTTP_POST, handleAddToken);
+  server.on("/tokens/pick", HTTP_POST, handlePickToken);
+  server.on("/tokens/trash", HTTP_POST, handleTrashToken);
   server.onNotFound(handleRoot);
   // Core 0, with the radio. Nothing here may sit in the way of a frame. The
   // stack carries a copy of the whole call log on its way out, which is most of
@@ -589,4 +800,6 @@ void portalBegin() {
   xTaskCreatePinnedToCore(task, "portal", 12288, nullptr, 1, nullptr, 0);
 }
 
-const char *portalToken() { return token[0] ? token : nullptr; }
+const char *portalToken() {
+  return picked < tokenCount && tokens[picked][0] ? tokens[picked] : nullptr;
+}
