@@ -7,7 +7,8 @@
 #include <string.h>
 
 // Generated from firmware/.env into the build directory by secrets.py. A
-// checkout without a .env still compiles; the list is simply empty.
+// checkout without a .env still compiles; the list is simply empty. It is a
+// seed for the store rather than a second place networks live - see seed().
 #include "secrets.h"
 
 namespace {
@@ -16,7 +17,7 @@ constexpr uint32_t ATTEMPT_MS = 8000;
 constexpr uint32_t RETRY_MS = 5000;
 // The signal is on the glass, so it is asked for often enough to move.
 constexpr uint32_t POLL_MS = 1000;
-constexpr uint8_t COUNT = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
+constexpr uint8_t SEEDS = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
 
 // 32 characters is the whole of what an SSID may be, and 63 the whole of a WPA2
 // passphrase; both carry the terminator on top of that.
@@ -26,12 +27,11 @@ constexpr uint8_t PASS_MAX = 64;
 struct Known {
   char ssid[SSID_MAX];
   char password[PASS_MAX];
-  bool stored;
 };
 
 WiFiMulti multi;
 Preferences store;
-Known known[COUNT + WIFI_STORED_MAX];
+Known known[WIFI_MAX];
 uint8_t knownCount = 0;
 // Held over every read and every change of the list above. The portal changes
 // it from its own task while the radio task is walking it.
@@ -57,39 +57,32 @@ int findKnown(const char *ssid) {
 
 void keyFor(char *out, size_t size, char kind, uint8_t i) { snprintf(out, size, "%c%u", kind, i); }
 
-// The whole stored set, rewritten every time one of them changes. Anything past
-// the new count is removed rather than left: a forgotten network's password
-// staying in the flash is the one thing forgetting it was meant to do.
-void saveStored() {
-  uint8_t n = 0;
+// The whole set, rewritten every time one of them changes. Anything past the
+// new count is removed rather than left: a forgotten network's password staying
+// in the flash is the one thing forgetting it was meant to do.
+void save() {
   char sk[4];
   char pk[4];
   for (uint8_t i = 0; i < knownCount; i++) {
-    if (!known[i].stored) {
-      continue;
-    }
-    keyFor(sk, sizeof(sk), 's', n);
-    keyFor(pk, sizeof(pk), 'p', n);
+    keyFor(sk, sizeof(sk), 's', i);
+    keyFor(pk, sizeof(pk), 'p', i);
     store.putString(sk, known[i].ssid);
     store.putString(pk, known[i].password);
-    n++;
   }
-  for (uint8_t i = n; i < WIFI_STORED_MAX; i++) {
+  for (uint8_t i = knownCount; i < WIFI_MAX; i++) {
     keyFor(sk, sizeof(sk), 's', i);
     keyFor(pk, sizeof(pk), 'p', i);
     store.remove(sk);
     store.remove(pk);
   }
-  store.putUChar("n", n);
+  store.putUChar("n", knownCount);
 }
 
-// After the compiled-in ones, so a name in both belongs to the build - which is
-// the copy that cannot be removed.
-void loadStored() {
+void load() {
   uint8_t n = store.getUChar("n", 0);
   char sk[4];
   char pk[4];
-  for (uint8_t i = 0; i < n && i < WIFI_STORED_MAX; i++) {
+  for (uint8_t i = 0; i < n && i < WIFI_MAX; i++) {
     keyFor(sk, sizeof(sk), 's', i);
     keyFor(pk, sizeof(pk), 'p', i);
     Known &k = known[knownCount];
@@ -100,8 +93,54 @@ void loadStored() {
       continue;
     }
     store.getString(pk, k.password, sizeof(k.password));
-    k.stored = true;
     knownCount++;
+  }
+}
+
+// FNV-1a over the seed list, so an image can tell whether the .env it was built
+// from is the one the store was last seeded with.
+uint32_t seedMark() {
+  uint32_t h = 2166136261u;
+  for (uint8_t i = 0; i < SEEDS; i++) {
+    if (!WIFI_NETWORKS[i].ssid) {
+      continue;
+    }
+    for (const char *at = WIFI_NETWORKS[i].ssid; *at; at++) {
+      h = (h ^ (uint8_t)*at) * 16777619u;
+    }
+    for (const char *at = WIFI_NETWORKS[i].password; *at; at++) {
+      h = (h ^ (uint8_t)*at) * 16777619u;
+    }
+    h = (h ^ (uint8_t)i) * 16777619u;
+  }
+  return h;
+}
+
+// .env seeds the store rather than living alongside it, so there is one list
+// and every network on it can be forgotten. Seeding is skipped while the mark
+// matches, which is what keeps a reflash from handing back a network that was
+// forgotten on purpose; editing .env seeds the whole of it again.
+void seed() {
+  uint32_t mark = seedMark();
+  if (mark == store.getULong("seed", 0)) {
+    return;
+  }
+  store.putULong("seed", mark);
+  uint8_t was = knownCount;
+  for (uint8_t i = 0; i < SEEDS && knownCount < WIFI_MAX; i++) {
+    if (!WIFI_NETWORKS[i].ssid || findKnown(WIFI_NETWORKS[i].ssid) >= 0) {
+      continue;
+    }
+    Known &k = known[knownCount++];
+    strncpy(k.ssid, WIFI_NETWORKS[i].ssid, sizeof(k.ssid) - 1);
+    k.ssid[sizeof(k.ssid) - 1] = '\0';
+    strncpy(k.password, WIFI_NETWORKS[i].password, sizeof(k.password) - 1);
+    k.password[sizeof(k.password) - 1] = '\0';
+  }
+  if (knownCount != was) {
+    Serial.printf("wifi: seeded %u network%s from .env\n", knownCount - was,
+                  knownCount - was == 1 ? "" : "s");
+    save();
   }
 }
 
@@ -192,19 +231,9 @@ void wifiBegin() {
   WiFi.setAutoReconnect(true);
 
   lock = xSemaphoreCreateMutex();
-  for (uint8_t i = 0; i < COUNT; i++) {
-    if (!WIFI_NETWORKS[i].ssid) {
-      continue;
-    }
-    Known &k = known[knownCount++];
-    strncpy(k.ssid, WIFI_NETWORKS[i].ssid, sizeof(k.ssid) - 1);
-    k.ssid[sizeof(k.ssid) - 1] = '\0';
-    strncpy(k.password, WIFI_NETWORKS[i].password, sizeof(k.password) - 1);
-    k.password[sizeof(k.password) - 1] = '\0';
-    k.stored = false;
-  }
   store.begin("wifi", false);
-  loadStored();
+  load();
+  seed();
   rebuild();
   Serial.printf("wifi: %u network%s known\n", knownCount, knownCount == 1 ? "" : "s");
 
@@ -225,8 +254,6 @@ uint8_t wifiKnown() { return knownCount; }
 
 const char *wifiKnownSsid(uint8_t i) { return i < knownCount ? known[i].ssid : nullptr; }
 
-bool wifiKnownStored(uint8_t i) { return i < knownCount && known[i].stored; }
-
 bool wifiAdd(const char *ssid, const char *password) {
   if (!ssid || !ssid[0] || strlen(ssid) >= SSID_MAX) {
     return false;
@@ -235,15 +262,14 @@ bool wifiAdd(const char *ssid, const char *password) {
     return false;
   }
   listTake();
-  bool room = knownCount < COUNT + WIFI_STORED_MAX && findKnown(ssid) < 0;
+  bool room = knownCount < WIFI_MAX && findKnown(ssid) < 0;
   if (room) {
     Known &k = known[knownCount++];
     strncpy(k.ssid, ssid, sizeof(k.ssid) - 1);
     k.ssid[sizeof(k.ssid) - 1] = '\0';
     strncpy(k.password, password ? password : "", sizeof(k.password) - 1);
     k.password[sizeof(k.password) - 1] = '\0';
-    k.stored = true;
-    saveStored();
+    save();
     relist = true;
   }
   listGive();
@@ -259,13 +285,13 @@ bool wifiForget(const char *ssid) {
   }
   listTake();
   int at = findKnown(ssid);
-  bool gone = at >= 0 && known[at].stored;
+  bool gone = at >= 0;
   if (gone) {
     for (uint8_t i = (uint8_t)at; i + 1 < knownCount; i++) {
       known[i] = known[i + 1];
     }
     knownCount--;
-    saveStored();
+    save();
     relist = true;
   }
   listGive();
