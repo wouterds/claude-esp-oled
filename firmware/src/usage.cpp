@@ -328,7 +328,7 @@ void task(void *) {
     bool timed = false;
     uint32_t until = millis() + WAITING_MS;
     const char *token = portalToken();
-    if (wifiConnected() && token) {
+    if (netWatched() && wifiConnected() && token) {
       poll(token);
       timed = ready;
       until = millis() + RETRY_MS;
@@ -339,6 +339,17 @@ void task(void *) {
     // the cadence again each pass - so a change to the interval takes hold of
     // the wait already under way rather than only the one after it.
     for (;;) {
+      // Off the face there is nothing due: the wait idles here rather than
+      // counting down to a read that would land on a page nobody is on.
+      if (!netWatched()) {
+        vTaskDelay(pdMS_TO_TICKS(250));
+        continue;
+      }
+      // Back, and away long enough that what is on the glass has gone off - so
+      // it is read now rather than at whatever is left of the interval.
+      if (netStale(NET_USAGE)) {
+        break;
+      }
       int32_t left = timed ? (int32_t)netDueIn((uint32_t)every * 60000UL, 0)
                            : (int32_t)(until - millis());
       if (left <= 250) {

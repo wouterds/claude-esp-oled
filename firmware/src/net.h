@@ -53,6 +53,22 @@ struct NetCall {
 };
 constexpr uint8_t NET_CALLS = 30;
 
+// Whether the page the readings are drawn on is the one in front of somebody.
+// Nothing is asked for while it is not: a reply that lands on a page nobody is
+// looking at costs a TLS session and a slice of the account's rate to be thrown
+// away, and the radio is the most expensive thing on this board.
+void netWatching(bool on);
+bool netWatched();
+
+// True once for each poller when that page comes back after being away for
+// longer than a reading stays worth showing - so what is drawn on arrival is
+// read fresh rather than being whatever was left when it went. Cleared by the
+// asking, and asked for separately by each poller so neither takes the other's.
+constexpr uint8_t NET_USAGE = 0;
+constexpr uint8_t NET_OUTAGE = 1;
+constexpr uint8_t NET_POLLERS = 2;
+bool netStale(uint8_t poller);
+
 // How long until the next slot on a shared cadence, in milliseconds. Both
 // pollers hang off this so they keep a fixed offset from each other rather than
 // drifting together: the usage read takes the slot on the period and the status

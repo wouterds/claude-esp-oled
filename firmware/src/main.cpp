@@ -185,6 +185,9 @@ static void pace() {
 static void turnTo(Page to) {
   uint16_t *fb = boardFramebuffer();
   page = to;
+  // The readings are only ever on the face. Off it the pollers stop asking, and
+  // coming back to it after long enough asks again at once.
+  netWatching(to == Page::Main);
   memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
   if (to == Page::Info) {
     infoForget();

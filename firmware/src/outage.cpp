@@ -136,12 +136,19 @@ void task(void *) {
   for (;;) {
     bool timed = false;
     uint32_t until = millis() + WAITING_MS;
-    if (wifiConnected()) {
+    if (netWatched() && wifiConnected()) {
       poll();
       timed = level != Outage::Unknown;
       until = millis() + RETRY_MS;
     }
     for (;;) {
+      if (!netWatched()) {
+        vTaskDelay(pdMS_TO_TICKS(250));
+        continue;
+      }
+      if (netStale(NET_OUTAGE)) {
+        break;
+      }
       // Half an interval off the usage read's slot, so the two sit either side
       // of each other instead of coming due together and queueing on the one
       // socket. The interval is the usage read's because there is one setting

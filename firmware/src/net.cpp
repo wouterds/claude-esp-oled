@@ -13,6 +13,13 @@ uint8_t nextCall = 0;
 uint32_t heard = 0;
 uint32_t heardAt = 0;
 
+// Long enough that coming straight back finds what was already there, short
+// enough that anything worth a second look is read again.
+constexpr uint32_t STALE_MS = 30000;
+volatile bool watched = true;
+volatile bool stale[NET_POLLERS] = {false, false};
+uint32_t awayAt = 0;
+
 // Enough that a two kilobyte reply comes over in a handful of passes, small
 // enough that it sits on the stack rather than in the heap this is protecting.
 constexpr size_t CHUNK = 512;
@@ -24,6 +31,33 @@ constexpr uint32_t BREATH_MS = 5;
 }  // namespace
 
 void netBegin() { held = xSemaphoreCreateMutex(); }
+
+void netWatching(bool on) {
+  if (on == watched) {
+    return;
+  }
+  watched = on;
+  if (!on) {
+    awayAt = millis();
+    return;
+  }
+  if (millis() - awayAt < STALE_MS) {
+    return;
+  }
+  for (uint8_t i = 0; i < NET_POLLERS; i++) {
+    stale[i] = true;
+  }
+}
+
+bool netWatched() { return watched; }
+
+bool netStale(uint8_t poller) {
+  if (poller >= NET_POLLERS || !stale[poller]) {
+    return false;
+  }
+  stale[poller] = false;
+  return true;
+}
 
 uint32_t netDueIn(uint32_t period, uint32_t phase) {
   if (!period) {
