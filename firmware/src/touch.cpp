@@ -125,12 +125,27 @@ void look() {
   // Reported on the way past rather than on the way off: the page turns under
   // the finger that asked for it, which is both what a swipe feels like
   // everywhere else and one less thing to depend on the controller mentioning.
-  int16_t by = (int16_t)(along - fromAlong);
-  if (by >= CROSSED) {
-    went = Swipe::Down;
+  //
+  // Whichever axis it has gone furthest along wins, so a finger dragged at an
+  // angle turns one page rather than both at once. At exactly forty-five
+  // degrees the vertical has it, which is arbitrary and only has to be settled.
+  int16_t down = (int16_t)(along - fromAlong);
+  int16_t right = (int16_t)(across - fromAcross);
+  if (abs(down) >= abs(right)) {
+    if (down >= CROSSED) {
+      went = Swipe::Down;
+      fired = true;
+    } else if (down <= -CROSSED) {
+      went = Swipe::Up;
+      fired = true;
+    }
+    return;
+  }
+  if (right >= CROSSED) {
+    went = Swipe::Right;
     fired = true;
-  } else if (by <= -CROSSED) {
-    went = Swipe::Up;
+  } else if (right <= -CROSSED) {
+    went = Swipe::Left;
     fired = true;
   }
 }

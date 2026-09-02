@@ -2,10 +2,14 @@
 
 #include <stdint.h>
 
-// Which way a finger went. Up and down rather than left and right: the axis the
-// controller calls X runs from the top of this glass to the bottom of it, which
-// is a thing about how the panel is mounted rather than a thing about touch.
-enum class Swipe : uint8_t { None, Up, Down };
+// Which way a finger went. The axis the controller calls X runs from the top of
+// this glass to the bottom of it and the one it calls Y runs across - a thing
+// about how the panel is mounted rather than a thing about touch, and the
+// reason the two are named along and across in here rather than x and y.
+//
+// One swipe, never two: a finger that wanders diagonally is taken to have gone
+// whichever way it went furthest, so a page turn is never ambiguous.
+enum class Swipe : uint8_t { None, Up, Down, Left, Right };
 
 // The CST816S, asked one thing: which way a finger went across it. Where it is
 // while it is down, and whether it stayed put, is nobody's business - the button
