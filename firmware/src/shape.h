@@ -42,6 +42,23 @@ inline float sdRoundBox(float px, float py, float hx, float hy, float r) {
   return sqrtf(ax * ax + ay * ay) + (inner < 0.0f ? inner : 0.0f) - r;
 }
 
+// Distance to a segment rather than to an infinite line, so a run of them
+// drawn end to end is a polyline with round joins and round caps and needs
+// nothing else to make it one.
+inline float sdSegment(float px, float py, float ax, float ay, float bx, float by) {
+  float vx = px - ax;
+  float vy = py - ay;
+  float ex = bx - ax;
+  float ey = by - ay;
+  float len = ex * ex + ey * ey;
+  // A segment of no length is a point, and dividing by its length is not.
+  float t = len > 0.0f ? (vx * ex + vy * ey) / len : 0.0f;
+  t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+  float dx = vx - ex * t;
+  float dy = vy - ey * t;
+  return sqrtf(dx * dx + dy * dy);
+}
+
 // Apex up, and exact - which the max of the two half-planes is not. That is
 // only right along the edges; outside a corner it reads about half the true
 // distance, so subtracting a radius from it drew the apex out into a spike
