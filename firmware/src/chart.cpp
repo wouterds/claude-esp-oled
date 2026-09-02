@@ -46,13 +46,14 @@ constexpr float STROKE = 1.6f * SCENE;
 // Room above and below the line, so a week that only went one way does not draw
 // itself along the very edge of its own box.
 constexpr float HEADROOM = 0.08f;
-// How far under the line the wash reaches before it is gone, and how it gets
-// there. Squared rather than straight, because reaching further on a straight
-// fade brightens everything in between: the same alpha spread over a longer
-// drop decays more slowly, so a pixel halfway down ends up lighter than it was.
-// Squared, the near edge falls away as fast as it did and what is gained is a
-// fainter tail rather than a brighter middle.
-constexpr float WASH = 0.90f;
+// All the way to the baseline now, and cubed rather than squared to pay for
+// it. Stretching a fade without changing its shape is the same thing as
+// brightening it - the same alpha spread over a longer drop decays more slowly,
+// so every pixel in between comes out lighter. Each time this reaches further
+// the falloff has to steepen to hold the middle where it was, and cubed over
+// the whole drop is dimmer everywhere than squared over nine tenths of it while
+// reaching further than either.
+constexpr float WASH = 1.0f;
 constexpr float WASH_ALPHA = 0.30f;
 
 // A ring with a quarter cut out of it, turning - the shape every loader has
@@ -203,7 +204,7 @@ void drawPlot(uint16_t *fb, const Market &m, uint16_t ink) {
     for (int16_t y = (int16_t)lit; y <= (int16_t)(lit + drop); y++) {
       float fell = drop > 0.0f ? ((float)y - lit) / drop : 1.0f;
       float left = 1.0f - fell;
-      plot(fb, x, y, WASH_ALPHA * left * left, ink);
+      plot(fb, x, y, WASH_ALPHA * left * left * left, ink);
     }
 
     for (int16_t y = (int16_t)(top - STROKE - 1); y <= (int16_t)(bottom + STROKE + 1); y++) {
