@@ -16,11 +16,11 @@ namespace {
 // never has to know they are there.
 constexpr int16_t OWNED_TOP = (int16_t)(36 * SCENE);
 
-constexpr int16_t NAME_Y = (int16_t)(58 * SCENE);
+constexpr int16_t NAME_Y = (int16_t)(52 * SCENE);
 constexpr int16_t NAME_SCALE = 2;
-constexpr int16_t PRICE_Y = (int16_t)(82 * SCENE);
+constexpr int16_t PRICE_Y = (int16_t)(88 * SCENE);
 constexpr int16_t PRICE_SCALE = 4;
-constexpr int16_t MOVE_Y = (int16_t)(120 * SCENE);
+constexpr int16_t MOVE_Y = (int16_t)(126 * SCENE);
 constexpr int16_t MOVE_SCALE = 3;
 constexpr int16_t SPAN_Y = (int16_t)(276 * SCENE);
 constexpr int16_t SPAN_SCALE = 2;
