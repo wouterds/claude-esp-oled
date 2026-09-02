@@ -48,6 +48,13 @@ bool fetch(String &out) {
   bool read = netBody(http, out, MOST, PATIENCE_MS);
   http.end();
   netRecord(URL, began, code, out.length());
+  // A body that does not come over is the one failure here that said nothing at
+  // all: the status line was 200, so the log showed a poll that simply never
+  // reported, which reads as the poller having stopped rather than as a read
+  // that broke.
+  if (!read) {
+    Serial.printf("outage: 200 but the body stopped at %u bytes\n", (unsigned)out.length());
+  }
   return read;
 }
 
