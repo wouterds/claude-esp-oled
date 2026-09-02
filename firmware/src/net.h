@@ -53,6 +53,17 @@ struct NetCall {
 };
 constexpr uint8_t NET_CALLS = 30;
 
+// How long until the next slot on a shared cadence, in milliseconds. Both
+// pollers hang off this so they keep a fixed offset from each other rather than
+// drifting together: the usage read takes the slot on the period and the status
+// read takes the one half a period after it, and neither ends up asking at the
+// same moment as the other.
+//
+// Off the device clock rather than off when the last read finished, so a read
+// that takes ten seconds does not push the next one ten seconds late. The clock
+// wraps every seven weeks and one cycle either side of that is mistimed.
+uint32_t netDueIn(uint32_t period, uint32_t phase);
+
 // The device has no clock of its own. Whichever poller reads a Date header off
 // a reply says so here, and the log below timestamps itself from that.
 void netHeard(uint32_t unix);

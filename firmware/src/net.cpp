@@ -25,6 +25,16 @@ constexpr uint32_t BREATH_MS = 5;
 
 void netBegin() { held = xSemaphoreCreateMutex(); }
 
+uint32_t netDueIn(uint32_t period, uint32_t phase) {
+  if (!period) {
+    return 250;
+  }
+  // The period is added before the phase is taken off it, so a phase ahead of
+  // the clock early in a boot subtracts rather than wrapping to seven weeks.
+  uint32_t since = (millis() + period - phase % period) % period;
+  return period - since;
+}
+
 void netHeard(uint32_t unix) {
   heard = unix;
   heardAt = millis();

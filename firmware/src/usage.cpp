@@ -301,27 +301,29 @@ void poll(const char *token) {
 
 void task(void *) {
   for (;;) {
-    uint32_t wait = WAITING_MS;
     bool timed = false;
+    uint32_t until = millis() + WAITING_MS;
     const char *token = portalToken();
     if (wifiConnected() && token) {
       poll(token);
       timed = ready;
-      wait = ready ? (uint32_t)every * 60000UL : RETRY_MS;
+      until = millis() + RETRY_MS;
     }
-    // A quarter second at a time rather than one long delay, so the wait can be
-    // cut short and the idle task - which is what the watchdog watches - is
-    // scheduled all the way through it however long the interval is set to.
-    for (uint32_t slept = 0; slept < wait; slept += 250) {
+    // A quarter second at a time rather than one long delay: the wait can be
+    // cut short by a wake, the idle task the watchdog watches is scheduled all
+    // the way through it however long the interval is, and a timed wait asks
+    // the cadence again each pass - so a change to the interval takes hold of
+    // the wait already under way rather than only the one after it.
+    for (;;) {
+      int32_t left = timed ? (int32_t)netDueIn((uint32_t)every * 60000UL, 0)
+                           : (int32_t)(until - millis());
+      if (left <= 250) {
+        break;
+      }
       vTaskDelay(pdMS_TO_TICKS(250));
       if (wake) {
         wake = false;
         break;
-      }
-      // Re-read, so shortening the interval shortens the wait already under way
-      // rather than only the one after it.
-      if (timed) {
-        wait = (uint32_t)every * 60000UL;
       }
     }
   }

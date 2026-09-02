@@ -6,12 +6,12 @@
 
 #include "audio.h"
 #include "net.h"
+#include "usage.h"
 #include "wifi.h"
 
 namespace {
 
 constexpr char URL[] = "https://status.claude.com/api/v2/summary.json";
-constexpr uint32_t EVERY_MS = 60000;
 constexpr uint32_t RETRY_MS = 15000;
 // While there is nothing to ask over. Short, because this is the gap between
 // the radio joining and the first answer.
@@ -127,12 +127,26 @@ void poll() {
 
 void task(void *) {
   for (;;) {
-    uint32_t wait = WAITING_MS;
+    bool timed = false;
+    uint32_t until = millis() + WAITING_MS;
     if (wifiConnected()) {
       poll();
-      wait = level == Outage::Unknown ? RETRY_MS : EVERY_MS;
+      timed = level != Outage::Unknown;
+      until = millis() + RETRY_MS;
     }
-    vTaskDelay(pdMS_TO_TICKS(wait));
+    for (;;) {
+      // Half an interval off the usage read's slot, so the two sit either side
+      // of each other instead of coming due together and queueing on the one
+      // socket. The interval is the usage read's because there is one setting
+      // for both of them.
+      uint32_t period = (uint32_t)usageEvery() * 60000UL;
+      int32_t left = timed ? (int32_t)netDueIn(period, period / 2)
+                           : (int32_t)(until - millis());
+      if (left <= 250) {
+        break;
+      }
+      vTaskDelay(pdMS_TO_TICKS(250));
+    }
   }
 }
 
