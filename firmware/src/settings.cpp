@@ -22,13 +22,20 @@ namespace {
 constexpr float MIDDLE = (float)(SCREEN_W - 1) * 0.5f;
 constexpr float TRACK_X = MIDDLE;
 constexpr float TRACK_HW = 120.0f * SCENE;
-// Thicker than the charge bar on the details page. That one is read and this
-// one is held, and a line as thin as a reading is a line a thumb cannot find.
-constexpr float TRACK_HH = 6.0f * SCENE;
-constexpr float TRACK_R = 6.0f * SCENE;
+// A thin track under a knob several times its height, which is the proportion
+// that reads as something to be dragged. Nothing is aimed at the track itself -
+// REACH below is what answers to a thumb - so it is free to be this slight.
+constexpr float TRACK_HH = 2.5f * SCENE;
+// Its own half-height, so the ends are semicircles rather than a box with the
+// corners taken off.
+constexpr float TRACK_R = TRACK_HH;
 // The knob is what says this is a control rather than a reading: the charge bar
 // is the same shape and nobody is meant to touch it.
-constexpr float KNOB_R = 11.0f * SCENE;
+constexpr float KNOB_R = 13.0f * SCENE;
+// It travels short of the track by its own radius at either end, so it stays
+// inside the track rather than hanging off it - nought and a hundred are then
+// the knob parked against a stop instead of half of it out over the end.
+constexpr float KNOB_SPAN = TRACK_HW - KNOB_R;
 constexpr float BRIGHTNESS_Y = 148.0f * SCENE;
 constexpr float VOLUME_Y = 228.0f * SCENE;
 // Above each track, on its left end, the way the charge bar carries its own.
@@ -124,7 +131,9 @@ void follow() {
       return;
     }
   }
-  float t = clamp01(((float)across - (TRACK_X - TRACK_HW)) / (2.0f * TRACK_HW));
+  // Against the knob's travel rather than the track's length, or the knob lands
+  // up to its own radius short of the finger that put it there.
+  float t = clamp01(((float)across - (TRACK_X - KNOB_SPAN)) / (2.0f * KNOB_SPAN));
   set((uint8_t)held, (uint8_t)(t * 100.0f + 0.5f));
 }
 
@@ -141,18 +150,19 @@ void drawSlider(uint16_t *fb, uint8_t which, bool send) {
     }
   }
 
-  // The fill is the track's own shape shortened from the right rather than the
-  // track cut off at a line, so at a few percent what is left is a lozenge and
-  // not a sliver with square shoulders hanging out of a rounded end.
-  float wide = TRACK_HW * ((float)percent / 100.0f);
+  float knob = TRACK_X - KNOB_SPAN + 2.0f * KNOB_SPAN * ((float)percent / 100.0f);
+  // Up to the knob's middle, so the two cannot come apart. The fill is the
+  // track's own shape shortened from the right rather than the track cut off at
+  // a line, so what is left is a lozenge and not a sliver with square shoulders
+  // hanging out of a rounded end.
+  float wide = (knob - (TRACK_X - TRACK_HW)) * 0.5f;
   float from = TRACK_X - TRACK_HW + wide;
-  float knob = TRACK_X - TRACK_HW + 2.0f * wide;
   uint16_t ink = gaugeColour(0);
 
   for (int16_t y = (int16_t)(cy - KNOB_R - 2.0f); y <= bottom; y++) {
     float py = (float)y + 0.5f - cy;
-    for (int16_t x = (int16_t)(TRACK_X - TRACK_HW - KNOB_R - 2.0f);
-         x <= (int16_t)(TRACK_X + TRACK_HW + KNOB_R + 2.0f); x++) {
+    for (int16_t x = (int16_t)(TRACK_X - TRACK_HW - 2.0f);
+         x <= (int16_t)(TRACK_X + TRACK_HW + 2.0f); x++) {
       float px = (float)x + 0.5f - TRACK_X;
       // The knob sits over the track rather than being cut into it, so it is
       // drawn last and wins wherever it lands.
@@ -166,8 +176,7 @@ void drawSlider(uint16_t *fb, uint8_t which, bool send) {
       if (cover <= 0.02f) {
         continue;
       }
-      bool full = percent > 0 &&
-                  sdRoundBox(px - (from - TRACK_X), py, wide, TRACK_HH, TRACK_R) < 0.5f;
+      bool full = sdRoundBox(px - (from - TRACK_X), py, wide, TRACK_HH, TRACK_R) < 0.5f;
       plot(fb, x, y, cover, full ? ink : FAINT);
     }
   }
