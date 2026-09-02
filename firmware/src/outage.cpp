@@ -133,16 +133,23 @@ void poll() {
 }
 
 void task(void *) {
+  bool onJoin = false;
   for (;;) {
+    onJoin = netJoined(NET_OUTAGE) || onJoin;
     bool timed = false;
     uint32_t until = millis() + WAITING_MS;
-    if (netWatched() && wifiConnected()) {
+    if (wifiConnected() && (netWatched() || onJoin)) {
+      onJoin = false;
       poll();
       timed = level != Outage::Unknown;
       until = millis() + RETRY_MS;
     }
     for (;;) {
-      if (!netWatched()) {
+      if (!netWatched() && !onJoin) {
+        if (netJoined(NET_OUTAGE)) {
+          onJoin = true;
+          break;
+        }
         vTaskDelay(pdMS_TO_TICKS(250));
         continue;
       }

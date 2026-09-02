@@ -343,11 +343,23 @@ void poll(const char *token) {
 }
 
 void task(void *) {
+  // A join, or a different token being picked. Either is worth a read whether
+  // or not the page is in front of somebody: the first leaves it empty until
+  // somebody swipes onto it and the second leaves it showing the last account's
+  // numbers. Held rather than acted on where it is noticed, because both turn
+  // up inside the wait below and the read belongs at the top of the loop.
+  bool due = false;
   for (;;) {
+    due = netJoined(NET_USAGE) || due;
+    if (wake) {
+      wake = false;
+      due = true;
+    }
     bool timed = false;
     uint32_t until = millis() + WAITING_MS;
     const char *token = portalToken();
-    if (netWatched() && wifiConnected() && token) {
+    if (wifiConnected() && token && (netWatched() || due)) {
+      due = false;
       poll(token);
       timed = ready;
       until = millis() + RETRY_MS;
@@ -360,7 +372,13 @@ void task(void *) {
     for (;;) {
       // Off the face there is nothing due: the wait idles here rather than
       // counting down to a read that would land on a page nobody is on.
-      if (!netWatched()) {
+      if (!netWatched() && !due) {
+        // Cleared at the top of the loop rather than here, so both ways out of
+        // this wait leave it in the same state.
+        if (netJoined(NET_USAGE) || wake) {
+          due = true;
+          break;
+        }
         vTaskDelay(pdMS_TO_TICKS(250));
         continue;
       }

@@ -76,6 +76,14 @@ constexpr uint8_t NET_OUTAGE = 1;
 constexpr uint8_t NET_POLLERS = 2;
 bool netStale(uint8_t poller);
 
+// True once for each poller each time the radio joins. A join earns a read on
+// its own, watched or not: these readings are the whole of what the board is
+// for, and waiting for somebody to swipe onto the page before asking is what
+// makes that page empty at the moment it arrives. One call on an edge that
+// happens about once a boot. Each poller keeps its own idea of whether the
+// radio was up, so neither can take the other's edge.
+bool netJoined(uint8_t poller);
+
 // How long until the next slot on a shared cadence, in milliseconds. Both
 // pollers hang off this so they keep a fixed offset from each other rather than
 // drifting together: the usage read takes the slot on the period and the status

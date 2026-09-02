@@ -4,6 +4,8 @@
 #include <esp_heap_caps.h>
 #include <string.h>
 
+#include "wifi.h"
+
 namespace {
 
 SemaphoreHandle_t held = nullptr;
@@ -20,6 +22,9 @@ uint32_t heardAt = 0;
 constexpr uint32_t STALE_MS = 30000;
 volatile bool watched = true;
 volatile bool stale[NET_POLLERS] = {false, false};
+// Read and written only by the poller it belongs to, which is what keeps the
+// join edge out of a race between the two tasks asking on the same tick.
+bool wasUp[NET_POLLERS] = {false, false};
 uint32_t awayAt = 0;
 
 // Enough that a two kilobyte reply comes over in a handful of passes, small
@@ -65,6 +70,16 @@ bool netStale(uint8_t poller) {
   }
   stale[poller] = false;
   return true;
+}
+
+bool netJoined(uint8_t poller) {
+  if (poller >= NET_POLLERS) {
+    return false;
+  }
+  bool now = wifiConnected();
+  bool edge = now && !wasUp[poller];
+  wasUp[poller] = now;
+  return edge;
 }
 
 uint32_t netDueIn(uint32_t period, uint32_t phase) {
