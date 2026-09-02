@@ -22,6 +22,7 @@
 #include "portal.h"
 #include "settings.h"
 #include "shape.h"
+#include "shot.h"
 #include "text.h"
 #include "usage.h"
 
@@ -32,6 +33,11 @@ static constexpr uint32_t FRAME_US = 16667;
 
 static uint32_t lastFrame = 0;
 static uint32_t nextFrame = 0;
+
+// What a screenshot costs to ask for. Long enough that nothing reaches the one
+// button by accident and nothing already on it is lengthened into this, and
+// short enough to sit through with a finger on a board this size.
+static constexpr uint32_t SHOT_HOLD_MS = 3000;
 
 // The face, what it is running on over it, the two things about the board that
 // are somebody's taste under it, and a market screen either side. None knows
@@ -256,6 +262,7 @@ void setup() {
   batteryBegin();
   touchBegin();
   buttonBegin();
+  shotBegin();
   audioBegin();
   audioVolume(settingsVolume());
   wifiBegin();
@@ -354,6 +361,21 @@ void loop() {
     if (to != sideways) {
       sideways = to;
       turnTo(sideways == 0 ? Page::Main : Page::Chart);
+    }
+  }
+
+  // Held rather than pressed, and asked first: the release that ends a hold is
+  // swallowed, so the press below never sees the one that took a screenshot.
+  //
+  // The sound goes before the encode rather than after it. What it acknowledges
+  // is that the press landed, and the encode stops the glass for a second or
+  // two - which with no answer at all is how a held button reads as a board
+  // that has hung. The audio task is on the other core and is already sounding
+  // while this blocks.
+  if (buttonHeld(SHOT_HOLD_MS)) {
+    audioShuttered();
+    if (!shotTake()) {
+      audioErrored();
     }
   }
 
