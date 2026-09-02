@@ -36,7 +36,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
   <section class="mt-8 rounded-xl border border-neutral-800 bg-neutral-900/40">
     <form id=form class="px-6 py-5">
-      <label for=token class="block text-sm text-neutral-300">Session token</label>
+      <label for=token class="block text-sm text-neutral-300">Claude session token</label>
       <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input id=token name=token type=password autocomplete=off spellcheck=false
                placeholder="sk-ant-sid02-..."
