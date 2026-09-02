@@ -325,16 +325,22 @@ void loop() {
   if (settingsHolding() || infoFullscreen()) {
     swipe = Swipe::None;
   }
-  if (swipe == Swipe::Up && page == Page::Main) {
+  // Anywhere along the row, not just the face: the details and the sliders are
+  // above and below all of it. Coming back down comes back to where you left
+  // rather than to the middle - the position along the row is kept, so a swipe
+  // up from a chart and a swipe back down is where you started and not a
+  // journey home.
+  bool row = page == Page::Main || page == Page::Chart;
+  Page back = sideways == 0 ? Page::Main : Page::Chart;
+  if (swipe == Swipe::Up && row) {
     turnTo(Page::Info);
   } else if (swipe == Swipe::Down && page == Page::Info) {
-    turnTo(Page::Main);
-  } else if (swipe == Swipe::Down && page == Page::Main) {
+    turnTo(back);
+  } else if (swipe == Swipe::Down && row) {
     turnTo(Page::Settings);
   } else if (swipe == Swipe::Up && page == Page::Settings) {
-    turnTo(Page::Main);
-  } else if ((swipe == Swipe::Left || swipe == Swipe::Right) &&
-             (page == Page::Main || page == Page::Chart)) {
+    turnTo(back);
+  } else if ((swipe == Swipe::Left || swipe == Swipe::Right) && row) {
     int8_t to = (int8_t)(sideways + (swipe == Swipe::Left ? 1 : -1));
     // The row ends rather than wrapping. A list that comes back round to where
     // it started gives no clue how far along it you are - and it ends at
