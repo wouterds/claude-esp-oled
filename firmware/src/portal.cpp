@@ -40,7 +40,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
     <div class="grid gap-6">
 
       <section class="rounded-xl border border-white/10 bg-white/[0.05]">
-        <div class="flex items-center justify-between border-b border-white/10 px-5 py-3">
+        <div class="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
           <h2 class="text-xs uppercase tracking-wider text-white/60">Claude session token</h2>
           <span id=tokenState class="text-xs text-white/45">&nbsp;</span>
         </div>
@@ -61,12 +61,12 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
       </section>
 
       <section class="rounded-xl border border-white/10 bg-white/[0.05]">
-        <div class="flex items-center justify-between border-b border-white/10 px-5 py-3">
+        <div class="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
           <h2 class="text-xs uppercase tracking-wider text-white/60">Wi-Fi networks</h2>
           <span id=netCount class="text-xs text-white/45">&nbsp;</span>
         </div>
-        <ul id=netList class="divide-y divide-white/10"></ul>
-        <form id=netForm class="border-t border-white/10 px-5 py-4">
+        <ul id=netList class="divide-y divide-white/[0.06]"></ul>
+        <form id=netForm class="border-t border-white/[0.06] px-5 py-4">
           <div class="grid gap-2 sm:grid-cols-2">
             <input id=ssid name=ssid autocomplete=off spellcheck=false maxlength=32
                    placeholder="Network name"
@@ -96,7 +96,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
     <section class="overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2
-                  border-b border-white/10 px-5 py-3">
+                  border-b border-white/[0.06] px-5 py-3">
         <h2 class="text-xs uppercase tracking-wider text-white/60">Requests</h2>
         <div class="flex items-center gap-3">
           <label for=every class="text-xs text-white/45">Refresh interval</label>
@@ -119,9 +119,9 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
             <th class="w-20 py-2 pl-3 pr-5 text-right font-normal">Size</th>
           </tr>
         </thead>
-        <tbody id=rows class="divide-y divide-white/10"></tbody>
+        <tbody id=rows class="divide-y divide-white/[0.06]"></tbody>
         <tfoot id=totals class="hidden">
-          <tr class="border-t border-white/10 text-white/45">
+          <tr class="border-t border-white/[0.06] text-white/45">
             <td colspan=3 id=avgLabel
                 class="py-2 pl-5 pr-3 text-[10px] uppercase tracking-wider"></td>
             <td id=avgMs class="whitespace-nowrap px-3 py-2 text-right tabular-nums"></td>
