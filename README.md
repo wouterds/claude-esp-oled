@@ -21,10 +21,14 @@ to send it back. Swipe down from the face for brightness and volume - tap or
 drag either slider, and it remembers - and up to put it away. Double-tap the cat and it takes the whole
 glass; double-tap again to give it back.
 
-Neither button is wired to anything the firmware can use. `PWR` switches the
-power path and the chip cannot see it - it is the small one beside the USB-C,
-pressed for a second to power on and held for three to power off. `BOOT` is the
-strapping pin, and held down at reset it traps the board in the bootloader.
+`PWR` switches the power path and the chip cannot see it - it is the small one
+beside the USB-C, pressed for a second to power on and held for three to power
+off. `BOOT` is the strapping pin, and held down at reset it traps the board in
+the bootloader - but nothing about the strap applies to a board that is already
+up, so the firmware reads it as a button. Press it and it means whatever page is
+in front of it. Hold it for three seconds and the board photographs its own
+glass, says so with a shutter, and keeps the last ten PNGs on its flash; they
+are listed on the page above the request log, and open in a tab from there.
 
 Hardware is either a **Waveshare ESP32-S3-Touch-LCD-1.85B** - a 360x360 IPS LCD,
 where despite the name of this repository black is backlight leaking through
