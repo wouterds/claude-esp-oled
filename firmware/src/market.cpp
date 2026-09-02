@@ -52,10 +52,15 @@ constexpr Listing LISTINGS[MARKET_INDICES] = {
     {"NQ=F", "NQ", "NASDAQ 100 FUTURES"},
 };
 
-// Ten kilobytes of coin table is the largest of these by some way, and the cap
-// is not a size any of them approaches - it is there so a reply that is not
-// what this asked for cannot take the heap with it.
-constexpr size_t MOST = 20480;
+// Twelve kilobytes of coin list is the largest of these; one coin with its line
+// is four and an index is three to eight. The cap is not a size any of them
+// approaches - it is there so a reply that is not what this asked for cannot
+// take the heap with it.
+constexpr size_t MOST = 16384;
+// A handshake wants tens of kilobytes of internal RAM and aborts rather than
+// fails without them, which is a reboot and not a missed reading. So one is not
+// started without room to spare and the screen waits for the next pass instead.
+constexpr size_t FLOOR = 60000;
 constexpr uint32_t PATIENCE_MS = 6000;
 constexpr uint32_t RETRY_MS = 20000;
 
@@ -107,7 +112,6 @@ bool fetch(const String &url, String &out) {
     http.end();
     return false;
   }
-  out.reserve(MOST / 2);
   bool read = netBody(http, out, MOST, PATIENCE_MS);
   http.end();
   netRecord(url.c_str(), began, code, out.length());
@@ -443,11 +447,16 @@ void task(void *) {
       bool waited = !triedAt[at] || millis() - triedAt[at] >= RETRY_MS;
       if (stale && waited) {
         triedAt[at] = millis();
-        mark(at, true, false);
-        netTake();
-        bool got = at < MARKET_COINS ? readCoin(at) : readListing(at);
-        netGive();
-        mark(at, false, !got);
+        size_t room = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        if (room < FLOOR) {
+          Serial.printf("market: %u bytes of internal free, holding off\n", (unsigned)room);
+        } else {
+          mark(at, true, false);
+          netTake();
+          bool got = at < MARKET_COINS ? readCoin(at) : readListing(at);
+          netGive();
+          mark(at, false, !got);
+        }
       }
     }
     vTaskDelay(pdMS_TO_TICKS(250));

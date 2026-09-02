@@ -149,6 +149,14 @@ bool netBody(HTTPClient &http, String &out, size_t cap, uint32_t patience) {
   }
 
   out = "";
+  // Reserved to what the reply says it weighs rather than grown into. A String
+  // that doubles from nothing holds the old copy and the new one at the same
+  // moment, so a twelve kilobyte reply peaks at twenty-eight - and this is
+  // internal RAM, which is the memory the TLS session holding the socket open
+  // needs tens of kilobytes of and aborts rather than fails without.
+  if (said > 0) {
+    out.reserve((size_t)said + 1);
+  }
   // Asked for up front when the length is known, so the string is not grown and
   // copied a dozen times through the memory this is trying to leave alone.
   if (said > 0) {
