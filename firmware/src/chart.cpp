@@ -22,7 +22,16 @@ constexpr int16_t PRICE_Y = (int16_t)(84 * SCENE);
 constexpr int16_t PRICE_SCALE = 4;
 constexpr int16_t MOVE_Y = (int16_t)(122 * SCENE);
 constexpr int16_t MOVE_SCALE = 3;
-constexpr int16_t SPAN_Y = (int16_t)(280 * SCENE);
+// Level with the commit hash on the details page - the same rows at the same
+// size - so the two pages share a baseline instead of each having its own. Up a
+// few rows on the LCD board for the same reason that one is: the glass is
+// tighter down there.
+#if defined(BOARD_LCD_185B)
+constexpr int16_t SPAN_UP = 3;
+#else
+constexpr int16_t SPAN_UP = 0;
+#endif
+constexpr int16_t SPAN_Y = (int16_t)(338 * SCENE) - SPAN_UP;
 constexpr int16_t SPAN_SCALE = 2;
 
 // The whole width. The glass is round, so the last twenty pixels of each end
