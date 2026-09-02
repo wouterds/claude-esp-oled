@@ -254,20 +254,24 @@ void mark(uint8_t screen, bool loading, bool failed) {
   revision = revision + 1;
 }
 
-// Anything pinned to a currency. Three ways of saying it because there are
-// three kinds of it: the ones that put the currency in the name, the ones that
-// put it in the ticker, and the ones - DAI is the awkward example - that do
-// neither and can only be recognised by behaving like it. A price within five
-// cents of a dollar that has not moved in a day is pinned whatever it calls
-// itself, and both halves of that are needed: a real coin can trade near a
-// dollar, and a real coin can have a quiet day, but not both at once.
+// Anything priced against a dollar rather than against the market. Three ways
+// of saying it because there are three kinds of it: the ones that put the
+// currency in the name or the ticker, the ones - DAI is the awkward example -
+// that do neither and can only be recognised by behaving like it, and the debt
+// tokens that sit at par because par is what they are worth. A HELOC token is
+// the last kind: it trades at a few cents over a dollar because that is the
+// loan's face value, and it moves enough some days to slip the test below.
+//
+// Both halves of that test are needed and neither alone would do - a real coin
+// can trade near a dollar, and a real coin can have a quiet day, but not both
+// at once.
 bool pinned(const char *ticker, const char *name, float price, float moved) {
   char loud[48];
   snprintf(loud, sizeof(loud), "%s %s", ticker, name);
   for (char *c = loud; *c; c++) {
     *c = (char)toupper(*c);
   }
-  if (strstr(loud, "USD") || strstr(loud, "EUR")) {
+  if (strstr(loud, "USD") || strstr(loud, "EUR") || strstr(loud, "HELOC")) {
     return true;
   }
   return fabsf(price - 1.0f) < 0.05f && fabsf(moved) < 0.5f;
