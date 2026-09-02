@@ -35,14 +35,6 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
   <p id=who class="mt-1 text-sm text-neutral-500">&nbsp;</p>
 
   <section class="mt-8 rounded-xl border border-neutral-800 bg-neutral-900/40">
-    <header class="border-b border-neutral-800 px-6 py-5">
-      <h2 class="text-base font-medium text-white">Claude session token</h2>
-      <p class="mt-1 text-sm text-neutral-400">
-        The whole of your claude.ai login. It is kept on the device and the only
-        place it is ever sent is back to claude.ai.
-      </p>
-    </header>
-
     <form id=form class="px-6 py-5">
       <label for=token class="block text-sm text-neutral-300">Session token</label>
       <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
