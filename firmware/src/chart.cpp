@@ -32,6 +32,9 @@ constexpr float PLOT_X0 = 0.0f;
 constexpr float PLOT_X1 = (float)(SCREEN_W - 1);
 constexpr float PLOT_Y0 = 158.0f * SCENE;
 constexpr float PLOT_Y1 = 262.0f * SCENE;
+// Sub-segments per gap between two prices. The line is drawn from these rather
+// than from the prices themselves, which is what takes the corners off it.
+constexpr uint8_t SUB = 4;
 // Half the stroke. A price line wants to read as one line rather than as the
 // pixels it is made of, and under a pixel and a half it stops.
 constexpr float STROKE = 1.6f * SCENE;
@@ -124,15 +127,12 @@ void clearOwned(uint16_t *fb, int16_t from, int16_t to) {
   }
 }
 
-float atX(const Market &m, uint8_t i) {
-  return m.count < 2 ? PLOT_X0
-                     : PLOT_X0 + (PLOT_X1 - PLOT_X0) * (float)i / (float)(m.count - 1);
-}
+int16_t held(int16_t at, int16_t last) { return at < 0 ? 0 : (at > last ? last : at); }
 
 float atY(const Market &m, uint8_t i) {
   float span = m.high - m.low;
-  // A week that never moved is a line through the middle rather than a divide
-  // by nothing.
+  // A day that never moved is a line through the middle rather than a divide by
+  // nothing.
   if (span <= 0.0f) {
     return (PLOT_Y0 + PLOT_Y1) * 0.5f;
   }
@@ -143,61 +143,68 @@ float atY(const Market &m, uint8_t i) {
   return PLOT_Y1 - t * (PLOT_Y1 - PLOT_Y0);
 }
 
-// One pass per column with only the segments that can reach it. Written that
-// way rather than segment by segment because plot puts a colour down instead of
-// blending it, so a segment's faint edge drawn second would rub out the solid
-// pixel its neighbour had already put there.
+// Catmull-Rom through the prices, at a fractional index between them. It passes
+// through every one of them rather than near them, so the line still touches
+// every price it was drawn from and only the corners between them are rounded -
+// which is rounding, not smoothing, and the difference matters when the thing
+// being drawn is what something cost.
+float smoothAt(const Market &m, float at) {
+  int16_t last = (int16_t)m.count - 1;
+  int16_t i = (int16_t)floorf(at);
+  float t = at - (float)i;
+  float p0 = atY(m, (uint8_t)held((int16_t)(i - 1), last));
+  float p1 = atY(m, (uint8_t)held(i, last));
+  float p2 = atY(m, (uint8_t)held((int16_t)(i + 1), last));
+  float p3 = atY(m, (uint8_t)held((int16_t)(i + 2), last));
+  float a = -0.5f * p0 + 1.5f * p1 - 1.5f * p2 + 0.5f * p3;
+  float b = p0 - 2.5f * p1 + 2.0f * p2 - 0.5f * p3;
+  float c = -0.5f * p0 + 0.5f * p2;
+  return ((a * t + b) * t + c) * t + p1;
+}
+
+// One pass per column with only the sub-segments that can reach it. Written
+// that way rather than segment by segment because plot puts a colour down
+// instead of blending it, so one faint edge drawn second would rub out the
+// solid pixel its neighbour had already put there.
 void drawPlot(uint16_t *fb, const Market &m, uint16_t ink) {
   if (m.count < 2) {
     return;
   }
-  int16_t from = (int16_t)(PLOT_X0 - STROKE - 1);
-  int16_t to = (int16_t)(PLOT_X1 + STROKE + 1);
-  float step = (PLOT_X1 - PLOT_X0) / (float)(m.count - 1);
+  uint16_t subs = (uint16_t)(m.count - 1) * SUB;
+  float step = (PLOT_X1 - PLOT_X0) / (float)subs;
+  int16_t reach = (int16_t)(STROKE / step) + 2;
 
-  for (int16_t x = from; x <= to; x++) {
+  for (int16_t x = (int16_t)PLOT_X0; x <= (int16_t)PLOT_X1; x++) {
     float px = (float)x + 0.5f;
     int16_t mid = (int16_t)((px - PLOT_X0) / step);
-    int16_t first = mid - 1 < 0 ? 0 : mid - 1;
-    int16_t last = mid + 1 > m.count - 2 ? m.count - 2 : mid + 1;
-    if (first > last) {
-      continue;
-    }
+    int16_t first = held((int16_t)(mid - reach), (int16_t)(subs - 1));
+    int16_t last = held((int16_t)(mid + reach), (int16_t)(subs - 1));
 
     float top = PLOT_Y1;
     float bottom = PLOT_Y0;
-    for (int16_t i = first; i <= last; i++) {
-      float a = atY(m, (uint8_t)i);
-      float b = atY(m, (uint8_t)(i + 1));
-      top = fminf(top, fminf(a, b));
-      bottom = fmaxf(bottom, fmaxf(a, b));
+    for (int16_t i = first; i <= last + 1; i++) {
+      float at = smoothAt(m, (float)i / (float)SUB);
+      top = fminf(top, at);
+      bottom = fmaxf(bottom, at);
     }
 
-    // Where the line actually is at this column, which is what the wash under
-    // it hangs from. Off the one segment that covers the column rather than the
-    // three the stroke is measured against.
-    int16_t own = mid < 0 ? 0 : (mid > m.count - 2 ? (int16_t)(m.count - 2) : mid);
-    float ax = atX(m, (uint8_t)own);
-    float bx = atX(m, (uint8_t)(own + 1));
-    float along = bx > ax ? clamp01((px - ax) / (bx - ax)) : 0.0f;
-    float lit = atY(m, (uint8_t)own) +
-                (atY(m, (uint8_t)(own + 1)) - atY(m, (uint8_t)own)) * along;
-    // Drawn before the line and only under it, so the line goes over the wash
-    // rather than through it.
-    if (x >= (int16_t)PLOT_X0 && x <= (int16_t)PLOT_X1) {
-      float reach = (PLOT_Y1 - lit) * WASH;
-      for (int16_t y = (int16_t)lit; y <= (int16_t)(lit + reach); y++) {
-        float fell = reach > 0.0f ? ((float)y - lit) / reach : 1.0f;
-        plot(fb, x, y, WASH_ALPHA * (1.0f - fell), ink);
-      }
+    // Where the line is at this column, which is what the wash under it hangs
+    // from - off the curve rather than off the prices, so the two agree.
+    float lit = smoothAt(m, (px - PLOT_X0) / step / (float)SUB);
+    float drop = (PLOT_Y1 - lit) * WASH;
+    for (int16_t y = (int16_t)lit; y <= (int16_t)(lit + drop); y++) {
+      float fell = drop > 0.0f ? ((float)y - lit) / drop : 1.0f;
+      plot(fb, x, y, WASH_ALPHA * (1.0f - fell), ink);
     }
 
     for (int16_t y = (int16_t)(top - STROKE - 1); y <= (int16_t)(bottom + STROKE + 1); y++) {
       float py = (float)y + 0.5f;
       float near = 1e9f;
       for (int16_t i = first; i <= last; i++) {
-        near = fminf(near, sdSegment(px, py, atX(m, (uint8_t)i), atY(m, (uint8_t)i),
-                                     atX(m, (uint8_t)(i + 1)), atY(m, (uint8_t)(i + 1))));
+        float ax = PLOT_X0 + step * (float)i;
+        float bx = ax + step;
+        near = fminf(near, sdSegment(px, py, ax, smoothAt(m, (float)i / (float)SUB), bx,
+                                     smoothAt(m, (float)(i + 1) / (float)SUB)));
       }
       float cover = 0.5f - (near - STROKE);
       if (cover > 0.02f) {
