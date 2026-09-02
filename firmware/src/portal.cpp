@@ -152,9 +152,18 @@ function busy(btn, on) {
   btn.innerHTML = (on ? SPIN : '') + '<span>' + (on ? btn.dataset.busy : btn.dataset.label) + '</span>';
 }
 
+// Said and then taken back: the answer is about the press that caused it, and
+// left up it goes on describing a page that has moved on since.
+const SAID_MS = 5000;
+const fading = new WeakMap();
+
 function say(el, text, ok) {
   el.textContent = text;
   el.className = 'mt-3 text-sm ' + (ok ? 'text-emerald-400' : 'text-red-400');
+  // Restarted rather than stacked, so a second message gets its own five
+  // seconds instead of inheriting what is left of the first one's.
+  clearTimeout(fading.get(el));
+  fading.set(el, setTimeout(() => el.classList.add('hidden'), SAID_MS));
 }
 
 async function post(url, fields) {
