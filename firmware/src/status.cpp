@@ -109,10 +109,18 @@ struct Shown {
   uint8_t rise;
   uint8_t alarm;
   bool alarmLit;
+  bool clockDim;
   char address[16];
 };
 
-Shown shown = {255, 255, false, false, false, 0, 255, false, {0}};
+Shown shown = {255, 255, false, false, false, 0, 255, false, false, {0}};
+
+// A countdown that has run out holds at nought rather than going away, and
+// blinks to say the reset is due rather than only close. It dips rather than
+// goes dark: a pixel cannot be switched off on this panel, so blinking to black
+// blinks to grey and reads as a fault instead of as a signal.
+constexpr uint32_t EXPIRED_BLINK_MS = 600;
+constexpr float EXPIRED_DIP = 0.2f;
 
 // HH:MM:SS.MS. The hours run as wide as they have to rather than rolling into
 // days: a week out is a hundred and sixty-odd of them, and one field growing a
@@ -404,13 +412,21 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // but a level.
   char clock[16] = {0};
   float up = gaugeFiguresLevel();
+  bool expired = false;
   if (up > 0.02f) {
-    uint32_t left = usageWeekly() >= SPENT ? usageWeeklyResetsIn() : usageSessionResetsIn();
-    if (left > 0) {
+    bool onWeek = usageWeekly() >= SPENT;
+    uint32_t left = onWeek ? usageWeeklyResetsIn() : usageSessionResetsIn();
+    // Nought is two different answers: the window has run down to it, or the
+    // endpoint named no reset at all because nothing has been spent in that
+    // window. The percentage is the only thing that tells them apart, and it is
+    // the difference between a reset that is due and one that does not exist.
+    expired = left == 0 && (onWeek ? usageWeekly() : usageSession()) > 0;
+    if (left > 0 || expired) {
       clockOf(clock, sizeof(clock), left);
     }
   }
   bool ticking = clock[0] != '\0';
+  bool dim = expired && ((millis() / EXPIRED_BLINK_MS) & 1) != 0;
 
   // The outage borrows the line for five seconds in every thirty-five, and only
   // while the clock is up to lend it. Off the clock there is nothing to hand it
@@ -455,7 +471,9 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // nowhere every eleven seconds.
   uint32_t steps = (millis() - typedAt) / 45;
   uint8_t reveal = steps >= full ? full : (uint8_t)steps;
-  bool bottomChanged = reveal != typed || rewrite;
+  // The blink is its own reason to redraw: the glyphs hold still at nought, so
+  // nothing else in here would notice the beat turning over.
+  bool bottomChanged = reveal != typed || rewrite || dim != shown.clockDim;
   bottomChanged |= overlaps(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM), faceFrom, faceTo);
 
   if (!topChanged && !alarmChanged && !bottomChanged) {
@@ -515,11 +533,13 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
       // The outage line wears the triangle's own colour, so the two are one
       // thing said twice rather than two things that happen to agree.
+      float level = ticking ? up : 1.0f;
       uint16_t ink = line == Line::Alarm ? fade(alarmColour(alarm), up)
-                                        : fade(WHITE, ticking ? up : 1.0f);
+                                        : fade(WHITE, dim ? level * EXPIRED_DIP : level);
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, BOTTOM_SCALE,
                boardColour(ink));
     }
+    shown.clockDim = dim;
     boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
   }
 }

@@ -106,6 +106,23 @@ uint32_t deadlineOf(uint32_t when) {
   return heardAt + (when - heard) * 1000;
 }
 
+// A window rolling over is worth a read of its own: what is behind it has just
+// changed, and sitting out the rest of the interval leaves the old figures on
+// the glass with a countdown at nought under them.
+bool rolled() {
+  bool over = false;
+  for (uint8_t i = 0; i < 2; i++) {
+    if (resetAt[i] && (int32_t)(millis() - resetAt[i]) >= 0) {
+      // Spent as soon as it is acted on. A read that fails leaves the deadline
+      // in the past, and left there the wait would break on it every quarter
+      // second - which is a poller with no interval at all.
+      resetAt[i] = 0;
+      over = true;
+    }
+  }
+  return over;
+}
+
 uint32_t leftOn(uint32_t deadline) {
   if (!deadline) {
     return 0;
@@ -330,6 +347,9 @@ void task(void *) {
       vTaskDelay(pdMS_TO_TICKS(250));
       if (wake) {
         wake = false;
+        break;
+      }
+      if (timed && rolled()) {
         break;
       }
     }
