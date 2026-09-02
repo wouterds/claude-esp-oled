@@ -16,21 +16,21 @@ namespace {
 // never has to know they are there.
 constexpr int16_t OWNED_TOP = (int16_t)(36 * SCENE);
 
-constexpr int16_t NAME_Y = (int16_t)(46 * SCENE);
+constexpr int16_t NAME_Y = (int16_t)(58 * SCENE);
 constexpr int16_t NAME_SCALE = 2;
 constexpr int16_t PRICE_Y = (int16_t)(82 * SCENE);
 constexpr int16_t PRICE_SCALE = 4;
-constexpr int16_t MOVE_Y = (int16_t)(136 * SCENE);
+constexpr int16_t MOVE_Y = (int16_t)(120 * SCENE);
 constexpr int16_t MOVE_SCALE = 3;
-constexpr int16_t SPAN_Y = (int16_t)(292 * SCENE);
+constexpr int16_t SPAN_Y = (int16_t)(276 * SCENE);
 constexpr int16_t SPAN_SCALE = 2;
 
 // Wide enough to be a chart and inside the circle at every row it covers: at
 // its lowest the glass is 151 either side of the middle and this reaches 124.
 constexpr float PLOT_X0 = 56.0f * SCENE;
 constexpr float PLOT_X1 = 304.0f * SCENE;
-constexpr float PLOT_Y0 = 176.0f * SCENE;
-constexpr float PLOT_Y1 = 278.0f * SCENE;
+constexpr float PLOT_Y0 = 158.0f * SCENE;
+constexpr float PLOT_Y1 = 262.0f * SCENE;
 // Half the stroke. A price line wants to read as one line rather than as the
 // pixels it is made of, and under a pixel and a half it stops.
 constexpr float STROKE = 1.6f * SCENE;
