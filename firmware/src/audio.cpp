@@ -102,10 +102,13 @@ constexpr Note DIED[] = {{1568, 620, 140, 600}, {415, 420, 0}};
 // Two clips at one pitch, which is a mechanism rather than a tune. Every other
 // sound here goes somewhere, and an interval - any interval - would make this
 // one a small piece of music about a file being written; a shutter is two
-// halves of a single movement and neither half is higher than the other. Short,
-// because what it acknowledges is a button that has already been held for three
-// seconds and nobody wants a fourth.
-constexpr Note SHUTTERED[] = {{2093, 30, 40}, {2093, 30, 0}};
+// halves of a single movement and neither half is higher than the other.
+//
+// Seventy milliseconds each and not thirty. Thirty was shorter than any other
+// note on this board - the next shortest is forty-five and the song's
+// sixteenths are a hundred and six - and out of a speaker this size a tick that
+// brief is a tick nobody is sure they heard.
+constexpr Note SHUTTERED[] = {{2093, 70, 55}, {2093, 70, 0}};
 // The forever song, for as long as the cat has the glass: daniwell's tune, as
 // the one voice this has - the melody and none of what sits under it, which is
 // what it sounds like out of anything with a piezo in it. A rest is a note with
@@ -318,8 +321,12 @@ void task(void *) {
   for (;;) {
     uint8_t want = wanted;
     if (want != 0) {
-      wanted = 0;
+      // Raised before the ask is cleared, not after. Between the two there is
+      // a window where neither is set, and a caller waiting on this from the
+      // other core can look exactly then and be told the sound is over before
+      // it has begun.
       sounding = true;
+      wanted = 0;
       if (want == 1) {
         play(PLUGGED, sizeof(PLUGGED) / sizeof(PLUGGED[0]));
       } else if (want == 2) {
