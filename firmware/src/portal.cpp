@@ -94,8 +94,9 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
     </div>
 
-    <section class="overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
-      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2
+    <section class="flex max-h-[200px] flex-col overflow-hidden rounded-xl border border-white/10
+                    bg-white/[0.05] xl:max-h-[calc(100vh-10rem)]">
+      <div class="flex flex-none flex-wrap items-center justify-between gap-x-4 gap-y-2
                   border-b border-white/[0.06] px-5 py-3">
         <h2 class="text-xs uppercase tracking-wider text-white/60">Requests</h2>
         <div class="flex items-center gap-3">
@@ -107,29 +108,46 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
                 class="w-12 shrink-0 text-right text-xs tabular-nums text-white/80">&nbsp;</span>
         </div>
       </div>
-      <!-- Fixed, so a path longer than the column ends in an ellipsis rather than
-           widening the table until the last column is outside the card. -->
-      <table class="w-full table-fixed text-xs">
-        <thead>
-          <tr class="text-[10px] uppercase tracking-wider text-white/45">
-            <th class="w-20 py-2 pl-5 pr-3 text-left font-normal">Time</th>
-            <th class="px-3 py-2 text-left font-normal">Endpoint</th>
-            <th class="w-20 px-3 py-2 text-right font-normal">Status</th>
-            <th class="w-20 px-3 py-2 text-right font-normal">Took</th>
-            <th class="w-20 py-2 pl-3 pr-5 text-right font-normal">Size</th>
-          </tr>
-        </thead>
-        <tbody id=rows class="divide-y divide-white/[0.06]"></tbody>
-        <tfoot id=totals class="hidden">
-          <tr class="border-t border-white/[0.06] text-white/45">
-            <td colspan=3 id=avgLabel
-                class="py-2 pl-5 pr-3 text-[10px] uppercase tracking-wider"></td>
-            <td id=avgMs class="whitespace-nowrap px-3 py-2 text-right tabular-nums"></td>
-            <td id=avgSize class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums"></td>
-          </tr>
-        </tfoot>
-      </table>
-      <p id=quiet class="px-5 py-6 text-sm text-white/45">Nothing asked for yet.</p>
+      <!-- The rows scroll and the two ends hold still. They stay inside the one
+           table so the columns cannot drift apart, which is what a second table
+           for the head would risk the moment a scrollbar took a width off this
+           one. A stuck row has to be opaque or the rows pass through it, and
+           #10131E is this panel's own colour resolved - the one fixed value on
+           the page, and only because there is no way to name a composite. -->
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <!-- Fixed, so a path longer than the column ends in an ellipsis rather
+             than widening the table until the last column is outside the card. -->
+        <table class="w-full table-fixed text-xs">
+          <thead>
+            <tr class="text-[10px] uppercase tracking-wider text-white/45">
+              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
+                         pl-5 pr-3 text-left font-normal">Time</th>
+              <th class="sticky top-0 z-10 border-b border-white/[0.06] bg-[#10131E] px-3 py-2
+                         text-left font-normal">Endpoint</th>
+              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
+                         py-2 text-right font-normal">Status</th>
+              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
+                         py-2 text-right font-normal">Took</th>
+              <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
+                         pl-3 pr-5 text-right font-normal">Size</th>
+            </tr>
+          </thead>
+          <tbody id=rows class="divide-y divide-white/[0.06]"></tbody>
+          <tfoot id=totals class="hidden">
+            <tr class="text-white/45">
+              <td colspan=3 id=avgLabel
+                  class="sticky bottom-0 z-10 border-t border-white/[0.06] bg-[#10131E] py-2 pl-5
+                         pr-3 text-[10px] uppercase tracking-wider"></td>
+              <td id=avgMs class="sticky bottom-0 z-10 whitespace-nowrap border-t
+                         border-white/[0.06] bg-[#10131E] px-3 py-2 text-right tabular-nums"></td>
+              <td id=avgSize class="sticky bottom-0 z-10 whitespace-nowrap border-t
+                         border-white/[0.06] bg-[#10131E] py-2 pl-3 pr-5 text-right
+                         tabular-nums"></td>
+            </tr>
+          </tfoot>
+        </table>
+        <p id=quiet class="px-5 py-6 text-sm text-white/45">Nothing asked for yet.</p>
+      </div>
     </section>
   </div>
 </main>
@@ -252,7 +270,7 @@ async function requests() {
   $('totals').classList.toggle('hidden', done.length === 0);
   if (done.length) {
     const avg = (of) => done.reduce((sum, c) => sum + of(c), 0) / done.length;
-    $('avgLabel').textContent =
+      $('avgLabel').textContent =
       'Average of ' + done.length + (done.length === 1 ? ' reply' : ' replies');
     $('avgMs').textContent = Math.round(avg((c) => c.ms)) + ' ms';
     $('avgSize').textContent = bytes(Math.round(avg((c) => c.size)));
@@ -462,27 +480,43 @@ void handleForgetNetwork() {
 }
 
 void handleRequests() {
-  NetCall calls[NET_CALLS];
-  uint8_t n = netCalls(calls, NET_CALLS);
-  String json = "[";
+  // Sent as it is built rather than assembled and then sent. A hundred rows is
+  // thirteen kilobytes of JSON, and a String that size is thirteen kilobytes of
+  // internal heap taken while a TLS handshake on the other task may be wanting
+  // forty-eight of it.
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "application/json", "");
+
+  String out = "[";
+  NetCall c;
+  uint8_t n = netCallCount();
   for (uint8_t i = 0; i < n; i++) {
-    if (i) {
-      json += ',';
+    if (!netCallAt(i, &c)) {
+      break;
     }
-    json += "{\"at\":";
-    json += calls[i].at;
-    json += ",\"ms\":";
-    json += calls[i].ms;
-    json += ",\"code\":";
-    json += calls[i].code;
-    json += ",\"size\":";
-    json += calls[i].size;
-    json += ",\"url\":";
-    appendQuoted(json, calls[i].url);
-    json += '}';
+    if (i) {
+      out += ',';
+    }
+    out += "{\"at\":";
+    out += c.at;
+    out += ",\"ms\":";
+    out += c.ms;
+    out += ",\"code\":";
+    out += c.code;
+    out += ",\"size\":";
+    out += c.size;
+    out += ",\"url\":";
+    appendQuoted(out, c.url);
+    out += '}';
+    if (out.length() >= 1024) {
+      server.sendContent(out);
+      out = "";
+    }
   }
-  json += ']';
-  server.send(200, "application/json", json);
+  out += ']';
+  server.sendContent(out);
+  // An empty chunk is what ends a chunked reply.
+  server.sendContent("");
 }
 
 void handleSave() {

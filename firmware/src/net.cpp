@@ -1,13 +1,14 @@
 #include "net.h"
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <string.h>
 
 namespace {
 
 SemaphoreHandle_t held = nullptr;
 
-NetCall calls[NET_CALLS] = {};
+NetCall *calls = nullptr;
 uint8_t kept = 0;
 uint8_t nextCall = 0;
 uint32_t heard = 0;
@@ -30,7 +31,13 @@ constexpr uint32_t BREATH_MS = 5;
 
 }  // namespace
 
-void netBegin() { held = xSemaphoreCreateMutex(); }
+void netBegin() {
+  held = xSemaphoreCreateMutex();
+  calls = (NetCall *)heap_caps_calloc(NET_CALLS, sizeof(NetCall), MALLOC_CAP_SPIRAM);
+  // Not fatal. The log is a view onto what the board is doing, not part of
+  // doing it, so without the memory it simply stays empty.
+  Serial.printf("net: call log %s\n", calls ? "in psram" : "has no psram, staying empty");
+}
 
 void netWatching(bool on) {
   if (on == watched) {
@@ -75,6 +82,9 @@ void netHeard(uint32_t unix) {
 }
 
 void netRecord(const char *url, uint32_t began, int code, uint32_t size) {
+  if (!calls) {
+    return;
+  }
   NetCall &c = calls[nextCall];
   strncpy(c.url, url, sizeof(c.url) - 1);
   c.url[sizeof(c.url) - 1] = '\0';
@@ -93,17 +103,19 @@ void netRecord(const char *url, uint32_t began, int code, uint32_t size) {
   }
 }
 
-uint8_t netCalls(NetCall *out, uint8_t max) {
-  uint8_t n = kept < max ? kept : max;
-  for (uint8_t i = 0; i < n; i++) {
-    out[i] = calls[(nextCall + NET_CALLS - 1 - i) % NET_CALLS];
-    out[i].url[sizeof(out[i].url) - 1] = '\0';
-    // Signed, and either way round: a call made before the clock landed is a
-    // negative distance from it, which is exactly the time it happened at.
-    int32_t since = (int32_t)(out[i].at - heardAt);
-    out[i].at = heard ? (uint32_t)((int32_t)heard + since / 1000) : 0;
+uint8_t netCallCount() { return calls ? kept : 0; }
+
+bool netCallAt(uint8_t i, NetCall *out) {
+  if (!calls || i >= kept) {
+    return false;
   }
-  return n;
+  *out = calls[(nextCall + NET_CALLS - 1 - i) % NET_CALLS];
+  out->url[sizeof(out->url) - 1] = '\0';
+  // Signed, and either way round: a call made before the clock landed is a
+  // negative distance from it, which is exactly the time it happened at.
+  int32_t since = (int32_t)(out->at - heardAt);
+  out->at = heard ? (uint32_t)((int32_t)heard + since / 1000) : 0;
+  return true;
 }
 
 void netTake() {
