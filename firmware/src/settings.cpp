@@ -7,7 +7,6 @@
 
 #include "audio.h"
 #include "board.h"
-#include "gauge.h"
 #include "panel.h"
 #include "shape.h"
 #include "text.h"
@@ -67,6 +66,9 @@ constexpr uint32_t SAVE_MS = 1000;
 constexpr uint16_t WHITE = 0xFFFF;
 constexpr uint16_t GREY = 0x8410;
 constexpr uint16_t FAINT = 0x4A49;
+// #0A84FF, and blue precisely because nothing in the gauge's ramp is: these are
+// settings rather than readings, and they had the teal off that ramp's good end.
+constexpr uint16_t BLUE = 0x0C3F;
 
 enum Slider : uint8_t { BRIGHTNESS, VOLUME, SLIDERS };
 
@@ -157,7 +159,6 @@ void drawSlider(uint16_t *fb, uint8_t which, bool send) {
   // hanging out of a rounded end.
   float wide = (knob - (TRACK_X - TRACK_HW)) * 0.5f;
   float from = TRACK_X - TRACK_HW + wide;
-  uint16_t ink = gaugeColour(0);
 
   for (int16_t y = (int16_t)(cy - KNOB_R - 2.0f); y <= bottom; y++) {
     float py = (float)y + 0.5f - cy;
@@ -177,7 +178,7 @@ void drawSlider(uint16_t *fb, uint8_t which, bool send) {
         continue;
       }
       bool full = sdRoundBox(px - (from - TRACK_X), py, wide, TRACK_HH, TRACK_R) < 0.5f;
-      plot(fb, x, y, cover, full ? ink : FAINT);
+      plot(fb, x, y, cover, full ? BLUE : FAINT);
     }
   }
 
