@@ -249,12 +249,10 @@ async function networks() {
       ${n.connected ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-teal-500/10
         px-2 py-0.5 text-[10px] font-medium text-teal-400"><span
         class="h-1.5 w-1.5 rounded-full bg-teal-400"></span>Connected</span>` : ''}
-      ${n.stored
-        ? `<button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
-             border border-white/15 px-2.5 py-1 text-xs text-white/60
-             hover:border-rose-500/50 hover:text-rose-400 disabled:cursor-not-allowed
-             disabled:opacity-50">Remove</button>`
-        : `<span class="text-[10px] text-white/30">Built in</span>`}
+      <button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
+        border border-white/15 px-2.5 py-1 text-xs text-white/60
+        hover:border-rose-500/50 hover:text-rose-400 disabled:cursor-not-allowed
+        disabled:opacity-50">Remove</button>
     </div>
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None known.</li>';
 }
@@ -443,8 +441,6 @@ void handleNetworks() {
     }
     json += "{\"ssid\":";
     appendQuoted(json, ssid);
-    json += ",\"stored\":";
-    json += wifiKnownStored(i) ? "true" : "false";
     bool live = on && strcmp(on, ssid) == 0;
     json += ",\"connected\":";
     json += live ? "true" : "false";
@@ -490,7 +486,7 @@ void handleSetEvery() {
 void handleForgetNetwork() {
   if (!wifiForget(server.arg("ssid").c_str())) {
     server.send(409, "application/json",
-                "{\"ok\":false,\"error\":\"that is not one of the stored ones\"}");
+                "{\"ok\":false,\"error\":\"that is not one it knows\"}");
     return;
   }
   server.send(200, "application/json", "{\"ok\":true}");
