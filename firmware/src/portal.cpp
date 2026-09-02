@@ -260,7 +260,7 @@ async function tokens() {
       <input type=radio name=pick value=${i} ${t.picked ? 'checked' : ''}
              class="h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-full border-2
                     border-white/25 text-blue-500 checked:border-blue-500 checked:bg-[radial-gradient(circle_at_center,currentColor_0_3px,transparent_3.5px)]">
-      <span class="truncate font-mono text-sm ${t.picked ? 'text-white' : 'text-white/60'}"
+      <span class="truncate font-mono text-xs ${t.picked ? 'text-white' : 'text-white/60'}"
         >${esc(t.hint)}</span>
     </label>
     <button data-token=${i} class="inline-flex shrink-0 items-center gap-1.5 rounded-md
@@ -519,12 +519,21 @@ void loadTokens() {
   saveTokens();
 }
 
-// Enough of one to tell two apart and not enough to be one. The tail rather
-// than the head, because every one of these starts sk-ant-sid02-.
+// Enough of one to tell two apart and not enough to be one. Both ends rather
+// than the tail alone: the head is sk-ant-sid02- on every one of them and says
+// nothing, but a hint that starts where the token does reads as the token
+// rather than as a scrap of one. Anything shorter than three of these is not a
+// session token and gets no more than the ellipsis - the ends of a short string
+// are the string.
+constexpr size_t HINT_END = 12;
+
 void tokenHint(const char *value, char *out, size_t size) {
   size_t len = strlen(value);
-  size_t tail = len < 6 ? len : 6;
-  snprintf(out, size, "\u2026%s", value + (len - tail));
+  if (len < HINT_END * 3) {
+    snprintf(out, size, "\u2026");
+    return;
+  }
+  snprintf(out, size, "%.*s\u2026%s", (int)HINT_END, value, value + len - HINT_END);
 }
 
 // An SSID is somebody else's string and may hold a quote or a backslash. Left
@@ -662,7 +671,7 @@ void handleRequests() {
 // show a token is the page anybody on this network can open.
 void handleTokens() {
   String json = "[";
-  char hint[16];
+  char hint[32];
   for (uint8_t i = 0; i < tokenCount; i++) {
     if (i) {
       json += ',';
