@@ -98,9 +98,8 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
     </div>
 
     <section class="overflow-hidden rounded-xl border border-neutral-800 bg-white/[0.02]">
-      <div class="flex items-baseline justify-between border-b border-neutral-800 px-5 py-3">
+      <div class="border-b border-neutral-800 px-5 py-3">
         <h2 class="text-xs uppercase tracking-wider text-neutral-400">Requests</h2>
-        <span id=meta class="text-xs text-neutral-500">&nbsp;</span>
       </div>
       <!-- Fixed, so a path longer than the column ends in an ellipsis rather than
            widening the table until the last column is outside the card. -->
@@ -220,7 +219,6 @@ async function requests() {
     return;
   }
   $('quiet').classList.toggle('hidden', list.length > 0);
-  $('meta').textContent = list.length + ' of 30, UTC';
   $('rows').innerHTML = list.map((c) => `<tr>
     <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-neutral-500">${clock(c.at)}</td>
     <td class="truncate px-3 py-2 text-neutral-400"
