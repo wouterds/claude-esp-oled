@@ -181,12 +181,12 @@ async function networks() {
     </div>
     <div class="flex shrink-0 items-center gap-2">
       ${n.connected ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10
-        px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-emerald-400"><span
+        px-2 py-0.5 text-[10px] font-medium text-emerald-400"><span
         class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Connected</span>` : ''}
       ${n.stored
         ? `<button data-ssid="${esc(n.ssid)}" class="rounded-md border border-neutral-700 px-2.5 py-1
              text-xs text-neutral-400 hover:border-red-500/50 hover:text-red-400">Forget</button>`
-        : `<span class="text-[11px] uppercase tracking-wider text-neutral-600">Built in</span>`}
+        : `<span class="text-[10px] text-neutral-600">Built in</span>`}
     </div>
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-neutral-500">None known.</li>';
 }
