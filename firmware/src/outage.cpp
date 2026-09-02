@@ -26,6 +26,7 @@ constexpr uint32_t PATIENCE_MS = 6000;
 volatile Outage level = Outage::Unknown;
 
 bool fetch(String &out) {
+  uint32_t began = millis();
   WiFiClientSecure tls;
   // No certificate store on the device, and nothing of ours goes up with it.
   tls.setInsecure();
@@ -34,16 +35,19 @@ bool fetch(String &out) {
   http.setTimeout(12000);
   if (!http.begin(tls, URL)) {
     Serial.println("outage: begin failed");
+    netRecord(URL, began, 0, 0);
     return false;
   }
   int code = http.GET();
   if (code != 200) {
     Serial.printf("outage: %d from the status page\n", code);
+    netRecord(URL, began, code, 0);
     http.end();
     return false;
   }
   bool read = netBody(http, out, MOST, PATIENCE_MS);
   http.end();
+  netRecord(URL, began, code, out.length());
   return read;
 }
 

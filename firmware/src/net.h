@@ -40,3 +40,28 @@ void netGive();
 // asks for is more than a couple of kilobytes, so one that says it is larger is
 // refused rather than allowed to take the heap down with it.
 bool netBody(HTTPClient &http, String &out, size_t cap, uint32_t patience);
+
+// The last few calls out, whoever made them - the usage read and the status
+// read both come through here, so this is the one place that sees all of them.
+// A debug view rather than a record: it is in RAM and goes with the power.
+struct NetCall {
+  uint32_t at;    // UTC seconds, or nought before anything said what the time was
+  uint32_t size;  // bytes of body read
+  uint16_t ms;
+  int16_t code;   // an HTTP status, negative for a client failure, nought for no connection
+  char url[80];
+};
+constexpr uint8_t NET_CALLS = 30;
+
+// The device has no clock of its own. Whichever poller reads a Date header off
+// a reply says so here, and the log below timestamps itself from that.
+void netHeard(uint32_t unix);
+
+// One call, timed from `began`. Called from inside the lock above, which is
+// what keeps the two pollers from writing over each other.
+void netRecord(const char *url, uint32_t began, int code, uint32_t size);
+
+// Copies out up to max of them, newest first, and returns how many there were.
+// Copied rather than pointed at: a row read while it is being written over is
+// then a wrong row rather than a crash.
+uint8_t netCalls(NetCall *out, uint8_t max);

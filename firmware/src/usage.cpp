@@ -43,9 +43,6 @@ uint32_t heard = 0;
 uint32_t heardAt = 0;
 int lastCode = 0;
 uint8_t misses = 0;
-UsageCall calls[USAGE_CALLS] = {};
-uint8_t kept = 0;
-uint8_t nextCall = 0;
 // A token can be revoked, or simply expire. Three refusals in a row and the
 // device goes back to asking for a new one: the address returns, the numbers go
 // away and the bars come in.
@@ -103,25 +100,6 @@ uint32_t deadlineOf(uint32_t when) {
   return heardAt + (when - heard) * 1000;
 }
 
-uint32_t nowUnix() { return heard ? heard + (millis() - heardAt) / 1000 : 0; }
-
-void record(const String &url, uint32_t began, int code, uint32_t size) {
-  UsageCall &c = calls[nextCall];
-  int cut = url.indexOf('/', sizeof("https://") - 1);
-  strncpy(c.path, cut < 0 ? url.c_str() : url.c_str() + cut, sizeof(c.path) - 1);
-  c.path[sizeof(c.path) - 1] = '\0';
-  c.at = nowUnix();
-  c.ms = (uint16_t)(millis() - began);
-  c.code = (int16_t)code;
-  c.size = size;
-  // Last, so a reader that catches this mid-write sees the slot before it
-  // rather than half of the one being filled.
-  nextCall = (uint8_t)((nextCall + 1) % USAGE_CALLS);
-  if (kept < USAGE_CALLS) {
-    kept++;
-  }
-}
-
 uint32_t leftOn(uint32_t deadline) {
   if (!deadline) {
     return 0;
@@ -158,7 +136,7 @@ bool fetch(const String &url, const char *token, String &out) {
   http.setTimeout(12000);
   if (!http.begin(tls, url)) {
     Serial.println("usage: begin failed");
-    record(url, began, 0, 0);
+    netRecord(url.c_str(), began, 0, 0);
     return false;
   }
   dress(http, token);
@@ -168,7 +146,7 @@ bool fetch(const String &url, const char *token, String &out) {
   lastCode = code;
   if (code != 200) {
     Serial.printf("usage: %d from %s\n", code, url.c_str());
-    record(url, began, code, 0);
+    netRecord(url.c_str(), began, code, 0);
     http.end();
     return false;
   }
@@ -176,10 +154,13 @@ bool fetch(const String &url, const char *token, String &out) {
   if (said) {
     heard = said;
     heardAt = millis();
+    // The call log has no clock of its own and this is the only reply on the
+    // board that carries one.
+    netHeard(said);
   }
   bool read = netBody(http, out, MOST, PATIENCE_MS);
   http.end();
-  record(url, began, code, out.length());
+  netRecord(url.c_str(), began, code, out.length());
   return read;
 }
 
@@ -358,15 +339,6 @@ uint8_t usageStill() { return still; }
 uint8_t usageSession() { return session; }
 
 uint8_t usageWeekly() { return weekly; }
-
-uint8_t usageCalls(UsageCall *out, uint8_t max) {
-  uint8_t n = kept < max ? kept : max;
-  for (uint8_t i = 0; i < n; i++) {
-    out[i] = calls[(nextCall + USAGE_CALLS - 1 - i) % USAGE_CALLS];
-    out[i].path[sizeof(out[i].path) - 1] = '\0';
-  }
-  return n;
-}
 
 uint32_t usageSessionResetsIn() { return leftOn(resetAt[0]); }
 

@@ -1,10 +1,17 @@
 #include "net.h"
 
 #include <Arduino.h>
+#include <string.h>
 
 namespace {
 
 SemaphoreHandle_t held = nullptr;
+
+NetCall calls[NET_CALLS] = {};
+uint8_t kept = 0;
+uint8_t nextCall = 0;
+uint32_t heard = 0;
+uint32_t heardAt = 0;
 
 // Enough that a two kilobyte reply comes over in a handful of passes, small
 // enough that it sits on the stack rather than in the heap this is protecting.
@@ -17,6 +24,36 @@ constexpr uint32_t BREATH_MS = 5;
 }  // namespace
 
 void netBegin() { held = xSemaphoreCreateMutex(); }
+
+void netHeard(uint32_t unix) {
+  heard = unix;
+  heardAt = millis();
+}
+
+void netRecord(const char *url, uint32_t began, int code, uint32_t size) {
+  NetCall &c = calls[nextCall];
+  strncpy(c.url, url, sizeof(c.url) - 1);
+  c.url[sizeof(c.url) - 1] = '\0';
+  c.at = heard ? heard + (millis() - heardAt) / 1000 : 0;
+  c.ms = (uint16_t)(millis() - began);
+  c.code = (int16_t)code;
+  c.size = size;
+  // Last, so a reader that catches this mid-write sees the slot before it
+  // rather than half of the one being filled.
+  nextCall = (uint8_t)((nextCall + 1) % NET_CALLS);
+  if (kept < NET_CALLS) {
+    kept++;
+  }
+}
+
+uint8_t netCalls(NetCall *out, uint8_t max) {
+  uint8_t n = kept < max ? kept : max;
+  for (uint8_t i = 0; i < n; i++) {
+    out[i] = calls[(nextCall + NET_CALLS - 1 - i) % NET_CALLS];
+    out[i].url[sizeof(out[i].url) - 1] = '\0';
+  }
+  return n;
+}
 
 void netTake() {
   if (held) {

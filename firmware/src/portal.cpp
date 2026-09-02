@@ -5,6 +5,7 @@
 #include <WebServer.h>
 #include <string.h>
 
+#include "net.h"
 #include "usage.h"
 #include "wifi.h"
 
@@ -121,10 +122,6 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 const $ = (id) => document.getElementById(id);
 const who = $('who');
 
-// The board keeps only the path of a call, because it only ever asks the one
-// host - so the host is written here as well rather than sent back thirty times.
-const HOST = 'https://claude.ai';
-
 const SPIN = '<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill=none>' +
   '<circle class="opacity-25" cx=12 cy=12 r=10 stroke=currentColor stroke-width=4></circle>' +
   '<path class="opacity-75" fill=currentColor d="M4 12a8 8 0 0 1 8-8V0C5.4 0 0 5.4 0 12h4z"></path></svg>';
@@ -201,11 +198,11 @@ async function requests() {
     return;
   }
   $('quiet').classList.toggle('hidden', list.length > 0);
-  $('meta').textContent = HOST + ' · ' + list.length + ' of 30, UTC';
+  $('meta').textContent = list.length + ' of 30, UTC';
   $('rows').innerHTML = list.map((c) => `<tr>
     <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-neutral-500">${clock(c.at)}</td>
     <td class="truncate px-3 py-2 text-neutral-400"
-        title="${esc(HOST + c.path)}">${esc(HOST + c.path)}</td>
+        title="${esc(c.url)}">${esc(c.url)}</td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${
       c.code === 200 ? 'text-emerald-400' : 'text-red-400'}">${c.code || 'no reply'}</td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-500">${c.ms} ms</td>
@@ -363,8 +360,8 @@ void handleForgetNetwork() {
 }
 
 void handleRequests() {
-  UsageCall calls[USAGE_CALLS];
-  uint8_t n = usageCalls(calls, USAGE_CALLS);
+  NetCall calls[NET_CALLS];
+  uint8_t n = netCalls(calls, NET_CALLS);
   String json = "[";
   for (uint8_t i = 0; i < n; i++) {
     if (i) {
@@ -378,8 +375,8 @@ void handleRequests() {
     json += calls[i].code;
     json += ",\"size\":";
     json += calls[i].size;
-    json += ",\"path\":";
-    appendQuoted(json, calls[i].path);
+    json += ",\"url\":";
+    appendQuoted(json, calls[i].url);
     json += '}';
   }
   json += ']';
