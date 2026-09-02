@@ -1,5 +1,7 @@
 #include "gauge.h"
 
+#include <Preferences.h>
+
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <math.h>
@@ -120,6 +122,13 @@ float figuresLevel = 0.0f;
 // How much of their length they are currently allowed. Only ever below one
 // while they are arriving.
 float grow = 0.0f;
+// What the button was last left saying, which outlives the power, and what is
+// actually up - which needs a reading to put in it and so is not the same
+// thing. Keeping them apart is what lets the choice survive a boot: the first
+// frames have no numbers yet, and a single flag would be turned off by that and
+// never turned back.
+Preferences store;
+bool wanted = false;
 bool figures = false;
 bool figuresMoved = false;
 float shown[2] = {0.0f, 0.0f};
@@ -331,6 +340,10 @@ void wipe(uint16_t *fb) {
 }  // namespace
 
 void gaugeBegin() {
+  store.begin("gauge", false);
+  wanted = store.getUChar("figures", 0) != 0;
+  Serial.printf("gauge: figures %s\n", wanted ? "on" : "off");
+
   pixels = (Pixel *)heap_caps_malloc(sizeof(Pixel) * SIDE_PIXELS * 2, MALLOC_CAP_SPIRAM);
   if (!pixels) {
     Serial.println("gauges: no room");
@@ -374,8 +387,9 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
 
   // Long only while nothing else wants the bottom of the glass: the address has
   // it until a token does, and the countdown has it whenever the figures are up.
-  if (!usageReady() && figures) {
-    figures = false;
+  bool show = wanted && usageReady();
+  if (show != figures) {
+    figures = show;
     figuresMoved = true;
   }
   bool reshape = figuresMoved;
@@ -435,8 +449,11 @@ void gaugeReveal() {
 }
 
 void gaugeFigures() {
-  figures = !figures;
-  figuresMoved = true;
+  wanted = !wanted;
+  // Straight to the store rather than on a timer. It is one byte per press of a
+  // button somebody has to reach for, not one per position of a slider.
+  store.putUChar("figures", wanted ? 1 : 0);
+  Serial.printf("gauge: figures %s\n", wanted ? "on" : "off");
 }
 
 float gaugeFiguresLevel() { return figuresLevel; }
