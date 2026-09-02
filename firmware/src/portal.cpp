@@ -39,15 +39,15 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
   <div class="mt-8 grid items-start gap-6 xl:grid-cols-[26rem_minmax(0,1fr)]">
     <div class="grid gap-6">
 
-      <section class="rounded-xl border border-neutral-800 bg-white/[0.05]">
-        <div class="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
+      <section class="rounded-xl border border-white/10 bg-white/[0.05]">
+        <div class="flex items-center justify-between border-b border-white/10 px-5 py-3">
           <h2 class="text-xs uppercase tracking-wider text-neutral-400">Claude session token</h2>
           <span id=tokenState class="text-xs text-neutral-500">&nbsp;</span>
         </div>
         <form id=tokenForm class="px-5 py-4">
           <input id=token name=token type=password autocomplete=off spellcheck=false
                  placeholder="sk-ant-sid02-..."
-                 class="w-full rounded-md border border-neutral-800 bg-gray-950 px-3 py-2 text-sm
+                 class="w-full rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
                         text-neutral-100 placeholder-neutral-600 outline-none
                         focus:outline focus:outline-[1.5px] focus:outline-offset-0
                         focus:outline-blue-500 disabled:opacity-50">
@@ -60,23 +60,23 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
         </form>
       </section>
 
-      <section class="rounded-xl border border-neutral-800 bg-white/[0.05]">
-        <div class="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
+      <section class="rounded-xl border border-white/10 bg-white/[0.05]">
+        <div class="flex items-center justify-between border-b border-white/10 px-5 py-3">
           <h2 class="text-xs uppercase tracking-wider text-neutral-400">Wi-Fi networks</h2>
           <span id=netCount class="text-xs text-neutral-500">&nbsp;</span>
         </div>
-        <ul id=netList class="divide-y divide-neutral-800"></ul>
-        <form id=netForm class="border-t border-neutral-800 px-5 py-4">
+        <ul id=netList class="divide-y divide-white/10"></ul>
+        <form id=netForm class="border-t border-white/10 px-5 py-4">
           <div class="grid gap-2 sm:grid-cols-2">
             <input id=ssid name=ssid autocomplete=off spellcheck=false maxlength=32
                    placeholder="Network name"
-                   class="rounded-md border border-neutral-800 bg-gray-950 px-3 py-2 text-sm
+                   class="rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
                           text-neutral-100 placeholder-neutral-600 outline-none
                           focus:outline focus:outline-[1.5px] focus:outline-offset-0
                           focus:outline-blue-500 disabled:opacity-50">
             <input id=pass name=password type=password autocomplete=new-password maxlength=63
                    placeholder="Password"
-                   class="rounded-md border border-neutral-800 bg-gray-950 px-3 py-2 text-sm
+                   class="rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
                           text-neutral-100 placeholder-neutral-600 outline-none
                           focus:outline focus:outline-[1.5px] focus:outline-offset-0
                           focus:outline-blue-500 disabled:opacity-50">
@@ -94,14 +94,14 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
     </div>
 
-    <section class="overflow-hidden rounded-xl border border-neutral-800 bg-white/[0.05]">
+    <section class="overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2
-                  border-b border-neutral-800 px-5 py-3">
+                  border-b border-white/10 px-5 py-3">
         <h2 class="text-xs uppercase tracking-wider text-neutral-400">Requests</h2>
         <div class="flex items-center gap-3">
           <label for=every class="text-xs text-neutral-500">Refresh interval</label>
           <input id=every type=range min=1 max=5 step=1 value=1
-                 class="h-1 w-28 cursor-pointer appearance-none rounded-full bg-neutral-800
+                 class="h-1 w-28 cursor-pointer appearance-none rounded-full bg-white/10
                         accent-blue-500">
           <span id=everyLabel
                 class="w-12 shrink-0 text-right text-xs tabular-nums text-neutral-300">&nbsp;</span>
@@ -119,9 +119,9 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
             <th class="w-20 py-2 pl-3 pr-5 text-right font-normal">Size</th>
           </tr>
         </thead>
-        <tbody id=rows class="divide-y divide-neutral-800"></tbody>
+        <tbody id=rows class="divide-y divide-white/10"></tbody>
         <tfoot id=totals class="hidden">
-          <tr class="border-t border-neutral-800 text-neutral-500">
+          <tr class="border-t border-white/10 text-neutral-500">
             <td colspan=3 id=avgLabel
                 class="py-2 pl-5 pr-3 text-[10px] uppercase tracking-wider"></td>
             <td id=avgMs class="whitespace-nowrap px-3 py-2 text-right tabular-nums"></td>
@@ -229,7 +229,7 @@ async function networks() {
         class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Connected</span>` : ''}
       ${n.stored
         ? `<button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
-             border border-neutral-700 px-2.5 py-1 text-xs text-neutral-400
+             border border-white/15 px-2.5 py-1 text-xs text-neutral-400
              hover:border-red-500/50 hover:text-red-400 disabled:cursor-not-allowed
              disabled:opacity-50">Remove</button>`
         : `<span class="text-[10px] text-neutral-600">Built in</span>`}
