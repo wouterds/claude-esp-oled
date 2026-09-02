@@ -17,17 +17,17 @@ namespace {
 
 // Two of them about the middle line, which is the one row a round glass is
 // widest on - a full width track anywhere else has the corners of the circle
-// taken out of it. Built about the same axis the page above uses, for the same
-// reason: the tracks have to share it or they sit half a pixel apart.
+// taken out of it. Built about the same axis the details page uses, for the
+// same reason: the tracks have to share it or they sit half a pixel apart.
 constexpr float MIDDLE = (float)(SCREEN_W - 1) * 0.5f;
 constexpr float TRACK_X = MIDDLE;
 constexpr float TRACK_HW = 120.0f * SCENE;
-// Thicker than the charge bar on the page above. That one is read and this one
-// is held, and a line as thin as a reading is a line a thumb cannot find.
+// Thicker than the charge bar on the details page. That one is read and this
+// one is held, and a line as thin as a reading is a line a thumb cannot find.
 constexpr float TRACK_HH = 6.0f * SCENE;
 constexpr float TRACK_R = 6.0f * SCENE;
-// The knob is what says this is a control rather than a reading: the bar on the
-// page above is the same shape and nobody is meant to touch it.
+// The knob is what says this is a control rather than a reading: the charge bar
+// is the same shape and nobody is meant to touch it.
 constexpr float KNOB_R = 11.0f * SCENE;
 constexpr float BRIGHTNESS_Y = 148.0f * SCENE;
 constexpr float VOLUME_Y = 228.0f * SCENE;
@@ -134,7 +134,7 @@ void drawSlider(uint16_t *fb, uint8_t which, bool send) {
   int16_t top = (int16_t)(cy - (float)BAND_UP);
   int16_t bottom = (int16_t)(cy + (float)BAND_DOWN);
   // Its own band, which nothing else is in - whole rows, the way the charge bar
-  // above takes its own.
+  // on the details page takes its own.
   if (send) {
     for (int16_t y = top; y <= bottom; y++) {
       memset(boardRow(fb, y), 0, (size_t)SCREEN_W * 2);

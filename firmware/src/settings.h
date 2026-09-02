@@ -2,7 +2,8 @@
 
 #include <stdint.h>
 
-// The third page: the two things about this board that are somebody's taste
+// The page under the face: the two things about this board that are somebody's
+// taste
 // rather than a reading. A slider each, set by a finger and kept in the flash's
 // key store, so they are what they were the last time somebody set them.
 

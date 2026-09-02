@@ -16,10 +16,9 @@ and only ever sent back to the origin it came from.
 
 Double-tap the glass to put the two percentages up, with a countdown to the next
 reset under the face; double-tap again to take them away. Swipe up for the
-charge, the network, the address and the commit it is running, and up again
-for brightness and volume - tap or drag either slider, and it remembers. Swipe
-down to send each page back. Swipe down from the face for a page that is not
-there yet, and up to put it away. Double-tap the cat and it takes the whole
+charge, the network, the address and the commit it is running, and down again
+to send it back. Swipe down from the face for brightness and volume - tap or
+drag either slider, and it remembers - and up to put it away. Double-tap the cat and it takes the whole
 glass; double-tap again to give it back.
 
 Neither button is wired to anything the firmware can use. `PWR` switches the
