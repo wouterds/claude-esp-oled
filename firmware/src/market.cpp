@@ -20,13 +20,13 @@ constexpr char COINS[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc"
     "&per_page=3&page=1&sparkline=true&price_change_percentage=24h";
 
-// A quarter of an hour over the day rather than five minutes over it. Five
-// gives a futures contract nearly three hundred points, and the reply is read
-// into internal RAM while the TLS session is still holding forty-eight
-// kilobytes of it - so the interval is chosen by what the answer weighs rather
-// than by what the chart could use.
+// Five sessions an hour apiece. A day of it is a line drawn from eight points
+// an hour into the morning, which is a chart of nothing; five days is thirty
+// for an index and a hundred for a contract that trades around the clock, and
+// still only a few kilobytes - which matters, because the reply is read into
+// internal RAM while the TLS session is holding forty-eight of it.
 constexpr char CHART[] = "https://query1.finance.yahoo.com/v8/finance/chart/";
-constexpr char CHART_ARGS[] = "?interval=15m&range=1d";
+constexpr char CHART_ARGS[] = "?interval=1h&range=5d";
 
 struct Listing {
   const char *symbol;
@@ -296,18 +296,21 @@ bool readListing(uint8_t screen) {
   strncpy(m.ticker, l.ticker, sizeof(m.ticker) - 1);
   strncpy(m.name, l.name, sizeof(m.name) - 1);
   strncpy(m.over, "1D", sizeof(m.over) - 1);
-  strncpy(m.span, "1D", sizeof(m.span) - 1);
+  strncpy(m.span, "5D", sizeof(m.span) - 1);
   if (!numberFor(body, "\"regularMarketPrice\":", 0, -1, m.price)) {
     Serial.printf("market: %s had no price\n", l.ticker);
     return false;
   }
 
-  // The close before the range asked for. It is only the last session's over a
-  // range of one day - ask for a year of this and it is a year old, which is
-  // the trap this endpoint sets for anybody quoting a day's move from it.
+  // previousClose is the session before this one whatever range was asked for.
+  // chartPreviousClose is the close before the range itself, so over five days
+  // it is five days old - which is the trap this endpoint sets for anybody
+  // quoting a day's move from it, and the reason the two are not
+  // interchangeable and this one is asked for first. Measured: on the same
+  // instrument the pair read 7631.47 and 7675.70.
   float before = 0.0f;
-  if (!numberFor(body, "\"chartPreviousClose\":", 0, -1, before)) {
-    numberFor(body, "\"previousClose\":", 0, -1, before);
+  if (!numberFor(body, "\"previousClose\":", 0, -1, before)) {
+    numberFor(body, "\"chartPreviousClose\":", 0, -1, before);
   }
   m.change = before > 0.0f ? (m.price - before) / before * 100.0f : 0.0f;
   m.count = seriesFor(body, "\"close\":[", 0, -1, m.points, MARKET_POINTS);
