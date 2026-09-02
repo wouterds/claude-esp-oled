@@ -4,6 +4,7 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <esp_heap_caps.h>
+#include <math.h>
 #include <string.h>
 
 #include "net.h"
@@ -12,13 +13,17 @@
 
 namespace {
 
-// One call fills all three coin screens, which is the whole reason the coins
-// are one group: the endpoint is a table ordered by market cap, so asking for
-// three rows of it is asking which three coins are the largest and what they
-// are worth in the same breath.
-constexpr char COINS[] =
+// Which coins, then what they are worth - two calls rather than one, because
+// the sparkline is nearly all of the weight. Ten rows of it is forty kilobytes
+// and ten rows without it is eight, and the three largest coins do not change
+// on the hour, so the asking-which is worth doing rarely and cheaply.
+constexpr char RANK[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc"
-    "&per_page=3&page=1&sparkline=true&price_change_percentage=24h";
+    "&per_page=10&page=1&sparkline=false";
+constexpr char PRICES[] =
+    "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=true"
+    "&price_change_percentage=24h&ids=";
+constexpr uint32_t RANK_MS = 1800000;
 
 // Five sessions an hour apiece. A day of it is a line drawn from eight points
 // an hour into the morning, which is a chart of nothing; five days is thirty
@@ -49,6 +54,10 @@ constexpr Listing LISTINGS[MARKET_INDICES] = {
 constexpr size_t MOST = 20480;
 constexpr uint32_t PATIENCE_MS = 6000;
 constexpr uint32_t RETRY_MS = 20000;
+
+// The ids the ranking picked, in market cap order, and when it picked them.
+char chosen[MARKET_COINS][20] = {{0}};
+uint32_t rankedAt = 0;
 
 Market *held = nullptr;
 uint32_t readAt[MARKET_SCREENS] = {0};
@@ -229,58 +238,133 @@ void mark(uint8_t screen, bool loading, bool failed) {
   revision = revision + 1;
 }
 
-bool readCoins() {
+// Which three, off the cheap call. The coins are one group for this reason: the
+// endpoint is a table ordered by market cap, so reading down it is asking which
+// coins are the largest, and the answer is the same for all three screens.
+bool readRanking() {
   String body;
-  if (!fetch(String(COINS), body)) {
+  if (!fetch(String(RANK), body)) {
     return false;
   }
 
-  // The rows arrive in one flat array, so each is the slice from its own symbol
-  // to the next one's - which is what stops the second coin's price being read
-  // as the first's.
-  int starts[MARKET_COINS + 1];
+  uint8_t taken = 0;
   int at = 0;
-  uint8_t found = 0;
-  while (found <= MARKET_COINS) {
-    int next = body.indexOf("\"symbol\":\"", at);
-    if (next < 0) {
+  while (taken < MARKET_COINS) {
+    int start = body.indexOf("\"id\":\"", at);
+    if (start < 0) {
       break;
     }
-    starts[found++] = next;
-    at = next + 10;
+    int next = body.indexOf("\"id\":\"", start + 6);
+    int limit = next < 0 ? -1 : next;
+    at = start + 6;
+
+    char id[20];
+    textFor(body, "\"id\":\"", start, limit, id, sizeof(id));
+    if (!id[0]) {
+      continue;
+    }
+    float price = 0.0f;
+    float moved = 0.0f;
+    numberFor(body, "\"current_price\":", start, limit, price);
+    numberFor(body, "\"price_change_percentage_24h\":", start, limit, moved);
+    // Pinned to a dollar, whatever it calls itself: a week of one is a flat
+    // line and a move of a hundredth of a per cent, and a screen of that is a
+    // screen spent. Both halves are needed and neither alone would do - a real
+    // coin can trade near a dollar, and a real coin can have a quiet day, but
+    // not both at once. Measured against the top ten: the two stablecoins in it
+    // moved 0.013% and the quietest real coin moved 0.22%.
+    if (fabsf(price - 1.0f) < 0.05f && fabsf(moved) < 0.5f) {
+      continue;
+    }
+    strncpy(chosen[taken], id, sizeof(chosen[taken]) - 1);
+    chosen[taken][sizeof(chosen[taken]) - 1] = '\0';
+    taken++;
   }
-  if (found < 1) {
-    Serial.println("market: no coins in the reply");
+  if (taken < MARKET_COINS) {
+    Serial.printf("market: only %u coins worth a screen\n", taken);
+    return false;
+  }
+  rankedAt = millis();
+  Serial.printf("market: coins %s, %s, %s\n", chosen[0], chosen[1], chosen[2]);
+  return true;
+}
+
+bool readCoins() {
+  bool ageing = !rankedAt || millis() - rankedAt >= RANK_MS;
+  // A ranking that will not come is fatal only the first time. After that the
+  // last one it gave is better than no screen at all.
+  if (ageing && !readRanking() && !rankedAt) {
     return false;
   }
 
-  for (uint8_t i = 0; i < MARKET_COINS && i < found; i++) {
-    int from = starts[i];
-    int limit = i + 1 < found ? starts[i + 1] : -1;
+  String url = String(PRICES);
+  for (uint8_t i = 0; i < MARKET_COINS; i++) {
+    if (i) {
+      url += "%2C";
+    }
+    url += chosen[i];
+  }
+  String body;
+  if (!fetch(url, body)) {
+    return false;
+  }
+
+  uint8_t filled = 0;
+  int at = 0;
+  for (;;) {
+    int start = body.indexOf("\"id\":\"", at);
+    if (start < 0) {
+      break;
+    }
+    int next = body.indexOf("\"id\":\"", start + 6);
+    int limit = next < 0 ? -1 : next;
+    at = start + 6;
+
+    char id[20];
+    textFor(body, "\"id\":\"", start, limit, id, sizeof(id));
+    // Put where the coin belongs rather than where it turned up. The endpoint
+    // answers in its own order, which matches the order asked for only because
+    // the ids went up in market cap order - and that is a coincidence to lean
+    // on rather than a promise.
+    int8_t slot = -1;
+    for (uint8_t i = 0; i < MARKET_COINS; i++) {
+      if (strcmp(chosen[i], id) == 0) {
+        slot = (int8_t)i;
+      }
+    }
+    if (slot < 0) {
+      continue;
+    }
+
     Market m = {};
-    textFor(body, "\"symbol\":\"", from, limit, m.ticker, sizeof(m.ticker));
-    textFor(body, "\"name\":\"", from, limit, m.name, sizeof(m.name));
+    textFor(body, "\"symbol\":\"", start, limit, m.ticker, sizeof(m.ticker));
+    textFor(body, "\"name\":\"", start, limit, m.name, sizeof(m.name));
     for (char *c = m.ticker; *c; c++) {
       *c = (char)toupper(*c);
     }
-    if (!numberFor(body, "\"current_price\":", from, limit, m.price)) {
+    if (!numberFor(body, "\"current_price\":", start, limit, m.price)) {
       continue;
     }
-    if (!numberFor(body, "\"price_change_percentage_24h\":", from, limit, m.change)) {
+    if (!numberFor(body, "\"price_change_percentage_24h\":", start, limit, m.change)) {
       m.change = 0.0f;
     }
-    m.count = seriesFor(body, "\"sparkline_in_7d\":{\"price\":[", from, limit, m.points,
-                        MARKET_POINTS);
+    m.count =
+        seriesFor(body, "\"sparkline_in_7d\":{\"price\":[", start, limit, m.points, MARKET_POINTS);
     extent(m);
     strncpy(m.over, "24H", sizeof(m.over) - 1);
     strncpy(m.span, "7D", sizeof(m.span) - 1);
     m.ready = true;
 
     take();
-    held[i] = m;
+    held[slot] = m;
     give();
-    readAt[i] = millis();
+    filled++;
   }
+  if (!filled) {
+    Serial.println("market: no coins in the reply");
+    return false;
+  }
+  readAt[0] = millis();
   revision = revision + 1;
   return true;
 }
