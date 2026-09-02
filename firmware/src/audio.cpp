@@ -143,6 +143,10 @@ constexpr uint16_t NYAN_NOTES = sizeof(NYAN) / sizeof(NYAN[0]);
 I2SClass i2s;
 bool ready = false;
 volatile uint8_t wanted = 0;
+// A one-shot is being rendered. Not the same as `wanted`, which is cleared the
+// moment the task picks it up and says nothing about the tenth of a second of
+// arithmetic and DMA that follows.
+volatile bool sounding = false;
 volatile bool singing = false;
 bool amped = false;
 // One note's worth at a time rather than a whole sound: a sixteenth of a second
@@ -306,6 +310,7 @@ void task(void *) {
     uint8_t want = wanted;
     if (want != 0) {
       wanted = 0;
+      sounding = true;
       if (want == 1) {
         play(PLUGGED, sizeof(PLUGGED) / sizeof(PLUGGED[0]));
       } else if (want == 2) {
@@ -317,6 +322,9 @@ void task(void *) {
       } else {
         play(SHUTTERED, sizeof(SHUTTERED) / sizeof(SHUTTERED[0]));
       }
+      // After play(), which does not come back until the amplifier is down -
+      // and the amplifier does not go down until the DMA behind it is empty.
+      sounding = false;
     }
     // A note at a time round the loop rather than the whole song in one go, so
     // the flag is seen between notes and a sound asked for lands between two of
@@ -400,5 +408,17 @@ void audioDied() {
 void audioShuttered() {
   if (ready) {
     wanted = 5;
+  }
+}
+
+void audioWait() {
+  if (!ready) {
+    return;
+  }
+  // Past the longest of them with the drain on the end of it, so this is a
+  // stop rather than a timing.
+  uint32_t until = millis() + 2000;
+  while ((wanted != 0 || sounding) && (int32_t)(millis() - until) < 0) {
+    delay(5);
   }
 }

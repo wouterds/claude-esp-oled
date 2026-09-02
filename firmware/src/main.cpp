@@ -367,13 +367,19 @@ void loop() {
   // Held rather than pressed, and asked first: the release that ends a hold is
   // swallowed, so the press below never sees the one that took a screenshot.
   //
-  // The sound goes before the encode rather than after it. What it acknowledges
-  // is that the press landed, and the encode stops the glass for a second or
-  // two - which with no answer at all is how a held button reads as a board
-  // that has hung. The audio task is on the other core and is already sounding
-  // while this blocks.
+  // The sound goes before the encode, and finishes before it. What it
+  // acknowledges is that the press landed, and the encode stops the glass for a
+  // second - which with no answer at all is how a held button reads as a board
+  // that has hung.
+  //
+  // Waited on rather than left to overlap. The notes are rendered on the core
+  // the radio is on and fetched through the flash, and the encode walks over
+  // PSRAM hard enough to stall that - the two share one controller on this
+  // chip. Asked for and left to it, the shutter came out of the speaker in
+  // pieces or not at all.
   if (buttonHeld(SHOT_HOLD_MS)) {
     audioShuttered();
+    audioWait();
     if (!shotTake()) {
       audioErrored();
     }
