@@ -331,9 +331,9 @@ $('netList').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-ssid]');
   if (!btn) return;
   const ssid = btn.dataset.ssid;
-  // Forgetting the one the board is on takes this page down with it, and the
-  // password is gone rather than hidden - both are worth a second's thought.
-  if (!confirm('Remove "' + ssid + '"? Its password is deleted with it.')) return;
+  // Removing the one the board is on takes this page down with it, and the
+  // password goes rather than being hidden - both are worth a second's thought.
+  if (!confirm('Remove "' + ssid + '"? You will need its password again to add it back.')) return;
   btn.disabled = true;
   btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
   forgetting = true;
