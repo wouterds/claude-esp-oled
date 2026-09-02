@@ -98,8 +98,17 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
     </div>
 
     <section class="overflow-hidden rounded-xl border border-neutral-800 bg-white/[0.02]">
-      <div class="border-b border-neutral-800 px-5 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2
+                  border-b border-neutral-800 px-5 py-3">
         <h2 class="text-xs uppercase tracking-wider text-neutral-400">Requests</h2>
+        <div class="flex items-center gap-3">
+          <label for=every class="text-xs text-neutral-500">Refresh interval</label>
+          <input id=every type=range min=1 max=5 step=1 value=1
+                 class="h-1 w-28 cursor-pointer appearance-none rounded-full bg-neutral-800
+                        accent-blue-500">
+          <span id=everyLabel
+                class="w-12 shrink-0 text-right text-xs tabular-nums text-neutral-300">&nbsp;</span>
+        </div>
       </div>
       <!-- Fixed, so a path longer than the column ends in an ellipsis rather than
            widening the table until the last column is outside the card. -->
@@ -116,19 +125,6 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
         <tbody id=rows class="divide-y divide-neutral-800"></tbody>
       </table>
       <p id=quiet class="px-5 py-6 text-sm text-neutral-500">Nothing asked for yet.</p>
-      <div class="flex items-center gap-4 border-t border-neutral-800 px-5 py-3">
-        <label for=every
-               class="whitespace-nowrap text-[10px] uppercase tracking-wider text-neutral-400">
-          Read every
-        </label>
-        <input id=every type=range min=1 max=5 step=1 value=1
-               class="h-1 w-full max-w-xs cursor-pointer appearance-none rounded-full
-                      bg-neutral-800 accent-blue-500">
-        <span id=everyLabel
-              class="w-20 shrink-0 whitespace-nowrap text-xs tabular-nums text-neutral-300">
-          &nbsp;
-        </span>
-      </div>
     </section>
   </div>
 </main>
@@ -232,8 +228,7 @@ async function requests() {
 }
 
 function showEvery() {
-  const n = Number($('every').value);
-  $('everyLabel').textContent = n + (n === 1 ? ' minute' : ' minutes');
+  $('everyLabel').textContent = $('every').value + ' min';
 }
 
 $('every').addEventListener('input', showEvery);
