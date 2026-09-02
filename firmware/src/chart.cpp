@@ -25,10 +25,11 @@ constexpr int16_t MOVE_SCALE = 3;
 constexpr int16_t SPAN_Y = (int16_t)(276 * SCENE);
 constexpr int16_t SPAN_SCALE = 2;
 
-// Wide enough to be a chart and inside the circle at every row it covers: at
-// its lowest the glass is 151 either side of the middle and this reaches 124.
-constexpr float PLOT_X0 = 56.0f * SCENE;
-constexpr float PLOT_X1 = 304.0f * SCENE;
+// The whole width. The glass is round, so the last twenty pixels of each end
+// fall outside the circle at the rows this covers and are never seen - the line
+// runs off both sides rather than stopping short of them, which is the point.
+constexpr float PLOT_X0 = 0.0f;
+constexpr float PLOT_X1 = (float)(SCREEN_W - 1);
 constexpr float PLOT_Y0 = 158.0f * SCENE;
 constexpr float PLOT_Y1 = 262.0f * SCENE;
 // Half the stroke. A price line wants to read as one line rather than as the
