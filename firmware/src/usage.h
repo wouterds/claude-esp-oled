@@ -12,6 +12,12 @@ void usageBegin();
 // one.
 void usageWake();
 
+// How long the poller waits between reads, in whole minutes. One to five, kept
+// in the store, and applied from the next wait rather than to the one already
+// under way.
+uint8_t usageEvery();
+bool usageSetEvery(uint8_t minutes);
+
 // Whether the last read worked. Until it has, there is nothing real to show.
 bool usageReady();
 

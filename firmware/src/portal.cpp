@@ -114,6 +114,19 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
         <tbody id=rows class="divide-y divide-neutral-800"></tbody>
       </table>
       <p id=quiet class="px-5 py-6 text-sm text-neutral-500">Nothing asked for yet.</p>
+      <div class="flex items-center gap-4 border-t border-neutral-800 px-5 py-3">
+        <label for=every
+               class="whitespace-nowrap text-[10px] uppercase tracking-wider text-neutral-400">
+          Read every
+        </label>
+        <input id=every type=range min=1 max=5 step=1 value=1
+               class="h-1 w-full max-w-xs cursor-pointer appearance-none rounded-full
+                      bg-neutral-800 accent-blue-500">
+        <span id=everyLabel
+              class="w-20 shrink-0 whitespace-nowrap text-xs tabular-nums text-neutral-300">
+          &nbsp;
+        </span>
+      </div>
     </section>
   </div>
 </main>
@@ -163,6 +176,12 @@ async function refresh() {
   }
   who.classList.add('hidden');
   $('tokenState').textContent = s.stored ? 'Stored' : 'None set';
+  // Not while it is being dragged, or the poll would drag it back every five
+  // seconds under the finger holding it.
+  if (document.activeElement !== $('every')) {
+    $('every').value = s.every;
+    showEvery();
+  }
 }
 
 async function networks() {
@@ -210,6 +229,23 @@ async function requests() {
         text-neutral-500">${bytes(c.size)}</td>
   </tr>`).join('');
 }
+
+function showEvery() {
+  const n = Number($('every').value);
+  $('everyLabel').textContent = n + (n === 1 ? ' minute' : ' minutes');
+}
+
+$('every').addEventListener('input', showEvery);
+
+// On change rather than input: the step snaps it, and one write per drag beats
+// one per position of it.
+$('every').addEventListener('change', async () => {
+  try {
+    await post('/every', {minutes: $('every').value});
+  } catch (err) {
+    say($('netMsg'), 'Interval not saved: ' + err.message, false);
+  }
+});
 
 $('tokenForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -296,6 +332,8 @@ void handleState() {
   json += token[0] ? "true" : "false";
   json += ",\"address\":";
   appendQuoted(json, wifiAddress() ? wifiAddress() : "");
+  json += ",\"every\":";
+  json += usageEvery();
   json += "}";
   server.send(200, "application/json", json);
 }
@@ -345,6 +383,15 @@ void handleAddNetwork() {
   if (!wifiAdd(ssid.c_str(), server.arg("password").c_str())) {
     server.send(409, "application/json",
                 "{\"ok\":false,\"error\":\"already known, too long, or no room left\"}");
+    return;
+  }
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void handleSetEvery() {
+  if (!usageSetEvery((uint8_t)server.arg("minutes").toInt())) {
+    server.send(400, "application/json",
+                "{\"ok\":false,\"error\":\"that is not between one and five minutes\"}");
     return;
   }
   server.send(200, "application/json", "{\"ok\":true}");
@@ -431,6 +478,7 @@ void portalBegin() {
   server.on("/networks", HTTP_GET, handleNetworks);
   server.on("/networks", HTTP_POST, handleAddNetwork);
   server.on("/forget", HTTP_POST, handleForgetNetwork);
+  server.on("/every", HTTP_POST, handleSetEvery);
   server.on("/token", HTTP_POST, handleSave);
   server.onNotFound(handleRoot);
   // Core 0, with the radio. Nothing here may sit in the way of a frame. The

@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <WiFiClientSecure.h>
 #include <string.h>
 
@@ -13,7 +14,10 @@
 namespace {
 
 constexpr char HOST[] = "https://claude.ai";
-constexpr uint32_t EVERY_MS = 60000;
+// A minute is what the endpoint's own windows move on; five is as long as the
+// numbers can go stale before the glass is telling somebody yesterday's news.
+constexpr uint8_t EVERY_MIN = 1;
+constexpr uint8_t EVERY_MAX = 5;
 constexpr uint32_t RETRY_MS = 15000;
 // While there is nothing to ask with or nothing to ask over. Short, because
 // this is the gap between the radio joining and the bars filling, and a retry
@@ -26,6 +30,8 @@ constexpr size_t MOST = 16384;
 // Between bytes, not for the whole read.
 constexpr uint32_t PATIENCE_MS = 6000;
 
+Preferences store;
+volatile uint8_t every = EVERY_MIN;
 char org[40] = {0};
 volatile bool ready = false;
 volatile uint8_t session = 0;
@@ -299,7 +305,7 @@ void task(void *) {
     const char *token = portalToken();
     if (wifiConnected() && token) {
       poll(token);
-      wait = ready ? EVERY_MS : RETRY_MS;
+      wait = ready ? (uint32_t)every * 60000UL : RETRY_MS;
     }
     for (uint32_t slept = 0; slept < wait; slept += 250) {
       vTaskDelay(pdMS_TO_TICKS(250));
@@ -328,9 +334,27 @@ void task(void *) {
 // stays fed. Nothing is given up for it either - this is a poller on a minute's
 // timer sharing a core that is otherwise asleep, and the face is on the other
 // one.
-void usageBegin() { xTaskCreatePinnedToCore(task, "usage", 12288, nullptr, 0, nullptr, 0); }
+void usageBegin() {
+  store.begin("usage", false);
+  uint8_t kept = store.getUChar("every", EVERY_MIN);
+  every = (kept >= EVERY_MIN && kept <= EVERY_MAX) ? kept : EVERY_MIN;
+  Serial.printf("usage: reading every %u minute%s\n", every, every == 1 ? "" : "s");
+  xTaskCreatePinnedToCore(task, "usage", 12288, nullptr, 0, nullptr, 0);
+}
 
 void usageWake() { wake = true; }
+
+uint8_t usageEvery() { return every; }
+
+bool usageSetEvery(uint8_t minutes) {
+  if (minutes < EVERY_MIN || minutes > EVERY_MAX || minutes == every) {
+    return minutes >= EVERY_MIN && minutes <= EVERY_MAX;
+  }
+  every = minutes;
+  store.putUChar("every", minutes);
+  Serial.printf("usage: reading every %u minute%s\n", minutes, minutes == 1 ? "" : "s");
+  return true;
+}
 
 bool usageReady() { return ready; }
 
