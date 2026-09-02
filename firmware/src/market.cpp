@@ -19,11 +19,13 @@ namespace {
 // asked for rarely and the line is asked for one coin at a time, which is the
 // only coin whose screen is up anyway.
 //
-// Fifteen rows to find ten coins: the ones pinned to a currency are skipped and
-// there are two or three of those near the top.
+// Eighteen rows to fill ten screens. Fifteen finds eleven keepers today, which
+// is one to spare - eighteen finds fourteen, and the spare is the point: the
+// number of things sitting at a dollar near the top of the list is not fixed,
+// and running out of them means a screen short rather than a wrong screen.
 constexpr char RANK[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc"
-    "&per_page=15&page=1&sparkline=false";
+    "&per_page=18&page=1&sparkline=false";
 constexpr char PRICES[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=true"
     "&price_change_percentage=24h&ids=";
