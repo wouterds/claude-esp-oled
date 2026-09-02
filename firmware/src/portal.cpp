@@ -39,7 +39,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
   <div class="mt-8 grid items-start gap-6 xl:grid-cols-[26rem_minmax(0,1fr)]">
     <div class="grid gap-6">
 
-      <section class="rounded-xl border border-neutral-800 bg-white/10">
+      <section class="rounded-xl border border-neutral-800 bg-white/[0.05]">
         <div class="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
           <h2 class="text-xs uppercase tracking-wider text-neutral-400">Claude session token</h2>
           <span id=tokenState class="text-xs text-neutral-500">&nbsp;</span>
@@ -60,7 +60,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
         </form>
       </section>
 
-      <section class="rounded-xl border border-neutral-800 bg-white/10">
+      <section class="rounded-xl border border-neutral-800 bg-white/[0.05]">
         <div class="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
           <h2 class="text-xs uppercase tracking-wider text-neutral-400">Wi-Fi networks</h2>
           <span id=netCount class="text-xs text-neutral-500">&nbsp;</span>
@@ -94,7 +94,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
     </div>
 
-    <section class="overflow-hidden rounded-xl border border-neutral-800 bg-white/10">
+    <section class="overflow-hidden rounded-xl border border-neutral-800 bg-white/[0.05]">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2
                   border-b border-neutral-800 px-5 py-3">
         <h2 class="text-xs uppercase tracking-wider text-neutral-400">Requests</h2>
