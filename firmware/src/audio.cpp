@@ -19,6 +19,17 @@ constexpr uint32_t RATE = 16000;
 // ninety milliseconds at this rate, and write() returns once the samples are in
 // there rather than once they have come out of the part.
 constexpr uint32_t DMA_FRAMES = 6 * 240;
+// How long the amplifier wants between being switched on and being able to make
+// a sound. This was eight, which is enough to keep the click of it coming up
+// out of the output and not nearly enough for the part to be driving the
+// speaker - so every sound lost its front, and the only one short enough to be
+// over before the amplifier was awake could not be heard at all. It was audible
+// underneath the song, which is the tell: the amplifier is already up there and
+// nothing pays this.
+//
+// Generous rather than measured. It is latency on a sound that is answering a
+// button held for three seconds, and being short here is what the bug was.
+constexpr uint32_t AMP_SETTLE_MS = 80;
 // A part of full scale, done in the samples rather than in the codec. The
 // part's own volume register is in half decibels, so a percentage written
 // straight into it is a percentage of nothing anybody can hear - a fraction of
@@ -286,10 +297,8 @@ void amp(bool on) {
   }
   amped = on;
   digitalWrite(AUDIO_PA, on ? HIGH : LOW);
-  // The amplifier takes a moment to come up, and whatever is written into it
-  // before it has is the click of it coming up.
   if (on) {
-    delay(8);
+    delay(AMP_SETTLE_MS);
   }
 }
 
