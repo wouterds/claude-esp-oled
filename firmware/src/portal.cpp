@@ -31,7 +31,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>buddy</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<body class="bg-gray-950 text-neutral-200 antialiased">
+<body class="bg-gray-950 text-white/90 antialiased">
 <main class="max-w-7xl px-8 py-10">
   <h1 class="text-2xl font-bold text-white">Settings</h1>
   <p id=who class="mt-1 hidden text-sm text-red-400"></p>
@@ -41,17 +41,17 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
       <section class="rounded-xl border border-white/10 bg-white/[0.05]">
         <div class="flex items-center justify-between border-b border-white/10 px-5 py-3">
-          <h2 class="text-xs uppercase tracking-wider text-neutral-400">Claude session token</h2>
-          <span id=tokenState class="text-xs text-neutral-500">&nbsp;</span>
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Claude session token</h2>
+          <span id=tokenState class="text-xs text-white/45">&nbsp;</span>
         </div>
         <form id=tokenForm class="px-5 py-4">
           <input id=token name=token type=password autocomplete=off spellcheck=false
                  placeholder="sk-ant-sid02-..."
                  class="w-full rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
-                        text-neutral-100 placeholder-neutral-600 outline-none
+                        text-white/95 placeholder-white/30 outline-none
                         focus:outline focus:outline-[1.5px] focus:outline-offset-0
                         focus:outline-blue-500 disabled:opacity-50">
-          <p class="mt-2 text-xs text-neutral-500">Leave empty to clear the token</p>
+          <p class="mt-2 text-xs text-white/45">Leave empty to clear the token</p>
           <button id=tokenSave data-label="Save token" data-busy="Saving"
                   class="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2
                          text-sm font-medium text-white hover:bg-blue-600/85
@@ -62,8 +62,8 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 
       <section class="rounded-xl border border-white/10 bg-white/[0.05]">
         <div class="flex items-center justify-between border-b border-white/10 px-5 py-3">
-          <h2 class="text-xs uppercase tracking-wider text-neutral-400">Wi-Fi networks</h2>
-          <span id=netCount class="text-xs text-neutral-500">&nbsp;</span>
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Wi-Fi networks</h2>
+          <span id=netCount class="text-xs text-white/45">&nbsp;</span>
         </div>
         <ul id=netList class="divide-y divide-white/10"></ul>
         <form id=netForm class="border-t border-white/10 px-5 py-4">
@@ -71,17 +71,17 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
             <input id=ssid name=ssid autocomplete=off spellcheck=false maxlength=32
                    placeholder="Network name"
                    class="rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
-                          text-neutral-100 placeholder-neutral-600 outline-none
+                          text-white/95 placeholder-white/30 outline-none
                           focus:outline focus:outline-[1.5px] focus:outline-offset-0
                           focus:outline-blue-500 disabled:opacity-50">
             <input id=pass name=password type=password autocomplete=new-password maxlength=63
                    placeholder="Password"
                    class="rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
-                          text-neutral-100 placeholder-neutral-600 outline-none
+                          text-white/95 placeholder-white/30 outline-none
                           focus:outline focus:outline-[1.5px] focus:outline-offset-0
                           focus:outline-blue-500 disabled:opacity-50">
           </div>
-          <p class="mt-2 text-xs text-neutral-500">
+          <p class="mt-2 text-xs text-white/45">
             Kept on the device. A password goes in and is never shown again, here or anywhere.
           </p>
           <button id=netAdd data-label="Add network" data-busy="Adding"
@@ -97,21 +97,21 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
     <section class="overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2
                   border-b border-white/10 px-5 py-3">
-        <h2 class="text-xs uppercase tracking-wider text-neutral-400">Requests</h2>
+        <h2 class="text-xs uppercase tracking-wider text-white/60">Requests</h2>
         <div class="flex items-center gap-3">
-          <label for=every class="text-xs text-neutral-500">Refresh interval</label>
+          <label for=every class="text-xs text-white/45">Refresh interval</label>
           <input id=every type=range min=1 max=5 step=1 value=1
                  class="h-1 w-28 cursor-pointer appearance-none rounded-full bg-white/10
                         accent-blue-500">
           <span id=everyLabel
-                class="w-12 shrink-0 text-right text-xs tabular-nums text-neutral-300">&nbsp;</span>
+                class="w-12 shrink-0 text-right text-xs tabular-nums text-white/80">&nbsp;</span>
         </div>
       </div>
       <!-- Fixed, so a path longer than the column ends in an ellipsis rather than
            widening the table until the last column is outside the card. -->
       <table class="w-full table-fixed text-xs">
         <thead>
-          <tr class="text-[10px] uppercase tracking-wider text-neutral-500">
+          <tr class="text-[10px] uppercase tracking-wider text-white/45">
             <th class="w-20 py-2 pl-5 pr-3 text-left font-normal">Time</th>
             <th class="px-3 py-2 text-left font-normal">Endpoint</th>
             <th class="w-20 px-3 py-2 text-right font-normal">Status</th>
@@ -121,7 +121,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
         </thead>
         <tbody id=rows class="divide-y divide-white/10"></tbody>
         <tfoot id=totals class="hidden">
-          <tr class="border-t border-white/10 text-neutral-500">
+          <tr class="border-t border-white/10 text-white/45">
             <td colspan=3 id=avgLabel
                 class="py-2 pl-5 pr-3 text-[10px] uppercase tracking-wider"></td>
             <td id=avgMs class="whitespace-nowrap px-3 py-2 text-right tabular-nums"></td>
@@ -129,7 +129,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
           </tr>
         </tfoot>
       </table>
-      <p id=quiet class="px-5 py-6 text-sm text-neutral-500">Nothing asked for yet.</p>
+      <p id=quiet class="px-5 py-6 text-sm text-white/45">Nothing asked for yet.</p>
     </section>
   </div>
 </main>
@@ -220,8 +220,8 @@ async function networks() {
   $('netCount').textContent = list.length + (list.length === 1 ? ' known' : ' known');
   $('netList').innerHTML = list.map((n) => `<li class="flex items-center justify-between gap-3 px-5 py-3">
     <div class="min-w-0">
-      <p class="truncate text-sm ${n.connected ? 'text-white' : 'text-neutral-300'}">${esc(n.ssid)}</p>
-      ${n.connected ? `<p class="mt-0.5 text-xs text-neutral-500">${esc(n.address)} · ${n.rssi} dBm</p>` : ''}
+      <p class="truncate text-sm ${n.connected ? 'text-white' : 'text-white/80'}">${esc(n.ssid)}</p>
+      ${n.connected ? `<p class="mt-0.5 text-xs text-white/45">${esc(n.address)} · ${n.rssi} dBm</p>` : ''}
     </div>
     <div class="flex shrink-0 items-center gap-2">
       ${n.connected ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10
@@ -229,12 +229,12 @@ async function networks() {
         class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Connected</span>` : ''}
       ${n.stored
         ? `<button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
-             border border-white/15 px-2.5 py-1 text-xs text-neutral-400
+             border border-white/15 px-2.5 py-1 text-xs text-white/60
              hover:border-red-500/50 hover:text-red-400 disabled:cursor-not-allowed
              disabled:opacity-50">Remove</button>`
-        : `<span class="text-[10px] text-neutral-600">Built in</span>`}
+        : `<span class="text-[10px] text-white/30">Built in</span>`}
     </div>
-  </li>`).join('') || '<li class="px-5 py-4 text-sm text-neutral-500">None known.</li>';
+  </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None known.</li>';
 }
 
 async function requests() {
@@ -258,15 +258,15 @@ async function requests() {
     $('avgSize').textContent = bytes(Math.round(avg((c) => c.size)));
   }
   $('rows').innerHTML = list.map((c) => `<tr>
-    <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-neutral-500">${clock(c.at)}</td>
+    <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-white/45">${clock(c.at)}</td>
     <td class="truncate px-3 py-2"><a href="${esc(c.url)}" target=_blank
         rel="noopener noreferrer" title="${esc(c.url)}"
-        class="text-neutral-400 hover:underline">${esc(c.url)}</a></td>
+        class="text-white/60 hover:underline">${esc(c.url)}</a></td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${
       c.code === 200 ? 'text-emerald-400' : 'text-red-400'}">${c.code || 'no reply'}</td>
-    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-500">${c.ms} ms</td>
+    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-white/45">${c.ms} ms</td>
     <td class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums
-        text-neutral-500">${bytes(c.size)}</td>
+        text-white/45">${bytes(c.size)}</td>
   </tr>`).join('');
 }
 
