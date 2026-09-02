@@ -378,7 +378,7 @@ async function requests() {
   if (done.length) {
     const avg = (of) => done.reduce((sum, c) => sum + of(c), 0) / done.length;
     $('avgLabel').textContent =
-      'Average of ' + done.length + (done.length === 1 ? ' reply' : ' replies');
+      'Average of ' + done.length + (done.length === 1 ? ' response' : ' responses');
     $('avgMs').textContent = Math.round(avg((c) => c.ms)) + ' ms';
     $('avgSize').textContent = bytes(Math.round(avg((c) => c.size)));
   }
