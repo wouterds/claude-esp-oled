@@ -19,7 +19,10 @@
 // to this on the way in.
 constexpr uint8_t MARKET_POINTS = 60;
 
-constexpr uint8_t MARKET_COINS = 3;
+// Ten rather than three. The ranking is read anyway, so the rest of it costs
+// nothing but screens - and each coin's own line is asked for only when its
+// screen is the one up, which is what keeps ten of them affordable.
+constexpr uint8_t MARKET_COINS = 10;
 constexpr uint8_t MARKET_INDICES = 4;
 constexpr uint8_t MARKET_SCREENS = MARKET_COINS + MARKET_INDICES;
 
@@ -47,6 +50,11 @@ struct Market {
 };
 
 void marketBegin();
+
+// How many coin screens there actually are. Ten until the ranking lands, and
+// after that however many of the largest survived being pinned to a currency -
+// there is no screen worth spending on a dollar being worth a dollar.
+uint8_t marketCoins();
 
 // Which screen is up, or -1 for none. Only that one is read, and only while it
 // is up. Coming to a screen whose figures are older than the interval reads it

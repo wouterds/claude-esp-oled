@@ -337,9 +337,11 @@ void loop() {
              (page == Page::Main || page == Page::Chart)) {
     int8_t to = (int8_t)(sideways + (swipe == Swipe::Left ? 1 : -1));
     // The row ends rather than wrapping. A list that comes back round to where
-    // it started gives no clue how far along it you are.
-    if (to > (int8_t)MARKET_COINS) {
-      to = (int8_t)MARKET_COINS;
+    // it started gives no clue how far along it you are - and it ends at
+    // however many coins survived being pinned to a currency, so there is never
+    // a screen past the last one with nothing on it.
+    if (to > (int8_t)marketCoins()) {
+      to = (int8_t)marketCoins();
     } else if (to < -(int8_t)MARKET_INDICES) {
       to = -(int8_t)MARKET_INDICES;
     }

@@ -13,25 +13,29 @@
 
 namespace {
 
-// Which coins, then what they are worth - two calls rather than one, because
-// the sparkline is nearly all of the weight. Ten rows of it is forty kilobytes
-// and ten rows without it is eight, and the three largest coins do not change
-// on the hour, so the asking-which is worth doing rarely and cheaply.
+// Which coins, then what one of them is worth. The sparkline is nearly all of
+// the weight - fifteen rows without one is twelve kilobytes and a single row
+// with one is four, where fifteen rows with one would be sixty - so the list is
+// asked for rarely and the line is asked for one coin at a time, which is the
+// only coin whose screen is up anyway.
+//
+// Fifteen rows to find ten coins: the ones pinned to a currency are skipped and
+// there are two or three of those near the top.
 constexpr char RANK[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc"
-    "&per_page=10&page=1&sparkline=false";
+    "&per_page=15&page=1&sparkline=false";
 constexpr char PRICES[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=true"
     "&price_change_percentage=24h&ids=";
 constexpr uint32_t RANK_MS = 1800000;
 
-// Five sessions an hour apiece. A day of it is a line drawn from eight points
-// an hour into the morning, which is a chart of nothing; five days is thirty
-// for an index and a hundred for a contract that trades around the clock, and
-// still only a few kilobytes - which matters, because the reply is read into
-// internal RAM while the TLS session is holding forty-eight of it.
+// One session, five minutes apiece - the same day the percentage beside it is
+// quoted over. Twenty-four points into an index's morning and a hundred and
+// thirty-five for a contract that trades around the clock, and three to eight
+// kilobytes either way. Two minutes apiece would be eighteen, and the reply is
+// read into internal RAM while the TLS session is holding forty-eight of it.
 constexpr char CHART[] = "https://query1.finance.yahoo.com/v8/finance/chart/";
-constexpr char CHART_ARGS[] = "?interval=1h&range=5d";
+constexpr char CHART_ARGS[] = "?interval=5m&range=1d";
 
 struct Listing {
   const char *symbol;
@@ -55,8 +59,10 @@ constexpr size_t MOST = 20480;
 constexpr uint32_t PATIENCE_MS = 6000;
 constexpr uint32_t RETRY_MS = 20000;
 
-// The ids the ranking picked, in market cap order, and when it picked them.
+// The ids the ranking picked, in market cap order, how many of them there were
+// and when it picked them.
 char chosen[MARKET_COINS][20] = {{0}};
+uint8_t coins = MARKET_COINS;
 uint32_t rankedAt = 0;
 
 Market *held = nullptr;
@@ -162,8 +168,12 @@ void textFor(const String &body, const char *key, int from, int limit, char *out
 // Nulls are dropped rather than read as nought. An index quotes them for the
 // minutes of a session that have not happened yet, and a nought among real
 // prices is not a gap in a line, it is a line to the floor.
+// `tail` keeps only the last that many values, or all of them at nought. The
+// series upstream gives is a week and the span wanted is a day, and the points
+// are an hour apiece - so the day is the last twenty-four of them rather than
+// another call.
 uint8_t seriesFor(const String &body, const char *key, int from, int limit, float *out,
-                  uint8_t most) {
+                  uint8_t most, uint16_t tail) {
   int at = past(body, key, from, limit);
   if (at < 0) {
     return 0;
@@ -188,7 +198,9 @@ uint8_t seriesFor(const String &body, const char *key, int from, int limit, floa
     return 0;
   }
 
-  uint8_t want = total < most ? (uint8_t)total : most;
+  uint16_t first = (tail && total > tail) ? (uint16_t)(total - tail) : 0;
+  uint16_t within = (uint16_t)(total - first);
+  uint8_t want = within < most ? (uint8_t)within : most;
   uint8_t kept = 0;
   uint16_t seen = 0;
   int i = at;
@@ -202,10 +214,10 @@ uint8_t seriesFor(const String &body, const char *key, int from, int limit, floa
     }
     // Spread across the whole series with both ends kept exactly, so the line
     // starts and finishes where the price did rather than on a neighbour.
-    uint16_t due = want > 1 ? (uint16_t)(((uint32_t)kept * (total - 1) + (want - 1) / 2) /
-                                         (want - 1))
-                            : 0;
-    if (seen == due) {
+    uint16_t due = first + (want > 1 ? (uint16_t)(((uint32_t)kept * (within - 1) + (want - 1) / 2) /
+                                                  (want - 1))
+                                     : 0);
+    if (seen >= first && seen == due) {
       int stop = i + 24;
       out[kept++] = body.substring(i, stop > end ? end : stop).toFloat();
     }
@@ -238,9 +250,28 @@ void mark(uint8_t screen, bool loading, bool failed) {
   revision = revision + 1;
 }
 
-// Which three, off the cheap call. The coins are one group for this reason: the
-// endpoint is a table ordered by market cap, so reading down it is asking which
-// coins are the largest, and the answer is the same for all three screens.
+// Anything pinned to a currency. Three ways of saying it because there are
+// three kinds of it: the ones that put the currency in the name, the ones that
+// put it in the ticker, and the ones - DAI is the awkward example - that do
+// neither and can only be recognised by behaving like it. A price within five
+// cents of a dollar that has not moved in a day is pinned whatever it calls
+// itself, and both halves of that are needed: a real coin can trade near a
+// dollar, and a real coin can have a quiet day, but not both at once.
+bool pinned(const char *ticker, const char *name, float price, float moved) {
+  char loud[48];
+  snprintf(loud, sizeof(loud), "%s %s", ticker, name);
+  for (char *c = loud; *c; c++) {
+    *c = (char)toupper(*c);
+  }
+  if (strstr(loud, "USD") || strstr(loud, "EUR")) {
+    return true;
+  }
+  return fabsf(price - 1.0f) < 0.05f && fabsf(moved) < 0.5f;
+}
+
+// Which coins, off the cheap call. Read rarely: the largest coins do not change
+// places on the hour, and this is the only call that has to see past the ten
+// screens to find ten worth having.
 bool readRanking() {
   String body;
   if (!fetch(String(RANK), body)) {
@@ -259,7 +290,11 @@ bool readRanking() {
     at = start + 6;
 
     char id[20];
+    char ticker[12];
+    char name[24];
     textFor(body, "\"id\":\"", start, limit, id, sizeof(id));
+    textFor(body, "\"symbol\":\"", start, limit, ticker, sizeof(ticker));
+    textFor(body, "\"name\":\"", start, limit, name, sizeof(name));
     if (!id[0]) {
       continue;
     }
@@ -267,104 +302,93 @@ bool readRanking() {
     float moved = 0.0f;
     numberFor(body, "\"current_price\":", start, limit, price);
     numberFor(body, "\"price_change_percentage_24h\":", start, limit, moved);
-    // Pinned to a dollar, whatever it calls itself: a week of one is a flat
-    // line and a move of a hundredth of a per cent, and a screen of that is a
-    // screen spent. Both halves are needed and neither alone would do - a real
-    // coin can trade near a dollar, and a real coin can have a quiet day, but
-    // not both at once. Measured against the top ten: the two stablecoins in it
-    // moved 0.013% and the quietest real coin moved 0.22%.
-    if (fabsf(price - 1.0f) < 0.05f && fabsf(moved) < 0.5f) {
+    if (pinned(ticker, name, price, moved)) {
       continue;
     }
+
     strncpy(chosen[taken], id, sizeof(chosen[taken]) - 1);
     chosen[taken][sizeof(chosen[taken]) - 1] = '\0';
-    taken++;
-  }
-  if (taken < MARKET_COINS) {
-    Serial.printf("market: only %u coins worth a screen\n", taken);
-    return false;
-  }
-  rankedAt = millis();
-  Serial.printf("market: coins %s, %s, %s\n", chosen[0], chosen[1], chosen[2]);
-  return true;
-}
-
-bool readCoins() {
-  bool ageing = !rankedAt || millis() - rankedAt >= RANK_MS;
-  // A ranking that will not come is fatal only the first time. After that the
-  // last one it gave is better than no screen at all.
-  if (ageing && !readRanking() && !rankedAt) {
-    return false;
-  }
-
-  String url = String(PRICES);
-  for (uint8_t i = 0; i < MARKET_COINS; i++) {
-    if (i) {
-      url += "%2C";
-    }
-    url += chosen[i];
-  }
-  String body;
-  if (!fetch(url, body)) {
-    return false;
-  }
-
-  uint8_t filled = 0;
-  int at = 0;
-  for (;;) {
-    int start = body.indexOf("\"id\":\"", at);
-    if (start < 0) {
-      break;
-    }
-    int next = body.indexOf("\"id\":\"", start + 6);
-    int limit = next < 0 ? -1 : next;
-    at = start + 6;
-
-    char id[20];
-    textFor(body, "\"id\":\"", start, limit, id, sizeof(id));
-    // Put where the coin belongs rather than where it turned up. The endpoint
-    // answers in its own order, which matches the order asked for only because
-    // the ids went up in market cap order - and that is a coincidence to lean
-    // on rather than a promise.
-    int8_t slot = -1;
-    for (uint8_t i = 0; i < MARKET_COINS; i++) {
-      if (strcmp(chosen[i], id) == 0) {
-        slot = (int8_t)i;
-      }
-    }
-    if (slot < 0) {
-      continue;
-    }
-
+    // The figures off the list as well, so swiping onto a coin shows what it is
+    // worth at once and only the line has to be waited for.
     Market m = {};
-    textFor(body, "\"symbol\":\"", start, limit, m.ticker, sizeof(m.ticker));
-    textFor(body, "\"name\":\"", start, limit, m.name, sizeof(m.name));
+    strncpy(m.ticker, ticker, sizeof(m.ticker) - 1);
+    strncpy(m.name, name, sizeof(m.name) - 1);
     for (char *c = m.ticker; *c; c++) {
       *c = (char)toupper(*c);
     }
-    if (!numberFor(body, "\"current_price\":", start, limit, m.price)) {
-      continue;
-    }
-    if (!numberFor(body, "\"price_change_percentage_24h\":", start, limit, m.change)) {
-      m.change = 0.0f;
-    }
-    m.count =
-        seriesFor(body, "\"sparkline_in_7d\":{\"price\":[", start, limit, m.points, MARKET_POINTS);
-    extent(m);
     strncpy(m.over, "24H", sizeof(m.over) - 1);
-    strncpy(m.span, "7D", sizeof(m.span) - 1);
-    m.ready = true;
-
+    strncpy(m.span, "24H", sizeof(m.span) - 1);
+    m.price = price;
+    m.change = moved;
     take();
-    held[slot] = m;
+    // Its own line is kept if it already had one - this call carries none.
+    Market was = held[taken];
+    if (was.count >= 2 && strcmp(was.ticker, m.ticker) == 0) {
+      memcpy(m.points, was.points, sizeof(m.points));
+      m.count = was.count;
+      m.low = was.low;
+      m.high = was.high;
+    }
+    m.ready = price > 0.0f;
+    held[taken] = m;
     give();
-    filled++;
+    taken++;
   }
-  if (!filled) {
-    Serial.println("market: no coins in the reply");
+  if (!taken) {
+    Serial.println("market: no coins worth a screen");
     return false;
   }
-  readAt[0] = millis();
+  coins = taken;
+  rankedAt = millis();
+  Serial.printf("market: %u coins, largest %s\n", coins, chosen[0]);
+  revision = revision + 1;
+  return true;
+}
+
+// One coin's own line. Asked for by id, which is the only way to get a
+// sparkline without paying for fourteen others alongside it.
+bool readCoin(uint8_t screen) {
+  bool ageing = !rankedAt || millis() - rankedAt >= RANK_MS;
+  // A list that will not come is fatal only the first time. After that the last
+  // one it gave is better than no screen at all.
+  if (ageing && !readRanking() && !rankedAt) {
+    return false;
+  }
+  if (screen >= coins || !chosen[screen][0]) {
+    return false;
+  }
+
+  String body;
+  if (!fetch(String(PRICES) + chosen[screen], body)) {
+    return false;
+  }
+
+  Market m = {};
+  textFor(body, "\"symbol\":\"", 0, -1, m.ticker, sizeof(m.ticker));
+  textFor(body, "\"name\":\"", 0, -1, m.name, sizeof(m.name));
+  for (char *c = m.ticker; *c; c++) {
+    *c = (char)toupper(*c);
+  }
+  if (!numberFor(body, "\"current_price\":", 0, -1, m.price)) {
+    Serial.printf("market: %s had no price\n", chosen[screen]);
+    return false;
+  }
+  if (!numberFor(body, "\"price_change_percentage_24h\":", 0, -1, m.change)) {
+    m.change = 0.0f;
+  }
+  // The last day of the week it gives: the points are an hour apiece, so the
+  // last twenty-four of them are the last twenty-four hours, and that is the
+  // span the percentage beside it is quoted over.
+  m.count = seriesFor(body, "\"sparkline_in_7d\":{\"price\":[", 0, -1, m.points, MARKET_POINTS, 24);
+  extent(m);
+  strncpy(m.over, "24H", sizeof(m.over) - 1);
+  strncpy(m.span, "24H", sizeof(m.span) - 1);
+  m.ready = true;
+
+  take();
+  held[screen] = m;
+  give();
+  readAt[screen] = millis();
   revision = revision + 1;
   return true;
 }
@@ -380,7 +404,7 @@ bool readListing(uint8_t screen) {
   strncpy(m.ticker, l.ticker, sizeof(m.ticker) - 1);
   strncpy(m.name, l.name, sizeof(m.name) - 1);
   strncpy(m.over, "1D", sizeof(m.over) - 1);
-  strncpy(m.span, "5D", sizeof(m.span) - 1);
+  strncpy(m.span, "24H", sizeof(m.span) - 1);
   if (!numberFor(body, "\"regularMarketPrice\":", 0, -1, m.price)) {
     Serial.printf("market: %s had no price\n", l.ticker);
     return false;
@@ -397,7 +421,7 @@ bool readListing(uint8_t screen) {
     numberFor(body, "\"chartPreviousClose\":", 0, -1, before);
   }
   m.change = before > 0.0f ? (m.price - before) / before * 100.0f : 0.0f;
-  m.count = seriesFor(body, "\"close\":[", 0, -1, m.points, MARKET_POINTS);
+  m.count = seriesFor(body, "\"close\":[", 0, -1, m.points, MARKET_POINTS, 0);
   extent(m);
   m.ready = true;
 
@@ -409,25 +433,21 @@ bool readListing(uint8_t screen) {
   return true;
 }
 
-// The coins share one, the listings have one apiece, and it is the group rather
-// than the screen that says whether anything needs asking for.
-uint8_t groupOf(uint8_t screen) { return screen < MARKET_COINS ? 0 : screen; }
-
 void task(void *) {
   for (;;) {
     int8_t screen = watching;
     uint32_t period = (uint32_t)usageEvery() * 60000UL;
     if (screen >= 0 && screen < MARKET_SCREENS && wifiConnected()) {
-      uint8_t group = groupOf((uint8_t)screen);
-      bool stale = !readAt[group] || millis() - readAt[group] >= period;
-      bool waited = !triedAt[group] || millis() - triedAt[group] >= RETRY_MS;
+      uint8_t at = (uint8_t)screen;
+      bool stale = !readAt[at] || millis() - readAt[at] >= period;
+      bool waited = !triedAt[at] || millis() - triedAt[at] >= RETRY_MS;
       if (stale && waited) {
-        triedAt[group] = millis();
-        mark((uint8_t)screen, true, false);
+        triedAt[at] = millis();
+        mark(at, true, false);
         netTake();
-        bool got = screen < MARKET_COINS ? readCoins() : readListing((uint8_t)screen);
+        bool got = at < MARKET_COINS ? readCoin(at) : readListing(at);
         netGive();
-        mark((uint8_t)screen, false, !got);
+        mark(at, false, !got);
       }
     }
     vTaskDelay(pdMS_TO_TICKS(250));
@@ -470,5 +490,7 @@ bool marketAt(uint8_t screen, Market *out) {
   give();
   return true;
 }
+
+uint8_t marketCoins() { return coins; }
 
 uint32_t marketRevision() { return revision; }
