@@ -34,7 +34,7 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 <body class="bg-gray-950 text-white/90 antialiased">
 <main class="max-w-7xl px-8 py-10">
   <h1 class="text-2xl font-bold text-white">Settings</h1>
-  <p id=who class="mt-1 hidden text-sm text-red-400"></p>
+  <p id=who class="mt-1 hidden text-sm text-rose-400"></p>
 
   <div class="mt-8 grid items-start gap-6 xl:grid-cols-[26rem_minmax(0,1fr)]">
     <div class="grid gap-6">
@@ -160,7 +160,7 @@ const fading = new WeakMap();
 
 function say(el, text, ok) {
   el.textContent = text;
-  el.className = 'mt-3 text-sm ' + (ok ? 'text-emerald-400' : 'text-red-400');
+  el.className = 'mt-3 text-sm ' + (ok ? 'text-teal-400' : 'text-rose-400');
   // Restarted rather than stacked, so a second message gets its own five
   // seconds instead of inheriting what is left of the first one's.
   clearTimeout(fading.get(el));
@@ -224,13 +224,13 @@ async function networks() {
       ${n.connected ? `<p class="mt-0.5 text-xs text-white/45">${esc(n.address)} · ${n.rssi} dBm</p>` : ''}
     </div>
     <div class="flex shrink-0 items-center gap-2">
-      ${n.connected ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10
-        px-2 py-0.5 text-[10px] font-medium text-emerald-400"><span
-        class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Connected</span>` : ''}
+      ${n.connected ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-teal-500/10
+        px-2 py-0.5 text-[10px] font-medium text-teal-400"><span
+        class="h-1.5 w-1.5 rounded-full bg-teal-400"></span>Connected</span>` : ''}
       ${n.stored
         ? `<button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
              border border-white/15 px-2.5 py-1 text-xs text-white/60
-             hover:border-red-500/50 hover:text-red-400 disabled:cursor-not-allowed
+             hover:border-rose-500/50 hover:text-rose-400 disabled:cursor-not-allowed
              disabled:opacity-50">Remove</button>`
         : `<span class="text-[10px] text-white/30">Built in</span>`}
     </div>
@@ -263,7 +263,7 @@ async function requests() {
         rel="noopener noreferrer" title="${esc(c.url)}"
         class="text-white/60 hover:underline">${esc(c.url)}</a></td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${
-      c.code === 200 ? 'text-emerald-400' : 'text-red-400'}">${c.code || 'no reply'}</td>
+      c.code === 200 ? 'text-teal-400' : 'text-rose-400'}">${c.code || 'no reply'}</td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-white/45">${c.ms} ms</td>
     <td class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums
         text-white/45">${bytes(c.size)}</td>
