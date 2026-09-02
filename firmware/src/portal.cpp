@@ -217,8 +217,9 @@ async function requests() {
   $('quiet').classList.toggle('hidden', list.length > 0);
   $('rows').innerHTML = list.map((c) => `<tr>
     <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-neutral-500">${clock(c.at)}</td>
-    <td class="truncate px-3 py-2 text-neutral-400"
-        title="${esc(c.url)}">${esc(c.url)}</td>
+    <td class="truncate px-3 py-2"><a href="${esc(c.url)}" target=_blank
+        rel="noopener noreferrer" title="${esc(c.url)}"
+        class="text-neutral-400 hover:underline">${esc(c.url)}</a></td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${
       c.code === 200 ? 'text-emerald-400' : 'text-red-400'}">${c.code || 'no reply'}</td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-500">${c.ms} ms</td>
