@@ -262,8 +262,10 @@ async function requests() {
     <td class="truncate px-3 py-2"><a href="${esc(c.url)}" target=_blank
         rel="noopener noreferrer" title="${esc(c.url)}"
         class="text-white/60 hover:underline">${esc(c.url)}</a></td>
-    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${
-      c.code === 200 ? 'text-teal-400' : 'text-rose-400'}">${c.code || 'no reply'}</td>
+    <td class="whitespace-nowrap px-3 py-2 text-right ${
+      c.code === 200 ? 'tabular-nums text-teal-400' : 'text-rose-400'}"
+        title="${c.code > 0 ? 'HTTP ' + c.code : 'client error ' + c.code}">${
+      c.code > 0 ? c.code : 'failed'}</td>
     <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-white/45">${c.ms} ms</td>
     <td class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums
         text-white/45">${bytes(c.size)}</td>
