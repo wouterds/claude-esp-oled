@@ -18,11 +18,11 @@ constexpr int16_t OWNED_TOP = (int16_t)(36 * SCENE);
 
 constexpr int16_t NAME_Y = (int16_t)(52 * SCENE);
 constexpr int16_t NAME_SCALE = 2;
-constexpr int16_t PRICE_Y = (int16_t)(88 * SCENE);
+constexpr int16_t PRICE_Y = (int16_t)(84 * SCENE);
 constexpr int16_t PRICE_SCALE = 4;
-constexpr int16_t MOVE_Y = (int16_t)(126 * SCENE);
+constexpr int16_t MOVE_Y = (int16_t)(122 * SCENE);
 constexpr int16_t MOVE_SCALE = 3;
-constexpr int16_t SPAN_Y = (int16_t)(276 * SCENE);
+constexpr int16_t SPAN_Y = (int16_t)(280 * SCENE);
 constexpr int16_t SPAN_SCALE = 2;
 
 // The whole width. The glass is round, so the last twenty pixels of each end
@@ -30,8 +30,8 @@ constexpr int16_t SPAN_SCALE = 2;
 // runs off both sides rather than stopping short of them, which is the point.
 constexpr float PLOT_X0 = 0.0f;
 constexpr float PLOT_X1 = (float)(SCREEN_W - 1);
-constexpr float PLOT_Y0 = 158.0f * SCENE;
-constexpr float PLOT_Y1 = 262.0f * SCENE;
+constexpr float PLOT_Y0 = 166.0f * SCENE;
+constexpr float PLOT_Y1 = 266.0f * SCENE;
 // Sub-segments per gap between two prices. The line is drawn from these rather
 // than from the prices themselves, which is what takes the corners off it.
 constexpr uint8_t SUB = 4;
