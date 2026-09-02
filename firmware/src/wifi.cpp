@@ -42,6 +42,7 @@ void listGive() { xSemaphoreGive(lock); }
 // task rather than under the caller, because run() may be inside a scan.
 volatile bool relist = false;
 volatile bool joined = false;
+char macAddress[18] = {0};
 char onNetwork[33] = {0};
 char onAddress[16] = {0};
 volatile int onRssi = 0;
@@ -191,6 +192,9 @@ void wifiBegin() {
   WiFi.setSleep(true);
   WiFi.setAutoReconnect(true);
 
+  strncpy(macAddress, WiFi.macAddress().c_str(), sizeof(macAddress) - 1);
+  macAddress[sizeof(macAddress) - 1] = '\0';
+
   lock = xSemaphoreCreateMutex();
   for (uint8_t i = 0; i < COUNT; i++) {
     if (!WIFI_NETWORKS[i].ssid) {
@@ -218,6 +222,8 @@ bool wifiConnected() { return joined; }
 const char *wifiNetwork() { return joined ? onNetwork : nullptr; }
 
 const char *wifiAddress() { return joined ? onAddress : nullptr; }
+
+const char *wifiMac() { return macAddress; }
 
 int wifiRssi() { return joined ? onRssi : 0; }
 

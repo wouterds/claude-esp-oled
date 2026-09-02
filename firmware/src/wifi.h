@@ -42,6 +42,10 @@ const char *wifiNetwork();
 // Its address on that network, or nullptr.
 const char *wifiAddress();
 
+// The radio's own address. It has one whether or not it is on a network, so
+// this is the one identifier the page can always show.
+const char *wifiMac();
+
 // How strong that network is in dBm - always negative, and closer to zero is
 // better. Zero exactly when it is on nothing.
 int wifiRssi();

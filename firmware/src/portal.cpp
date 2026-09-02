@@ -33,10 +33,26 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 <body class="bg-neutral-950 text-neutral-200 antialiased">
 <main class="max-w-7xl px-8 py-10">
   <h1 class="text-2xl font-bold text-white">Settings</h1>
-  <p id=who class="mt-1 text-sm text-neutral-500">&nbsp;</p>
+  <p id=who class="mt-1 hidden text-sm text-red-400"></p>
 
   <div class="mt-8 grid items-start gap-6 xl:grid-cols-[26rem_minmax(0,1fr)]">
     <div class="grid gap-6">
+
+      <section class="rounded-xl border border-neutral-800 bg-neutral-900/40">
+        <div class="border-b border-neutral-800 px-5 py-3">
+          <h2 class="text-xs uppercase tracking-wider text-neutral-400">Device</h2>
+        </div>
+        <dl class="divide-y divide-neutral-800">
+          <div class="flex items-center justify-between gap-3 px-5 py-2.5">
+            <dt class="text-sm text-neutral-400">IP address</dt>
+            <dd id=ip class="text-sm tabular-nums text-neutral-100">&mdash;</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-5 py-2.5">
+            <dt class="text-sm text-neutral-400">MAC address</dt>
+            <dd id=mac class="text-sm tabular-nums text-neutral-100">&mdash;</dd>
+          </div>
+        </dl>
+      </section>
 
       <section class="rounded-xl border border-neutral-800 bg-neutral-900/40">
         <div class="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
@@ -158,10 +174,13 @@ async function refresh() {
   try {
     s = await (await fetch('/state')).json();
   } catch (e) {
-    who.textContent = 'the board stopped answering';
+    who.textContent = 'The board stopped answering.';
+    who.classList.remove('hidden');
     return;
   }
-  who.textContent = s.address ? 'buddy · ' + s.address : 'not on a network';
+  who.classList.add('hidden');
+  $('ip').textContent = s.address || 'not on a network';
+  $('mac').textContent = s.mac || '—';
   $('tokenState').textContent = s.stored ? 'Stored' : 'None set';
 }
 
@@ -295,6 +314,8 @@ void handleState() {
   json += token[0] ? "true" : "false";
   json += ",\"address\":";
   appendQuoted(json, wifiAddress() ? wifiAddress() : "");
+  json += ",\"mac\":";
+  appendQuoted(json, wifiMac());
   json += "}";
   server.send(200, "application/json", json);
 }
