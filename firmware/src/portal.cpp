@@ -98,14 +98,16 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
         <h2 class="text-xs uppercase tracking-wider text-neutral-400">Requests</h2>
         <span id=meta class="text-xs text-neutral-500">&nbsp;</span>
       </div>
-      <table class="w-full text-sm">
+      <!-- Fixed, so a path longer than the column ends in an ellipsis rather than
+           widening the table until the last column is outside the card. -->
+      <table class="w-full table-fixed text-xs">
         <thead>
-          <tr class="text-xs uppercase tracking-wider text-neutral-500">
-            <th class="px-5 py-2 text-left font-normal">Time</th>
-            <th class="px-5 py-2 text-left font-normal">Endpoint</th>
-            <th class="px-5 py-2 text-right font-normal">Status</th>
-            <th class="px-5 py-2 text-right font-normal">Took</th>
-            <th class="px-5 py-2 text-right font-normal">Size</th>
+          <tr class="text-[10px] uppercase tracking-wider text-neutral-500">
+            <th class="w-20 py-2 pl-5 pr-3 text-left font-normal">Time</th>
+            <th class="px-3 py-2 text-left font-normal">Endpoint</th>
+            <th class="w-20 px-3 py-2 text-right font-normal">Status</th>
+            <th class="w-20 px-3 py-2 text-right font-normal">Took</th>
+            <th class="w-20 py-2 pl-3 pr-5 text-right font-normal">Size</th>
           </tr>
         </thead>
         <tbody id=rows class="divide-y divide-neutral-800"></tbody>
@@ -201,13 +203,14 @@ async function requests() {
   $('quiet').classList.toggle('hidden', list.length > 0);
   $('meta').textContent = HOST + ' · ' + list.length + ' of 30, UTC';
   $('rows').innerHTML = list.map((c) => `<tr>
-    <td class="whitespace-nowrap px-5 py-2.5 tabular-nums text-neutral-400">${clock(c.at)}</td>
-    <td class="whitespace-nowrap px-5 py-2.5 text-neutral-200"><span
-        class="text-neutral-600">${HOST}</span>${esc(c.path)}</td>
-    <td class="px-5 py-2.5 text-right tabular-nums ${
+    <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-neutral-500">${clock(c.at)}</td>
+    <td class="truncate px-3 py-2 text-neutral-400"
+        title="${esc(HOST + c.path)}">${esc(HOST + c.path)}</td>
+    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums ${
       c.code === 200 ? 'text-emerald-400' : 'text-red-400'}">${c.code || 'no reply'}</td>
-    <td class="px-5 py-2.5 text-right tabular-nums text-neutral-400">${c.ms} ms</td>
-    <td class="px-5 py-2.5 text-right tabular-nums text-neutral-400">${bytes(c.size)}</td>
+    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-500">${c.ms} ms</td>
+    <td class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums
+        text-neutral-500">${bytes(c.size)}</td>
   </tr>`).join('');
 }
 
