@@ -86,9 +86,7 @@ async function refresh() {
   try {
     const s = await (await fetch('/state')).json();
     who.textContent = s.network ? s.network + ' · ' + s.address : 'not on a network';
-    state.textContent = !s.stored ? 'None set.'
-                      : s.reading ? 'Stored, reading your usage.'
-                                  : 'Stored, not answering yet.';
+    state.textContent = s.stored ? 'Stored.' : 'None set.';
   } catch (e) {
     state.textContent = 'The board stopped answering.';
   }
@@ -121,8 +119,8 @@ form.addEventListener('submit', async (e) => {
 });
 
 refresh();
-// The token is read on the other core and takes a moment to start answering, so
-// what the page says about it has to catch up on its own.
+// The network line and whether anything is stored can both change without this
+// page having done it - another tab, or the board joining a different network.
 setInterval(refresh, 5000);
 </script>
 )HTML";
@@ -146,8 +144,6 @@ void appendQuoted(String &json, const char *s) {
 void handleState() {
   String json = "{\"stored\":";
   json += token[0] ? "true" : "false";
-  json += ",\"reading\":";
-  json += usageReady() ? "true" : "false";
   json += ",\"network\":";
   if (wifiNetwork()) {
     appendQuoted(json, wifiNetwork());
