@@ -39,22 +39,6 @@ const char PAGE[] PROGMEM = R"HTML(<!doctype html>
     <div class="grid gap-6">
 
       <section class="rounded-xl border border-neutral-800 bg-neutral-900/40">
-        <div class="border-b border-neutral-800 px-5 py-3">
-          <h2 class="text-xs uppercase tracking-wider text-neutral-400">Device</h2>
-        </div>
-        <dl class="divide-y divide-neutral-800">
-          <div class="flex items-center justify-between gap-3 px-5 py-2.5">
-            <dt class="text-sm text-neutral-400">IP address</dt>
-            <dd id=ip class="text-sm tabular-nums text-neutral-100">&mdash;</dd>
-          </div>
-          <div class="flex items-center justify-between gap-3 px-5 py-2.5">
-            <dt class="text-sm text-neutral-400">MAC address</dt>
-            <dd id=mac class="text-sm tabular-nums text-neutral-100">&mdash;</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section class="rounded-xl border border-neutral-800 bg-neutral-900/40">
         <div class="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
           <h2 class="text-xs uppercase tracking-wider text-neutral-400">Claude session token</h2>
           <span id=tokenState class="text-xs text-neutral-500">&nbsp;</span>
@@ -179,8 +163,6 @@ async function refresh() {
     return;
   }
   who.classList.add('hidden');
-  $('ip').textContent = s.address || 'not on a network';
-  $('mac').textContent = s.mac || '—';
   $('tokenState').textContent = s.stored ? 'Stored' : 'None set';
 }
 
@@ -314,8 +296,6 @@ void handleState() {
   json += token[0] ? "true" : "false";
   json += ",\"address\":";
   appendQuoted(json, wifiAddress() ? wifiAddress() : "");
-  json += ",\"mac\":";
-  appendQuoted(json, wifiMac());
   json += "}";
   server.send(200, "application/json", json);
 }
