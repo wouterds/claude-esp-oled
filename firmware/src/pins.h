@@ -121,10 +121,10 @@ static constexpr int AUDIO_DIN = 10;
 static constexpr int AUDIO_PA = 46;
 static constexpr uint8_t CODEC_ADDR = 0x18;
 
-// No fuel gauge on this board. The pack is behind an AXP2101 PMIC at 0x34 and
-// nothing answers at the address below, which battery.cpp reads - correctly -
-// as no pack attached. Reading the charge through the PMIC is not written yet.
-static constexpr uint8_t GAUGE_ADDR = 0x55;
+// No fuel gauge on this board: the pack is behind the AXP2101 PMIC, which
+// battery_axp2101.cpp reads the charge, the voltage and the cable off. There is
+// deliberately no gauge address here - carrying one is what would let the other
+// board's driver compile against this pin map.
 
 #endif
 
