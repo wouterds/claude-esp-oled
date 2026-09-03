@@ -52,6 +52,22 @@ constexpr float PLOT_STROKE = 1.15f * SCENE;
 // takes the stair off the steep ones.
 constexpr uint8_t PLOT_SUB = 6;
 constexpr uint16_t PLOT_SEGMENTS = (uint16_t)(NUC_POINTS - 1) * PLOT_SUB;
+// Readings the glass is wide, which is two short of the readings held. The rest
+// are the ones waiting off the right edge to be revealed.
+constexpr uint8_t PLOT_ACROSS = NUC_POINTS - 2;
+
+// How far behind the newest reading the right edge runs, in readings. At least
+// one, or the piece crossing the edge has nothing on its far end and can only
+// appear rather than slide in - which is what the stutter was, a reading's width
+// of trace popping onto the glass every time one landed. The half on top of it
+// is half a second of lateness absorbed before the edge has to wait.
+constexpr float PLOT_LAG = 1.5f;
+// How much the edge speeds up or slows down per reading it is off that lag. The
+// gap between readings is whatever the round trip was, so the edge cannot simply
+// be paced off it - it leans on how many readings are waiting instead. Gently:
+// a tenth of speed over a second goes unseen where a hold is seen at once.
+constexpr float PLOT_LAG_GAIN = 0.2f;
+constexpr float PLOT_GAP_LEAST_MS = 200.0f;
 // The most the wash ever comes to, directly under the trace, falling away to
 // nothing at the foot of the band. Squared rather than straight, and a good way
 // under half: a straight ramp puts most of its colour into the top of the fill,
@@ -106,7 +122,7 @@ constexpr uint16_t FAINT = 0x4A49;
 constexpr uint16_t TRACK = 0x4A49;
 
 uint32_t shownRev = 0;
-uint32_t shownReadings = 0;
+uint32_t shownTaken = 0;
 bool fresh = true;
 // When the last reading landed and how long the one before it took to arrive.
 // The poller has no cadence to read off - it asks again the moment the last
@@ -114,12 +130,13 @@ bool fresh = true;
 // assumed, and a reading that comes late leaves it parked at the end of its
 // slide rather than running on past where the next one will go.
 uint32_t arrivedAt = 0;
+uint32_t steppedAt = 0;
 float period = 1000.0f;
-// Where the trace was in its slide when the last reading landed, in readings.
-// Not nought: the readings all move one place along when one lands, so where the
-// trace is moves with them. Reset to nought instead and a reading that arrives
-// early drags the whole trace back a step, which is what the stutter was.
-float base = 0.0f;
+// Which reading is at the right edge of the glass, fractional and always behind
+// the newest one held. It runs on at its own pace and the readings land beyond
+// it, so what crosses the edge is always a piece between two readings that have
+// both arrived.
+float edge = 0.0f;
 float ceilingNow = PLOT_SCALES[0];
 uint32_t drewAt = 0;
 
@@ -300,10 +317,14 @@ void drawLoad(uint16_t *fb, const Nuc &n, float slide) {
   // A reading's width is fixed rather than shared out among however many there
   // are, so the trace scrolls at one speed from the first reading to the last
   // and a window still filling grows leftward instead of rescaling under the eye.
-  float step = (float)(SCREEN_W - 1) / (float)(NUC_POINTS - 1);
+  float step = (float)(SCREEN_W - 1) / (float)(PLOT_ACROSS - 1);
   float sub = step / (float)PLOT_SUB;
   float band = PLOT_Y1 - PLOT_Y0;
-  uint16_t ink = gaugeColour(percentOf(n.load[n.count - 1]));
+  // The reading at the edge rather than the newest held: the newest is still off
+  // the glass, and the trace should not be wearing the colour of something
+  // nobody can see yet.
+  int16_t showing = within((int16_t)((float)(n.count - 1) + slide), (int16_t)(n.count - 1));
+  uint16_t ink = gaugeColour(percentOf(n.load[showing]));
 
   uint16_t segments = (uint16_t)(n.count - 1) * PLOT_SUB;
   for (uint16_t k = 0; k <= segments; k++) {
@@ -410,35 +431,39 @@ void vitalsForget() { fresh = true; }
 
 void vitalsStep(uint16_t *fb) {
   uint32_t now = millis();
-  // How far the trace has slid since the last reading landed, in readings.
-  float slide = arrivedAt ? base + (float)(now - arrivedAt) / period : 0.0f;
-  slide = slide > 1.0f ? 1.0f : (slide < -1.0f ? -1.0f : slide);
-
   uint32_t rev = nucRevision();
-  uint32_t taken = nucReadings();
-  if (taken != shownReadings) {
-    shownReadings = taken;
-    // What the next slide has to last. Bounded either side of anything a round
-    // trip plausibly takes, so one reading lost to a stall does not stretch the
-    // slide out to a crawl for the ones after it.
-    if (arrivedAt) {
+  Nuc n;
+  nucLatest(&n);
+
+  if (fresh) {
+    steppedAt = now;
+    edge = (float)n.taken - PLOT_LAG;
+  }
+  if (n.taken != shownTaken) {
+    // What a reading costs to fetch, which is what the edge is paced off. Only
+    // gaps that are one: anything longer held the wait after a failed read.
+    if (shownTaken) {
       float gap = (float)(now - arrivedAt);
-      if (gap > 60.0f && gap < 8000.0f) {
+      if (gap > PLOT_GAP_LEAST_MS && gap < (float)nucGapMost()) {
         period = period * 0.75f + gap * 0.25f;
       }
     }
-    // Every reading moved one place along, so the trace starts this slide one
-    // place further on rather than back at the beginning of it. Off the count of
-    // readings rather than the revision: a read that failed moves the revision
-    // and adds nothing to the history, and sliding on for that is the trace
-    // stepping backwards for a reading that never came.
-    base = slide - 1.0f;
+    shownTaken = n.taken;
     arrivedAt = now;
-    slide = base;
   }
 
-  Nuc n;
-  nucLatest(&n);
+  // Faster when readings are piling up behind the edge and slower when they are
+  // not, which is what absorbs a round trip that came back early or late without
+  // the trace ever stopping. It cannot run past the newest reading, though -
+  // there would be nothing on the far end of the piece it was drawing.
+  float lag = (float)n.taken - edge;
+  edge += (float)(now - steppedAt) * (1.0f + (lag - PLOT_LAG) * PLOT_LAG_GAIN) / period;
+  steppedAt = now;
+  if (edge > (float)n.taken) {
+    edge = (float)n.taken;
+  }
+  float slide = edge - (float)n.taken;
+
   float peak = 0.0f;
   for (uint8_t i = 0; i < n.count; i++) {
     peak = fmaxf(peak, n.load[i]);
@@ -456,6 +481,7 @@ void vitalsStep(uint16_t *fb) {
     want = ceilingNow;
   }
   ceilingNow = want;
+
   Row bars[ROWS];
   rowsOf(n, bars);
   if (fresh) {
