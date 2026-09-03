@@ -630,7 +630,10 @@ void appendQuoted(String &json, const char *s) {
 
 void handleState() {
   String json = "{\"address\":";
-  appendQuoted(json, wifiAddress() ? wifiAddress() : "");
+  // Once, because the radio task can drop the association between two reads of
+  // it and the second would come back null for the first one's non-null answer.
+  const char *address = wifiAddress();
+  appendQuoted(json, address ? address : "");
   json += ",\"every\":";
   json += usageEvery();
   json += ",\"calls\":";
@@ -659,7 +662,8 @@ void handleNetworks() {
     json += live ? "true" : "false";
     if (live) {
       json += ",\"address\":";
-      appendQuoted(json, wifiAddress() ? wifiAddress() : "");
+      const char *address = wifiAddress();
+      appendQuoted(json, address ? address : "");
       json += ",\"rssi\":";
       json += wifiRssi();
     }
