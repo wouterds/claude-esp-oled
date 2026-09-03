@@ -26,7 +26,23 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LCD_ENV="esp32-s3-touch-lcd-185"
 AMOLED_ENV="esp32-s3-touch-amoled-175c"
 
+# Both, because the boot log below is read by the python rather than by pio, and
+# the message for either one missing is otherwise a board that reads as asleep:
+# the flash-id call is what fails, its output is discarded, and the port is
+# reported as one that would not answer.
+[ -x "$PIO" ] && [ -x "$PY" ] || {
+  echo "platformio not installed - see .agents/docs/hardware.md" >&2
+  exit 1
+}
+
 want="${1:-}"
+case "$want" in
+  "" | "$LCD_ENV" | "$AMOLED_ENV") ;;
+  *)
+    echo "unknown env: $want - it is $LCD_ENV or $AMOLED_ENV" >&2
+    exit 1
+    ;;
+esac
 
 ports() { ls /dev | grep '^cu\.usbmodem' || true; }
 
@@ -77,8 +93,20 @@ for p in $boards; do
   p="$(findAgain "$others")"
   "$PY" -m esptool --port "/dev/$p" --after hard-reset flash-id >/dev/null 2>&1 || true
 
-  sleep 2
-  p="$(findAgain "$others")"
+  # Polled rather than slept at, and skipped rather than fatal if it never
+  # arrives: the heredoc below would open /dev/ and raise, and `set -e` would
+  # take the whole run down after this board was already written - leaving any
+  # second board unflashed and the tree disagreeing with the hardware.
+  p=""
+  for _ in $(seq 20); do
+    p="$(findAgain "$others")"
+    [ -n "$p" ] && break
+    sleep 0.25
+  done
+  if [ -z "$p" ]; then
+    echo "flashed, but $found did not come back on USB - power it on and use firmware:monitor" >&2
+    continue
+  fi
   echo "--- boot log ($found) ---"
   "$PY" - "$p" <<'BOOTLOG'
 import serial, sys, time
