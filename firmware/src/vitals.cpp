@@ -28,46 +28,40 @@ constexpr int16_t TITLE_SCALE = 2;
 constexpr int16_t ROW_SCALE = 2;
 constexpr float PLOT_Y0 = 72.0f * SCENE;
 constexpr float PLOT_Y1 = 142.0f * SCENE;
-// The band holds the readings that are in it and nothing else - the lowest at
-// the floor, the highest at the ceiling - so what it draws is the shape of the
-// change rather than the size of the number. Anchored at nought instead, a box
-// wandering between seven and eleven per cent has its whole day squeezed into
-// the top twentieth of the band and reads as a flat line.
+// The scale the trace is drawn against: nought at the floor and one of these at
+// the ceiling. Fixed, and stepped, rather than closed onto whatever the window
+// happens to hold - a band that follows its own readings is a band that moves
+// under them, and then the whole chart is going up and down when only the line
+// should be.
 //
-// What that cannot say is how much load it is. The row below says it, against
-// the whole hundred, and so does the colour off the one ramp - so the chart is
-// free to be about the shape.
-//
-// A window that never moved still has to be a band rather than a rule, so it is
-// never given less than this to hold, and never opened right to the edges. It is
-// not a small number: closed right down onto a box wandering between seven and
-// eleven per cent, four points of noise fill the whole band and every twitch
-// reads as an event.
-constexpr float PLOT_SPAN = 12.0f;
-constexpr float PLOT_HEADROOM = 0.12f;
-// The trace, drawn as a stroke of its own the way the market charts draw theirs -
-// a solid width of full colour with the wash hung under it, rather than the top
-// of the wash left to stand in for a line. Under a pixel and a half it stops
-// reading as one line and starts reading as the pixels it is made of.
+// A quarter is the first step because that is the one a box at rest lives in,
+// and it leaves an idle wander of a few points as a few rows of movement rather
+// than as a flat line along the bottom of the whole hundred.
+constexpr float PLOT_SCALES[] = {25.0f, 50.0f, 100.0f};
+constexpr uint8_t PLOT_SCALE_COUNT = sizeof(PLOT_SCALES) / sizeof(PLOT_SCALES[0]);
+// How far under a step the readings have to fall before the scale drops back to
+// it. Without the slack, a box sitting on a boundary flips the scale back and
+// forth every second and the trace jumps with it.
+constexpr float PLOT_SLACK = 0.85f;
+// The trace, at full strength, so the top edge reads whatever the fill under it
+// is doing.
 constexpr float PLOT_LINE = 2.2f * SCENE;
-// The most the wash ever comes to, at the top of the band, falling away to
-// nothing at the foot of it. A ramp down the band and not down from the trace:
-// hung off the trace it is stretched and squeezed every time the trace moves, so
-// the whole fill rescales when only the line should have. Falling all the way to
-// nothing is the other half of it - a wash that still has colour in it where the
-// band stops ends on a straight edge across the glass.
-constexpr float PLOT_WASH = 0.45f;
+// The most the wash ever comes to, directly under the trace, falling away to
+// nothing at the foot of the band. Squared rather than straight, and a good way
+// under half: a straight ramp puts most of its colour into the top of the fill,
+// and what a high reading then draws under itself is a slab of green rather
+// than a chart.
+//
+// Taken off the trace rather than off the band. Off the band it is a fixed ramp
+// that the trace moves through, which sounds tidier and is not: with the scale
+// fixed, a box at rest sits low enough that the whole fill lands in the dim end
+// of that ramp and the chart comes out as a bare line.
+constexpr float PLOT_WASH = 0.30f;
 // The band the trace is clipped out of, and its own rows are all that go to the
 // panel between readings.
 constexpr int16_t PLOT_TOP = (int16_t)PLOT_Y0 - 2;
 constexpr int16_t PLOT_BOTTOM = (int16_t)PLOT_Y1 + 2;
 
-// How fast the band closes back in on the readings once a tall one has walked
-// off the end, per frame. It opens at once and no slower: a band that eases open
-// clips the very reading it is making room for, and what that draws is a flat
-// top on the one shape worth looking at. Closing there is nothing to clip, so it
-// can take its time and the chart settles instead of snapping.
-constexpr float BAND_EASE = 0.04f;
 // How often the sliding trace is put back on the glass. Its band is a third of
 // the panel and every one of these rows is sent again, so this is bandwidth
 // rather than arithmetic - and past about this there is no smoothness left to
@@ -120,8 +114,7 @@ float period = 1000.0f;
 // trace is moves with them. Reset to nought instead and a reading that arrives
 // early drags the whole trace back a step, which is what the stutter was.
 float base = 0.0f;
-float lowNow = 0.0f;
-float highNow = 0.0f;
+float ceilingNow = PLOT_SCALES[0];
 uint32_t drewAt = 0;
 
 struct Row {
@@ -272,43 +265,38 @@ float smoothAt(const Nuc &n, float at) {
   return out < low ? low : (out > high ? high : out);
 }
 
-// The area under the trace, one column of pixels at a time. Walked rather than
-// stroked: there is no distance to take a square root of and nothing is drawn
-// over anything, which is what makes it cheap enough to put back every frame.
+// The area under the trace, one column of pixels at a time.
 void drawLoad(uint16_t *fb, const Nuc &n, float slide) {
   if (n.count < 2) {
     return;
   }
-  float x0 = 0.0f;
   float x1 = (float)(SCREEN_W - 1);
   // A reading's width is fixed rather than shared out among however many there
   // are, so the trace scrolls at one speed from the first reading to the last
   // and a window still filling grows leftward instead of rescaling under the eye.
-  float step = (x1 - x0) / (float)(NUC_POINTS - 1);
+  float step = x1 / (float)(NUC_POINTS - 1);
   float band = PLOT_Y1 - PLOT_Y0;
-  float span = highNow - lowNow;
   uint16_t ink = gaugeColour(percentOf(n.load[n.count - 1]));
 
-  for (int16_t x = (int16_t)x0; x <= (int16_t)x1; x++) {
+  for (int16_t x = 0; x < SCREEN_W; x++) {
     float px = (float)x + 0.5f;
     // Where the newest reading sits, less how far the trace has slid since it
-    // landed. Beyond the oldest there is no history, so there is no trace.
+    // landed. Before the oldest there is no history, so there is no trace.
     float at = (float)(n.count - 1) + slide - (x1 - px) / step;
     if (at < 0.0f) {
       continue;
     }
-    float top = PLOT_Y1 - clamp01((smoothAt(n, at) - lowNow) / span) * band;
+    float lit = PLOT_Y1 - clamp01(smoothAt(n, at) / ceilingNow) * band;
+    float drop = PLOT_Y1 - lit;
 
-    for (int16_t y = (int16_t)top - 1; y <= (int16_t)PLOT_Y1; y++) {
-      float under = (float)y + 0.5f - top;
+    for (int16_t y = (int16_t)lit - 1; y <= (int16_t)PLOT_Y1; y++) {
+      float under = (float)y + 0.5f - lit;
       if (under < -0.5f) {
         continue;
       }
-      float left = 1.0f - clamp01(((float)y + 0.5f - PLOT_Y0) / band);
-      // Full colour to the width of the stroke and a pixel to fade out over,
-      // then the wash the rest of the way down.
+      float left = 1.0f - (drop > 0.0f ? under / drop : 1.0f);
       plot(fb, x, y, clamp01(under + 0.5f),
-           mix(mix(0x0000, ink, PLOT_WASH * left), ink,
+           mix(mix(0x0000, ink, PLOT_WASH * left * left), ink,
                clamp01(PLOT_LINE - under + 0.5f)));
     }
   }
@@ -390,31 +378,30 @@ void vitalsStep(uint16_t *fb) {
 
   Nuc n;
   nucLatest(&n);
-  float low = n.count ? n.load[0] : 0.0f;
-  float high = low;
-  for (uint8_t i = 1; i < n.count; i++) {
-    low = fminf(low, n.load[i]);
-    high = fmaxf(high, n.load[i]);
+  float peak = 0.0f;
+  for (uint8_t i = 0; i < n.count; i++) {
+    peak = fmaxf(peak, n.load[i]);
   }
-  // A little air over the tallest reading, and whatever else the band has to be
-  // goes underneath. Shared out evenly instead, a quiet window sits in the
-  // middle of its band with a third of the glass empty over it and the wash
-  // squeezed into the third below - so the trace rides near the top and the fill
-  // has the room.
-  float head = (high - low) * PLOT_HEADROOM;
-  high += head;
-  low = fminf(low - head, high - PLOT_SPAN);
-  Row rows[ROWS];
-  rowsOf(n, rows);
-  if (fresh) {
-    lowNow = low;
-    highNow = high;
-    for (uint8_t i = 0; i < ROWS; i++) {
-      shown[i] = (rows[i].fill > 0.0f) ? clamp01(rows[i].fill) : 0.0f;
+  // The smallest step that holds the tallest reading. Up the moment one needs
+  // it, and back down only once they have fallen well clear of the step below.
+  float want = PLOT_SCALES[PLOT_SCALE_COUNT - 1];
+  for (uint8_t i = 0; i < PLOT_SCALE_COUNT; i++) {
+    if (peak <= PLOT_SCALES[i]) {
+      want = PLOT_SCALES[i];
+      break;
     }
   }
-  lowNow = low < lowNow ? low : lowNow + (low - lowNow) * BAND_EASE;
-  highNow = high > highNow ? high : highNow + (high - highNow) * BAND_EASE;
+  if (want < ceilingNow && peak > want * PLOT_SLACK) {
+    want = ceilingNow;
+  }
+  ceilingNow = want;
+  Row bars[ROWS];
+  rowsOf(n, bars);
+  if (fresh) {
+    for (uint8_t i = 0; i < ROWS; i++) {
+      shown[i] = (bars[i].fill > 0.0f) ? clamp01(bars[i].fill) : 0.0f;
+    }
+  }
 
   if (fresh || rev != shownRev) {
     fresh = false;
@@ -438,9 +425,9 @@ void vitalsStep(uint16_t *fb) {
   int16_t x0 = (int16_t)barLeft() - 1;
   int16_t x1 = (int16_t)barRight() + 1;
   for (uint8_t i = 0; i < ROWS; i++) {
-    float want = (rows[i].fill > 0.0f) ? clamp01(rows[i].fill) : 0.0f;
+    float target = (bars[i].fill > 0.0f) ? clamp01(bars[i].fill) : 0.0f;
     float was = shown[i];
-    shown[i] += (want - shown[i]) * BAR_EASE;
+    shown[i] += (target - shown[i]) * BAR_EASE;
     if (fabsf(shown[i] - was) < BAR_MOVED) {
       continue;
     }
