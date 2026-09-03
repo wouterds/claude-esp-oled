@@ -100,7 +100,8 @@ while time.time() < end:
 s.close()
 for line in buf.splitlines():
     if any(k in line.lower() for k in ('panel', 'brightness', 'backlight', 'battery',
-                                       'touch', 'audio', 'reset:', 'boot:', 'framebuffer')):
+                                       'touch', 'audio', 'reset:', 'boot:', 'framebuffer',
+                                       'build:', 'core dump')):
         print(' ', line)
 BOOTLOG
 done
