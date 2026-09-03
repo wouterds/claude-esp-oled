@@ -2,14 +2,12 @@
 
 #include <stdint.h>
 
-// The screens to the left of the face: two index futures and then three coins
-// by market cap. All of them are the same shape of thing - a name, a price, how
-// far it has moved and a line of where it has been - so all of them are one
-// cache and one poller rather than five.
+// The screens to the left of the face: two index futures and then three coins.
+// All of them are the same shape of thing - a name, a price, how far it has
+// moved and a line of where it has been - so all of them are one cache and one
+// poller rather than five.
 //
-// Held coins first and indices after, which is not the order they are walked
-// in. The coin screens are however many the ranking left, so counting from the
-// end of the list is counting from somewhere that moves.
+// Held coins first and indices after, which is not the order they are walked in.
 //
 // Nothing is asked for unless its screen is the one up. What was last read is
 // kept when the screen goes away, so coming back to it shows those figures at
@@ -23,9 +21,7 @@
 // to this on the way in.
 constexpr uint8_t MARKET_POINTS = 60;
 
-// The three largest worth a screen. The ranking reads past them to get there -
-// what sits near the top of that list is mostly priced in dollars rather than
-// against the market, and none of that is worth swiping to.
+// Three, named in market.cpp rather than taken off the ranking.
 constexpr uint8_t MARKET_COINS = 3;
 // The futures only. The cash indices are shut for two thirds of the day and a
 // screen showing Friday's close all weekend is a screen saying nothing; the
@@ -57,11 +53,6 @@ struct Market {
 };
 
 void marketBegin();
-
-// How many coin screens there actually are. Ten until the ranking lands, and
-// after that however many of the largest survived being pinned to a currency -
-// there is no screen worth spending on a dollar being worth a dollar.
-uint8_t marketCoins();
 
 // Which screen is up, or -1 for none. Only that one is read, and only while it
 // is up. Coming to a screen whose figures are older than the interval reads it

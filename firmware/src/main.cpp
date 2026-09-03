@@ -357,7 +357,7 @@ void loop() {
     // however many coins survived being pinned to a currency, so there is never
     // a screen past the last one with nothing on it. The face is the other end
     // of it, so a swipe right from it goes nowhere.
-    int8_t end = (int8_t)(MARKET_INDICES + marketCoins());
+    int8_t end = (int8_t)(MARKET_INDICES + MARKET_COINS);
     if (to > end) {
       to = end;
     } else if (to < 0) {

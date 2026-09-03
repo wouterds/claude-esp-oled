@@ -15,21 +15,17 @@ namespace {
 
 // Which coins, then what one of them is worth. The sparkline is nearly all of
 // the weight - fifteen rows without one is twelve kilobytes and a single row
-// with one is four, where fifteen rows with one would be sixty - so the list is
-// asked for rarely and the line is asked for one coin at a time, which is the
+// with one is four - so the line is asked for one coin at a time, which is the
 // only coin whose screen is up anyway.
 //
-// Eight rows to fill three screens. The first four hold three keepers today and
-// six of the eight are keepers at all, but the spare is the point: the number of things sitting at a dollar
-// near the top of the list is not fixed, and running out of them means a screen
-// short rather than a wrong screen.
-constexpr char RANK[] =
-    "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc"
-    "&per_page=8&page=1&sparkline=false";
+// Named rather than ranked. The ranking was read first to find the three largest
+// worth a screen, which cost a call, a filter for the things sitting at a dollar
+// that came back with it, and a screen count that could not be known until the
+// call landed. Three coins picked by hand cost none of that and change about as
+// often as the ranking's top three do.
 constexpr char PRICES[] =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=true"
     "&price_change_percentage=24h&ids=";
-constexpr uint32_t RANK_MS = 1800000;
 
 // One session, five minutes apiece - the same day the percentage beside it is
 // quoted over. A hundred and thirty-five points for a contract that trades
@@ -38,6 +34,18 @@ constexpr uint32_t RANK_MS = 1800000;
 // session is holding forty-eight of it.
 constexpr char CHART[] = "https://query1.finance.yahoo.com/v8/finance/chart/";
 constexpr char CHART_ARGS[] = "?interval=5m&range=1d";
+
+struct Coin {
+  const char *id;
+  const char *ticker;
+  const char *name;
+};
+
+constexpr Coin COINS[MARKET_COINS] = {
+    {"bitcoin", "BTC", "BITCOIN"},
+    {"ethereum", "ETH", "ETHEREUM"},
+    {"litecoin", "LTC", "LITECOIN"},
+};
 
 struct Listing {
   const char *symbol;
@@ -61,12 +69,6 @@ constexpr size_t MOST = 16384;
 constexpr size_t FLOOR = 60000;
 constexpr uint32_t PATIENCE_MS = 6000;
 constexpr uint32_t RETRY_MS = 20000;
-
-// The ids the ranking picked, in market cap order, how many of them there were
-// and when it picked them.
-char chosen[MARKET_COINS][20] = {{0}};
-uint8_t coins = MARKET_COINS;
-uint32_t rankedAt = 0;
 
 Market *held = nullptr;
 uint32_t readAt[MARKET_SCREENS] = {0};
@@ -252,120 +254,11 @@ void mark(uint8_t screen, bool loading, bool failed) {
   revision = revision + 1;
 }
 
-// Anything priced against a dollar rather than against the market. Three ways
-// of saying it because there are three kinds of it: the ones that put the
-// currency in the name or the ticker, the ones - DAI is the awkward example -
-// that do neither and can only be recognised by behaving like it, and the debt
-// tokens that sit at par because par is what they are worth. A HELOC token is
-// the last kind: it trades at a few cents over a dollar because that is the
-// loan's face value, and it moves enough some days to slip the test below.
-//
-// Both halves of that test are needed and neither alone would do - a real coin
-// can trade near a dollar, and a real coin can have a quiet day, but not both
-// at once.
-bool pinned(const char *ticker, const char *name, float price, float moved) {
-  char loud[48];
-  snprintf(loud, sizeof(loud), "%s %s", ticker, name);
-  for (char *c = loud; *c; c++) {
-    *c = (char)toupper(*c);
-  }
-  if (strstr(loud, "USD") || strstr(loud, "EUR") || strstr(loud, "HELOC")) {
-    return true;
-  }
-  return fabsf(price - 1.0f) < 0.05f && fabsf(moved) < 0.5f;
-}
-
-// Which coins, off the cheap call. Read rarely: the largest coins do not change
-// places on the hour, and this is the only call that has to see past the ten
-// screens to find ten worth having.
-bool readRanking() {
-  String body;
-  if (!fetch(String(RANK), body)) {
-    return false;
-  }
-
-  uint8_t taken = 0;
-  int at = 0;
-  while (taken < MARKET_COINS) {
-    int start = body.indexOf("\"id\":\"", at);
-    if (start < 0) {
-      break;
-    }
-    int next = body.indexOf("\"id\":\"", start + 6);
-    int limit = next < 0 ? -1 : next;
-    at = start + 6;
-
-    char id[20];
-    char ticker[12];
-    char name[24];
-    textFor(body, "\"id\":\"", start, limit, id, sizeof(id));
-    textFor(body, "\"symbol\":\"", start, limit, ticker, sizeof(ticker));
-    textFor(body, "\"name\":\"", start, limit, name, sizeof(name));
-    if (!id[0]) {
-      continue;
-    }
-    float price = 0.0f;
-    float moved = 0.0f;
-    numberFor(body, "\"current_price\":", start, limit, price);
-    numberFor(body, "\"price_change_percentage_24h\":", start, limit, moved);
-    if (pinned(ticker, name, price, moved)) {
-      continue;
-    }
-
-    strncpy(chosen[taken], id, sizeof(chosen[taken]) - 1);
-    chosen[taken][sizeof(chosen[taken]) - 1] = '\0';
-    // The figures off the list as well, so swiping onto a coin shows what it is
-    // worth at once and only the line has to be waited for.
-    Market m = {};
-    strncpy(m.ticker, ticker, sizeof(m.ticker) - 1);
-    strncpy(m.name, name, sizeof(m.name) - 1);
-    for (char *c = m.ticker; *c; c++) {
-      *c = (char)toupper(*c);
-    }
-    strncpy(m.over, "24H", sizeof(m.over) - 1);
-    strncpy(m.span, "24H", sizeof(m.span) - 1);
-    m.price = price;
-    m.change = moved;
-    take();
-    // Its own line is kept if it already had one - this call carries none.
-    Market was = held[taken];
-    if (was.count >= 2 && strcmp(was.ticker, m.ticker) == 0) {
-      memcpy(m.points, was.points, sizeof(m.points));
-      m.count = was.count;
-      m.low = was.low;
-      m.high = was.high;
-    }
-    m.ready = price > 0.0f;
-    held[taken] = m;
-    give();
-    taken++;
-  }
-  if (!taken) {
-    Serial.println("market: no coins worth a screen");
-    return false;
-  }
-  coins = taken;
-  rankedAt = millis();
-  Serial.printf("market: %u coins, largest %s\n", coins, chosen[0]);
-  revision = revision + 1;
-  return true;
-}
-
 // One coin's own line. Asked for by id, which is the only way to get a
 // sparkline without paying for fourteen others alongside it.
 bool readCoin(uint8_t screen) {
-  bool ageing = !rankedAt || millis() - rankedAt >= RANK_MS;
-  // A list that will not come is fatal only the first time. After that the last
-  // one it gave is better than no screen at all.
-  if (ageing && !readRanking() && !rankedAt) {
-    return false;
-  }
-  if (screen >= coins || !chosen[screen][0]) {
-    return false;
-  }
-
   String body;
-  if (!fetch(String(PRICES) + chosen[screen], body)) {
+  if (!fetch(String(PRICES) + COINS[screen].id, body)) {
     return false;
   }
 
@@ -376,7 +269,7 @@ bool readCoin(uint8_t screen) {
     *c = (char)toupper(*c);
   }
   if (!numberFor(body, "\"current_price\":", 0, -1, m.price)) {
-    Serial.printf("market: %s had no price\n", chosen[screen]);
+    Serial.printf("market: %s had no price\n", COINS[screen].id);
     return false;
   }
   if (!numberFor(body, "\"price_change_percentage_24h\":", 0, -1, m.change)) {
@@ -476,12 +369,13 @@ void marketBegin() {
     Serial.println("market: no psram, the screens will stay empty");
     return;
   }
+  // The names up front, so a screen swiped onto says what it is while its own
+  // call is still out.
   for (uint8_t i = 0; i < MARKET_SCREENS; i++) {
-    if (i >= MARKET_COINS) {
-      const Listing &l = LISTINGS[i - MARKET_COINS];
-      strncpy(held[i].ticker, l.ticker, sizeof(held[i].ticker) - 1);
-      strncpy(held[i].name, l.name, sizeof(held[i].name) - 1);
-    }
+    const char *ticker = i < MARKET_COINS ? COINS[i].ticker : LISTINGS[i - MARKET_COINS].ticker;
+    const char *name = i < MARKET_COINS ? COINS[i].name : LISTINGS[i - MARKET_COINS].name;
+    strncpy(held[i].ticker, ticker, sizeof(held[i].ticker) - 1);
+    strncpy(held[i].name, name, sizeof(held[i].name) - 1);
   }
   // Priority nought and core nought, for the same reason the other two pollers
   // are there: this task lives inside HTTPClient, which waits on a socket by
@@ -501,7 +395,5 @@ bool marketAt(uint8_t screen, Market *out) {
   give();
   return true;
 }
-
-uint8_t marketCoins() { return coins; }
 
 uint32_t marketRevision() { return revision; }
