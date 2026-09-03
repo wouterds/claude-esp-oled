@@ -162,7 +162,7 @@ void look() {
   Serial.printf("wifi: %d networks in range\n", found);
   for (int i = 0; i < found; i++) {
     String name = WiFi.SSID(i);
-    Serial.printf("wifi:   [%s] %d dBm, %u chars\n", name.c_str(), WiFi.RSSI(i),
+    Serial.printf("wifi:   [%s] %d dBm, %u chars\n", name.c_str(), (int)WiFi.RSSI(i),
                   (unsigned)name.length());
   }
   WiFi.scanDelete();
