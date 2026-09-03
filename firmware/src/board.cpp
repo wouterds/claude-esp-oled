@@ -95,6 +95,13 @@ void boardFlush() { boardFlushRows(0, SCREEN_H - 1); }
 
 void boardFlushRows(int16_t from, int16_t to) { boardFlushRect(0, SCREEN_W - 1, from, to); }
 
+// The rounding to an even window below happens after the clamp to the glass, so
+// an odd edge would round the last row or column past the end of the buffer.
+// Both panels are even; a third one that is not has to be handled rather than
+// discovered.
+static_assert(SCREEN_W % 2 == 0 && SCREEN_H % 2 == 0,
+              "an odd edge would round a flush past the end of the framebuffer");
+
 // Only the box that changed. The face is a third of the panel and the label a
 // twentieth of it, so most frames leave the rest of the glass alone - and the
 // wire, not the drawing, is what a frame waits on.
