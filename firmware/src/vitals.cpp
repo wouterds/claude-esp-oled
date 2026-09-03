@@ -263,41 +263,24 @@ void bar(uint16_t *fb, float cx, float cy, float hx, float hy, float fill, uint1
   }
 }
 
-// How steep the curve is as it passes a reading. Flat at a turning point, and
-// never steeper than the sides around it will carry.
-//
-// This is what rounds the corners. Catmull-Rom was here first: it takes its
-// slope from the neighbours either side, which at the top of a peak is not flat,
-// so it ran up past the reading and had to be held back to it - and being held
-// back is a corner. A tangent that goes flat where the readings turn rounds the
-// peak instead, and never overshoots in the first place, so nothing has to be
-// clamped afterwards.
-float slopeAt(const Nuc &n, int16_t i, int16_t last) {
-  float before = n.load[within(i, last)] - n.load[within((int16_t)(i - 1), last)];
-  float after = n.load[within((int16_t)(i + 1), last)] - n.load[within(i, last)];
-  if (before * after <= 0.0f) {
-    return 0.0f;
-  }
-  float slope = (before + after) * 0.5f;
-  float limit = 3.0f * fminf(fabsf(before), fabsf(after));
-  return slope > limit ? limit : (slope < -limit ? -limit : slope);
-}
-
-// A cubic through two readings that leaves each one at the slope above, so it
-// passes through every reading rather than near it and rounds only what is
-// between them.
+// Catmull-Rom through the readings, at a fractional index between them - the
+// same curve the market charts are drawn with, so the two look like one hand
+// drew them. It passes through every reading rather than near it, and where the
+// readings turn sharply it arcs past them: that overshoot is what a spike looks
+// like on those charts, and holding it back to the readings flattens the top of
+// every peak into a corner instead.
 float smoothAt(const Nuc &n, float at) {
   int16_t last = (int16_t)n.count - 1;
-  int16_t i = within((int16_t)floorf(at), (int16_t)(last - 1));
-  float t = clamp01(at - (float)i);
+  int16_t i = (int16_t)floorf(at);
+  float t = at - (float)i;
+  float p0 = n.load[within((int16_t)(i - 1), last)];
   float p1 = n.load[within(i, last)];
   float p2 = n.load[within((int16_t)(i + 1), last)];
-  float m1 = slopeAt(n, i, last);
-  float m2 = slopeAt(n, (int16_t)(i + 1), last);
-  float t2 = t * t;
-  float t3 = t2 * t;
-  return (2.0f * t3 - 3.0f * t2 + 1.0f) * p1 + (t3 - 2.0f * t2 + t) * m1 +
-         (3.0f * t2 - 2.0f * t3) * p2 + (t3 - t2) * m2;
+  float p3 = n.load[within((int16_t)(i + 2), last)];
+  float a = -0.5f * p0 + 1.5f * p1 - 1.5f * p2 + 0.5f * p3;
+  float b = p0 - 2.5f * p1 + 2.0f * p2 - 0.5f * p3;
+  float c = -0.5f * p0 + 0.5f * p2;
+  return ((a * t + b) * t + c) * t + p1;
 }
 
 // Where the curve sits at every sub-step, in panel rows. Worked out once a frame
