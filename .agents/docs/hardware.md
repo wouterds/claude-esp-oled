@@ -323,6 +323,18 @@ than printing the wrong function names. That is what the `build:` line at boot
 is for - it names the commit whose `firmware.elf` will decode the dump the board
 is holding.
 
+**Read the dump before reflashing.** `pio run` writes over
+`.pio/build/<env>/firmware.elf`, so flashing a board to look at the crash it is
+reporting destroys the only thing that could have decoded it - and the boot line
+announcing the dump is the line printed by the build that just replaced it. Pull
+`core.bin` off first; it survives a reflash, the ELF does not.
+
+If that has already happened, the `build:` line is the way back: check that
+commit out and build it again, which regenerates the same ELF. This is the whole
+reason the stamp carries a `+` for a dirty tree - a plus means the running image
+was never a commit and cannot be rebuilt, so the dump under it can only be read
+as far as the task names in it.
+
 ## When the port disappears
 
 Flashing ends with `Hard resetting via RTS pin`, and that reset sometimes leaves
