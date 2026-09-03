@@ -2,17 +2,11 @@
 
 #include <Arduino.h>
 
-#include "board.h"
 #include "pins.h"
 #include "touchpad.h"
 
 namespace {
 
-// The finger count, then the first point's coordinates behind it - five bytes
-// in one read, because the bus is shared and a second transaction for the low
-// byte of an x is a second thing to go wrong.
-constexpr uint8_t REG_FINGERS = 0x02;
-constexpr uint8_t REPORT_BYTES = 5;
 // How far along the glass a finger has to get. Now that every report is seen
 // this is very nearly the distance the finger actually travelled, so it can be
 // what it sounds like - a deliberate inch - rather than the fraction of one

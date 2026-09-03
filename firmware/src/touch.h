@@ -11,9 +11,9 @@
 // whichever way it went furthest, so a page turn is never ambiguous.
 enum class Swipe : uint8_t { None, Up, Down, Left, Right };
 
-// The CST816S, asked one thing: which way a finger went across it. Where it is
-// while it is down, and whether it stayed put, is nobody's business - the button
-// says what the taps used to.
+// The touch controller, asked one thing: which way a finger went across it.
+// Where it is while it is down, and whether it stayed put, is nobody's
+// business - the button says what the taps used to.
 //
 // Read on its own core, woken by the controller's interrupt rather than by the
 // frame. The answer below is collected there and simply waiting when it is
