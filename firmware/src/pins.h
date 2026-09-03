@@ -14,6 +14,13 @@
 #error "no board selected - build through one of platformio.ini's envs"
 #endif
 
+// Both, and the first branch below simply wins - which is the wrong pin map
+// driving the wrong silicon, silently, and the one failure this file exists to
+// make loud.
+#if defined(BOARD_LCD_185B) && defined(BOARD_AMOLED_175C)
+#error "two boards selected - the pin maps overlap and the wrong one is silent"
+#endif
+
 #if defined(BOARD_LCD_185B)
 
 // Waveshare ESP32-S3-Touch-LCD-1.85B: 16MB of flash, 8MB of octal PSRAM, and a
