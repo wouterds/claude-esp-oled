@@ -22,13 +22,27 @@ void netBegin();
 void netTake();
 void netGive();
 
-// Verifies the host against the root store esp-tls already carries for its own
-// use, and every request out of here goes through it. The session token is the
-// whole of an account's login and it rides on this: unverified, anything that
-// can answer for claude.ai - a poisoned resolver, a hop, whatever the network
-// hands back - is handed the token and can use it. The store costs flash the
-// board has and no clock at all: this platform's mbedTLS is built without date
-// checking, so it holds from a cold boot with no time set.
+// The one place the TLS policy for every request out of here is set, and it
+// currently sets none: the certificate is not checked.
+//
+// What that costs is worth writing down plainly, because it is the session
+// token that pays it. The token is the whole of an account's claude.ai login
+// and it goes out on a request made by this. Unchecked, anything that can
+// answer for claude.ai - a poisoned resolver, a hop, a router somebody else
+// administers - is handed the token and can use it until it is revoked.
+//
+// The root store the platform already carries was tried here and does not work
+// for the one host that matters. It is the full Mozilla set and claude.ai is in
+// it, but the chain claude.ai serves ends on a cross-signed ISRG Root X2 while
+// the store holds the self-signed one, and esp_crt_bundle only ever matches the
+// last certificate in the chain: it finds the name, verifies the signature
+// against the wrong key and refuses. Every poller failed on it. status.claude.com
+// verified, which is what says the store itself is fine and this is the chain.
+//
+// Pinning ISRG Root X1 as the anchor would verify that chain. It also means the
+// board stops reading its own account the day the certificate authority behind
+// claude.ai changes, on hardware where that costs a reflash - so it is a
+// decision about what to be broken by, not a fix to apply quietly.
 void netSecure(WiFiClientSecure &tls);
 
 // Whether there is internal RAM to start a handshake in, naming the caller in
