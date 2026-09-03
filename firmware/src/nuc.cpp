@@ -26,6 +26,10 @@ constexpr char URL[] = "https://nuc.wouterds.com/api";
 // same second, over and over, and the point of the pause is to stop asking it
 // at the speed of a failing connection.
 constexpr uint32_t RETRY_MS = 3000;
+// What a gap between readings can be worth timing. Anything past this contains
+// the wait above rather than a round trip, and averaging it in drives whatever
+// is paced off it to a crawl.
+constexpr uint32_t GAP_MOST_MS = RETRY_MS - 100;
 // The reply is a couple of hundred bytes and has been for as long as it has been
 // asked. The cap is not a size it approaches - it is there so a reply that is
 // not what this asked for cannot take the heap with it.
@@ -44,7 +48,6 @@ Nuc held = {};
 uint32_t failedAt = 0;
 volatile bool watching = false;
 volatile uint32_t revision = 0;
-volatile uint32_t readings = 0;
 SemaphoreHandle_t lock = nullptr;
 
 void take() { xSemaphoreTake(lock, portMAX_DELAY); }
@@ -123,6 +126,7 @@ bool read() {
   take();
   memcpy(m.load, held.load, sizeof(m.load));
   m.count = held.count;
+  m.taken = held.taken + 1;
   give();
   if (m.count < NUC_POINTS) {
     m.load[m.count++] = m.cpu;
@@ -134,7 +138,6 @@ bool read() {
   take();
   held = m;
   give();
-  readings = readings + 1;
   return true;
 }
 
@@ -189,4 +192,4 @@ void nucLatest(Nuc *out) {
 
 uint32_t nucRevision() { return revision; }
 
-uint32_t nucReadings() { return readings; }
+uint32_t nucGapMost() { return GAP_MOST_MS; }

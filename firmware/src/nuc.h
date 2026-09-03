@@ -10,12 +10,10 @@
 // reply that lands on a page nobody is looking at costs a TLS session, and the
 // radio is the most expensive thing on this board.
 
-// Columns the load history is drawn as, and the whole of the history there is.
-// Nothing is asked for off the page, so this is however long you have been
-// watching rather than a window of wall clock. Forty-eight of them at ten
-// seconds apiece is eight minutes, and forty-eight is as many as will fit across
-// the glass and still be a column rather than a hair.
-constexpr uint8_t NUC_POINTS = 48;
+// Readings kept. Two more than the page draws across the glass: it holds the
+// trace a couple of readings behind the newest, so the ones it has not revealed
+// yet still have to be somewhere.
+constexpr uint8_t NUC_POINTS = 50;
 
 struct Nuc {
   float cpu;
@@ -31,6 +29,12 @@ struct Nuc {
   float powerPeak;
   float load[NUC_POINTS];
   uint8_t count;
+  // How many readings have landed, this one included. In here rather than beside
+  // it so the count and the readings it counts are the same copy: read
+  // separately, a poller caught between the two hands out a buffer that has
+  // moved on and a count that has not, and the trace steps back a whole reading
+  // for a frame.
+  uint32_t taken;
   // Read at least once. Until then there is nothing to show but the shape of
   // what is coming.
   bool ready;
@@ -49,11 +53,11 @@ void nucLatest(Nuc *out);
 
 // Moves whenever any of it does, so the page can tell it has something new to
 // draw without comparing three hundred bytes to find out. A read that failed
-// moves it too - what is on the glass changes when one does.
+// moves it too - what is on the glass changes when one does, which is why
+// anything scrolling the history along counts `taken` instead.
 uint32_t nucRevision();
 
-// How many readings have actually been taken. Not the same as the revision: a
-// read that failed moves that and adds nothing to the history, and anything
-// scrolling the history along has to know the difference or it slides the trace
-// on for a reading that never arrived.
-uint32_t nucReadings();
+// The longest gap between readings worth timing. Past it the gap holds the wait
+// after a failed read rather than a round trip.
+uint32_t nucGapMost();
+
