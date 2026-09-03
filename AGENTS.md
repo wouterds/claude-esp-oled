@@ -80,7 +80,8 @@ Invisible in the code until they are broken.
 - **The power button is not wired to the chip.** On the LCD board it switches the
   power path, supports no custom function, and cannot be read, intercepted or
   stood in for - so there is no firmware answer to "turn it off", only a deep
-  sleep. It is the small button beside the USB port, not the larger one. On the
+  sleep, and none is written. It is the small button beside the USB port, not the
+  larger one. On the
   AMOLED board it goes to the PMIC instead, which wants a six second hold rather
   than two, and which does report the press over I2C; see the hardware guide
 - **The Type-C does not power the board on**, **the boot strap held low traps it

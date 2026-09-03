@@ -22,7 +22,8 @@
 - Beware names the standard library also has. `lerp` is in `<cmath>` from C++20
   and a helper of the same name is ambiguous rather than shadowing
 - Hot loops hoist their trig. Anything that does not vary per pixel is computed
-  once a frame into a prepared struct - there are 129,600 pixels
+  once a frame into a prepared struct - there are 129,600 pixels on the smaller
+  board and 217,156 on the larger one
 
 ## Comments
 

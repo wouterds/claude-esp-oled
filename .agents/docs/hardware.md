@@ -187,8 +187,8 @@ than merely unnecessary.
 and it is reasonable to assume the display rails hang off it, which is a day
 spent bringing up a PMIC that was never in the way. Waveshare's own
 `01_HelloWorld` drives the panel with nothing but `Wire.begin()` and
-`gfx->begin()`. The PMIC does own the battery, which is why there is no charge
-on that board's status line yet.
+`gfx->begin()`. The PMIC does own the battery, and
+`battery_axp2101.cpp` reads the charge, the voltage and the cable off it.
 
 **The CO5300's visible columns do not start at zero.** Its RAM is wider than
 the 466 that are lit and the panel is addressed from column six, the vendor's

@@ -2,7 +2,7 @@
 
 #include "esp_lcd_st77916.h"
 
-// The ST77916 init sequence for this exact panel, lifted verbatim from
+// The ST77916 init sequence for this exact panel, lifted as it stands there from
 // Waveshare's own driver for the ESP32-S3-Touch-LCD-1.85B.
 //
 // Arduino_GFX ships two ST77916 tables and neither is this glass, but the

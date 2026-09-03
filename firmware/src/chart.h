@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // One market screen: a name, a price, how far it has moved and a line of where
-// it has been. Seven screens share it, because the only thing that differs
+// it has been. Every market screen shares it, because the only thing that differs
 // between a coin and a stock index is the words.
 //
 // It owns the glass from below the network and charge figures downward, and
