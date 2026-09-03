@@ -186,11 +186,6 @@ bool netBody(HTTPClient &http, String &out, size_t cap, uint32_t patience) {
   if (said > 0) {
     out.reserve((size_t)said + 1);
   }
-  // Asked for up front when the length is known, so the string is not grown and
-  // copied a dozen times through the memory this is trying to leave alone.
-  if (said > 0) {
-    out.reserve((size_t)said);
-  }
 
   char chunk[CHUNK];
   // Since anything last arrived, rather than since the read began: a reply that
