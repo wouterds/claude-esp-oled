@@ -32,8 +32,14 @@ void gaugeStep(uint16_t *fb, uint32_t now);
 
 // The colour a reading of this size wears, off the one ramp the whole device
 // shares: the teal it starts at, through yellow and amber, to the brand's pink
-// at the top. Anything that puts a percentage on the glass takes its colour from
-// here, or the same number means one thing on the face and another beside it.
+// at the top. Anything that draws a percentage as a length - the dials, the
+// bars, the charge - takes its colour from here, or the same number means one
+// thing on the face and another beside it.
+//
+// Not the battery glyph in the status bar. That one is white until the charge is
+// low enough to be worth saying something about and then goes yellow, amber and
+// red: a warning rather than a reading, which is a different question from how
+// full the cell is.
 uint16_t gaugeColour(uint8_t percent);
 
 // Puts them back into the framebuffer, over the box about to be sent and no
