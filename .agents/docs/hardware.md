@@ -317,10 +317,11 @@ esp-coredump info_corefile -t raw -c core.bin \
   firmware/.pio/build/<env>/firmware.elf
 ```
 
-It has to be the ELF of the build that was running - a dump decoded against a
-later image gives plausible function names that are the wrong ones. The decode
-half of this has not been run against a real dump yet; the offsets are read off
-the two partition CSVs.
+It has to be the ELF of the build that was running, and the tool checks: handed
+a later image it refuses with `coredump SHA256(...) != app SHA256(...)` rather
+than printing the wrong function names. That is what the `build:` line at boot
+is for - it names the commit whose `firmware.elf` will decode the dump the board
+is holding.
 
 ## When the port disappears
 
