@@ -18,7 +18,7 @@ namespace {
 constexpr int16_t OWNED_TOP = (int16_t)(36 * SCENE);
 
 constexpr char TITLE[] = "NUC.WOUTERDS.COM";
-constexpr int16_t TITLE_Y = (int16_t)(48 * SCENE);
+constexpr int16_t TITLE_Y = (int16_t)(52 * SCENE);
 constexpr int16_t TITLE_SCALE = 2;
 
 // One size of letter on either panel. The bigger glass was given a size up on
@@ -26,8 +26,8 @@ constexpr int16_t TITLE_SCALE = 2;
 // was fill the page with letters and leave the bars and the chart - the two
 // things worth looking at - squeezed in around them.
 constexpr int16_t ROW_SCALE = 2;
-constexpr float PLOT_Y0 = 68.0f * SCENE;
-constexpr float PLOT_Y1 = 144.0f * SCENE;
+constexpr float PLOT_Y0 = 72.0f * SCENE;
+constexpr float PLOT_Y1 = 142.0f * SCENE;
 // The band holds the readings that are in it and nothing else - the lowest at
 // the floor, the highest at the ceiling - so what it draws is the shape of the
 // change rather than the size of the number. Anchored at nought instead, a box
@@ -50,12 +50,13 @@ constexpr float PLOT_HEADROOM = 0.12f;
 // of the wash left to stand in for a line. Under a pixel and a half it stops
 // reading as one line and starts reading as the pixels it is made of.
 constexpr float PLOT_LINE = 2.2f * SCENE;
-// The most the wash under the trace ever comes to. It hangs off the trace rather
-// than off the band, so every column has the same fill directly beneath it -
-// which is what the market charts do, and taken off the band instead a column
-// reading low gets a darker fill than one reading high for no reason anybody
-// could name.
-constexpr float PLOT_WASH = 0.40f;
+// The most the wash ever comes to, at the top of the band, falling away to
+// nothing at the foot of it. A ramp down the band and not down from the trace:
+// hung off the trace it is stretched and squeezed every time the trace moves, so
+// the whole fill rescales when only the line should have. Falling all the way to
+// nothing is the other half of it - a wash that still has colour in it where the
+// band stops ends on a straight edge across the glass.
+constexpr float PLOT_WASH = 0.45f;
 // The band the trace is clipped out of, and its own rows are all that go to the
 // panel between readings.
 constexpr int16_t PLOT_TOP = (int16_t)PLOT_Y0 - 2;
@@ -84,7 +85,7 @@ constexpr float BAR_MOVED = 0.002f;
 // How far the last one can be pushed down is what settles the pitch: its bar
 // reaches out to the margin, and the circle has come in to meet it there.
 constexpr uint8_t ROWS = 6;
-constexpr int16_t ROW_Y = (int16_t)(158 * SCENE);
+constexpr int16_t ROW_Y = (int16_t)(152 * SCENE);
 constexpr int16_t ROW_PITCH = (int16_t)(24 * SCENE);
 // How much of the width the rows leave at either end. The labels start here and
 // the bars finish the same distance off the other rim - and whatever is left
@@ -297,18 +298,17 @@ void drawLoad(uint16_t *fb, const Nuc &n, float slide) {
       continue;
     }
     float top = PLOT_Y1 - clamp01((smoothAt(n, at) - lowNow) / span) * band;
-    float drop = PLOT_Y1 - top;
 
     for (int16_t y = (int16_t)top - 1; y <= (int16_t)PLOT_Y1; y++) {
       float under = (float)y + 0.5f - top;
       if (under < -0.5f) {
         continue;
       }
-      float left = 1.0f - (drop > 0.0f ? under / drop : 1.0f);
+      float left = 1.0f - clamp01(((float)y + 0.5f - PLOT_Y0) / band);
       // Full colour to the width of the stroke and a pixel to fade out over,
       // then the wash the rest of the way down.
       plot(fb, x, y, clamp01(under + 0.5f),
-           mix(mix(0x0000, ink, PLOT_WASH * left * left), ink,
+           mix(mix(0x0000, ink, PLOT_WASH * left), ink,
                clamp01(PLOT_LINE - under + 0.5f)));
     }
   }
@@ -396,11 +396,14 @@ void vitalsStep(uint16_t *fb) {
     low = fminf(low, n.load[i]);
     high = fmaxf(high, n.load[i]);
   }
-  // Never less than a band to hold, and never right to the edges of it.
-  float middle = (low + high) * 0.5f;
-  float half = fmaxf((high - low) * (0.5f + PLOT_HEADROOM), PLOT_SPAN * 0.5f);
-  low = middle - half;
-  high = middle + half;
+  // A little air over the tallest reading, and whatever else the band has to be
+  // goes underneath. Shared out evenly instead, a quiet window sits in the
+  // middle of its band with a third of the glass empty over it and the wash
+  // squeezed into the third below - so the trace rides near the top and the fill
+  // has the room.
+  float head = (high - low) * PLOT_HEADROOM;
+  high += head;
+  low = fminf(low - head, high - PLOT_SPAN);
   Row rows[ROWS];
   rowsOf(n, rows);
   if (fresh) {
