@@ -244,6 +244,13 @@ ALWAYS float mouthShape(Mood mood, float x, float y) {
 // glass as it shrinks and a span measured about the centre misses the bottom of
 // it. That was clipping the sleepy eye by eight pixels at the shut end of every
 // cycle before this was written down.
+//
+// Every figure here and in the two tables below is in the panel's own pixels and
+// none of them is scaled by SCENE - the eye is composed against the glass rather
+// than against the smaller board's grid, the same decision the type is drawn
+// with. Tired and dead had three figures that were scaled, and on the larger
+// board that grew the shape without growing the span measured from here, which
+// is the same clipping again from the other end.
 struct Reach {
   float x;
   float y;
@@ -298,7 +305,7 @@ ALWAYS Blob eyeBlob(Mood mood, float squeeze) {
       // above a squat eye is a brow and reads as cross; a slant either way is an
       // emotion of its own, outward into sadness and inward into anger. Tired is
       // none of those - it is just slack.
-      constexpr float FULL = 29.0f * SCENE;
+      constexpr float FULL = 29.0f;
       float half = FULL * squeeze;
       return {true, 28.0f, half, 15.0f, 24.0f, FULL - half};
     }
@@ -365,8 +372,8 @@ ALWAYS float eyeShape(Mood mood, float x, float y, float side, float squeeze) {
       return sdEye(rx, ry, 29.0f, 19.0f * squeeze, 18.0f);
     }
     case Mood::Dead: {
-      constexpr float ARM = 20.0f * SCENE;
-      constexpr float THICK = 8.5f * SCENE;
+      constexpr float ARM = 20.0f;
+      constexpr float THICK = 8.5f;
       float a = sdSegment(x, y, -ARM, -ARM, ARM, ARM) - THICK;
       float b = sdSegment(x, y, -ARM, ARM, ARM, -ARM) - THICK;
       return fminf(a, b);
