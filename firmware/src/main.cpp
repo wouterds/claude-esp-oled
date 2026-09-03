@@ -40,21 +40,24 @@ static uint32_t nextFrame = 0;
 static constexpr uint32_t SHOT_HOLD_MS = 3000;
 
 // The face, what it is running on over it, the two things about the board that
-// are somebody's taste under it, and a market screen either side. None knows
+// are somebody's taste under it, and the market screens to one side. None knows
 // the others exist - what turns the page is here.
 enum class Page : uint8_t { Main, Info, Settings, Chart };
 static Page page = Page::Main;
 
-// Where along the row the face sits in. The coins are to its left and the
-// indices to its right, so one line runs through all of them with the face in
-// the middle, and a swipe walks it. Up and down only mean anything from the
-// middle: the details above a chart would be a page with no way back to it that
-// anybody would guess.
+// How far along the row from the face. All of the market screens are to its
+// left - the indices first and the coins behind them - so the face is the end
+// of the line rather than the middle of it and there is nothing to its right.
+// Up and down only mean anything from the face: the details above a chart would
+// be a page with no way back to it that anybody would guess.
 static int8_t sideways = 0;
 
-// Which of the market screens that is. Nought is the face and has none.
+// Which of the market screens that is. Nought is the face and has none. The
+// indices are held after the coins, so the order they are walked in is not the
+// order they are stored in.
 static uint8_t screenOf(int8_t at) {
-  return at > 0 ? (uint8_t)(at - 1) : (uint8_t)(MARKET_COINS + (-at) - 1);
+  return at <= (int8_t)MARKET_INDICES ? (uint8_t)(MARKET_COINS + at - 1)
+                                      : (uint8_t)(at - MARKET_INDICES - 1);
 }
 
 // The frame rate, put on the glass rather than into the log, for when the thing
@@ -352,11 +355,13 @@ void loop() {
     // The row ends rather than wrapping. A list that comes back round to where
     // it started gives no clue how far along it you are - and it ends at
     // however many coins survived being pinned to a currency, so there is never
-    // a screen past the last one with nothing on it.
-    if (to > (int8_t)marketCoins()) {
-      to = (int8_t)marketCoins();
-    } else if (to < -(int8_t)MARKET_INDICES) {
-      to = -(int8_t)MARKET_INDICES;
+    // a screen past the last one with nothing on it. The face is the other end
+    // of it, so a swipe right from it goes nowhere.
+    int8_t end = (int8_t)(MARKET_INDICES + marketCoins());
+    if (to > end) {
+      to = end;
+    } else if (to < 0) {
+      to = 0;
     }
     if (to != sideways) {
       sideways = to;

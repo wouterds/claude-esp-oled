@@ -2,10 +2,14 @@
 
 #include <stdint.h>
 
-// The screens either side of the face: three coins by market cap to the left of
-// it, two index futures to the right. All of them are the same shape of thing -
-// a name, a price, how far it has moved and a line of where it has been - so
-// all of them are one cache and one poller rather than five.
+// The screens to the left of the face: two index futures and then three coins
+// by market cap. All of them are the same shape of thing - a name, a price, how
+// far it has moved and a line of where it has been - so all of them are one
+// cache and one poller rather than five.
+//
+// Held coins first and indices after, which is not the order they are walked
+// in. The coin screens are however many the ranking left, so counting from the
+// end of the list is counting from somewhere that moves.
 //
 // Nothing is asked for unless its screen is the one up. What was last read is
 // kept when the screen goes away, so coming back to it shows those figures at
