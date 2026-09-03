@@ -499,7 +499,7 @@ void faceBegin() {
 
 // What the numbers add up to. Worst of the two decides it, because a face that
 // reports the better half of bad news is not worth reading.
-void settle(float dt) {
+static void settle(float dt) {
   // The status page answers on its own schedule and can land before the first
   // usage read does, so it is watched whether there are figures yet or not.
   // Worsening only, and Unknown settling into None at boot is not news.
