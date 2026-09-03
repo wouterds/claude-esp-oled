@@ -335,7 +335,7 @@ void poll(const char *token) {
                   (unsigned long)(leftOn(resetAt[1]) / 1000));
     still = 0;
   } else if (still < 255) {
-    still++;
+    still = still + 1;
   }
   session = hours;
   weekly = week;
