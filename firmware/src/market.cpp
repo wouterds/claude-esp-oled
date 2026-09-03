@@ -63,10 +63,6 @@ constexpr Listing LISTINGS[MARKET_INDICES] = {
 // approaches - it is there so a reply that is not what this asked for cannot
 // take the heap with it.
 constexpr size_t MOST = 16384;
-// A handshake wants tens of kilobytes of internal RAM and aborts rather than
-// fails without them, which is a reboot and not a missed reading. So one is not
-// started without room to spare and the screen waits for the next pass instead.
-constexpr size_t FLOOR = 60000;
 constexpr uint32_t PATIENCE_MS = 6000;
 constexpr uint32_t RETRY_MS = 20000;
 
@@ -340,10 +336,7 @@ void task(void *) {
       bool waited = !triedAt[at] || millis() - triedAt[at] >= RETRY_MS;
       if (stale && waited) {
         triedAt[at] = millis();
-        size_t room = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-        if (room < FLOOR) {
-          Serial.printf("market: %u bytes of internal free, holding off\n", (unsigned)room);
-        } else {
+        if (netRoom("market")) {
           mark(at, true, false);
           netTake();
           bool got = at < MARKET_COINS ? readCoin(at) : readListing(at);

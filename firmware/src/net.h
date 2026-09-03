@@ -31,6 +31,13 @@ void netGive();
 // checking, so it holds from a cold boot with no time set.
 void netSecure(WiFiClientSecure &tls);
 
+// Whether there is internal RAM to start a handshake in, naming the caller in
+// the log when there is not. A handshake wants tens of kilobytes of it and
+// aborts rather than fails without them, so what a session started too close to
+// the floor costs is a reboot and not a missed reading - and a pass skipped here
+// comes round again on the poller's own timer.
+bool netRoom(const char *who);
+
 // The body of a reply, read without spinning on it.
 //
 // HTTPClient::getString() waits for a slow reply by polling the socket and

@@ -140,7 +140,7 @@ void task(void *) {
     onJoin = netJoined(NET_OUTAGE) || onJoin;
     bool timed = false;
     uint32_t until = millis() + WAITING_MS;
-    if (wifiConnected() && (netWatched() || onJoin)) {
+    if (wifiConnected() && (netWatched() || onJoin) && netRoom("outage")) {
       onJoin = false;
       poll();
       timed = level != Outage::Unknown;

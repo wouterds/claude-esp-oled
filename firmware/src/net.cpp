@@ -10,6 +10,9 @@ namespace {
 
 SemaphoreHandle_t held = nullptr;
 
+// What a handshake needs to have spare before it is worth starting one.
+constexpr size_t FLOOR = 60000;
+
 NetCall *calls = nullptr;
 uint16_t kept = 0;
 uint16_t nextCall = 0;
@@ -158,6 +161,15 @@ extern const uint8_t CA_BUNDLE_END[] asm("_binary_x509_crt_bundle_end");
 
 void netSecure(WiFiClientSecure &tls) {
   tls.setCACertBundle(CA_BUNDLE_START, (size_t)(CA_BUNDLE_END - CA_BUNDLE_START));
+}
+
+bool netRoom(const char *who) {
+  size_t room = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  if (room >= FLOOR) {
+    return true;
+  }
+  Serial.printf("%s: %u bytes of internal free, holding off\n", who, (unsigned)room);
+  return false;
 }
 
 bool netBody(HTTPClient &http, String &out, size_t cap, uint32_t patience) {

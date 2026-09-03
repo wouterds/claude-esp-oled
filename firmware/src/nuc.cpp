@@ -34,10 +34,6 @@ constexpr uint32_t GAP_MOST_MS = RETRY_MS - 100;
 // asked. The cap is not a size it approaches - it is there so a reply that is
 // not what this asked for cannot take the heap with it.
 constexpr size_t MOST = 4096;
-// A handshake wants tens of kilobytes of internal RAM and aborts rather than
-// fails without them, which is a reboot and not a missed reading. So one is not
-// started without room to spare and the page waits for the next pass instead.
-constexpr size_t FLOOR = 60000;
 // Between bytes, not for the whole read: a reply still arriving has not stalled
 // however long it takes, and one that has stopped is not coming.
 constexpr uint32_t PATIENCE_MS = 6000;
@@ -143,9 +139,7 @@ void task(void *) {
   for (;;) {
     bool waited = !failedAt || millis() - failedAt >= RETRY_MS;
     if (watching && wifiConnected() && waited) {
-      size_t room = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-      if (room < FLOOR) {
-        Serial.printf("nuc: %u bytes of internal free, holding off\n", (unsigned)room);
+      if (!netRoom("nuc")) {
         failedAt = millis();
       } else {
         netTake();
