@@ -357,8 +357,9 @@ void task(void *) {
     }
     bool timed = false;
     uint32_t until = millis() + WAITING_MS;
-    const char *token = portalToken();
-    if (wifiConnected() && token && (netWatched() || due)) {
+    char token[PORTAL_TOKEN_MAX];
+    bool have = portalToken(token, sizeof(token));
+    if (wifiConnected() && have && (netWatched() || due)) {
       due = false;
       poll(token);
       timed = ready;

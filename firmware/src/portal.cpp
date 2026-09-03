@@ -14,7 +14,6 @@
 namespace {
 
 constexpr uint16_t PORT = 80;
-constexpr size_t TOKEN_MAX = 512;
 // One per account somebody wants to watch. Held in RAM rather than read out of
 // the store per request, which is half a kilobyte each and the reason there are
 // four of them rather than a list that grows.
@@ -22,7 +21,7 @@ constexpr uint8_t TOKEN_SLOTS = 4;
 
 Preferences store;
 WebServer server(PORT);
-char tokens[TOKEN_SLOTS][TOKEN_MAX] = {{0}};
+char tokens[TOKEN_SLOTS][PORTAL_TOKEN_MAX] = {{0}};
 uint8_t tokenCount = 0;
 // Which one the requests go out with. Always a real slot while there is one.
 uint8_t picked = 0;
@@ -581,7 +580,7 @@ void loadTokens() {
     char key[4];
     for (uint8_t i = 0; i < tokenCount; i++) {
       tokenKey(key, sizeof(key), i);
-      store.getString(key, tokens[i], TOKEN_MAX);
+      store.getString(key, tokens[i], PORTAL_TOKEN_MAX);
     }
     picked = store.getUChar("tp", 0);
     if (picked >= tokenCount) {
@@ -591,7 +590,7 @@ void loadTokens() {
   }
   // The single token this replaced, carried into the first slot so a board
   // already reading an account keeps reading it across the flash.
-  store.getString("token", tokens[0], TOKEN_MAX);
+  store.getString("token", tokens[0], PORTAL_TOKEN_MAX);
   tokenCount = tokens[0][0] ? 1 : 0;
   store.remove("token");
   saveTokens();
@@ -776,7 +775,7 @@ void handleAddToken() {
     server.send(400, "application/json", "{\"ok\":false,\"error\":\"it needs a token\"}");
     return;
   }
-  if (given.length() >= TOKEN_MAX) {
+  if (given.length() >= PORTAL_TOKEN_MAX) {
     server.send(413, "application/json",
                 "{\"ok\":false,\"error\":\"that is longer than the store will take\"}");
     return;
@@ -802,8 +801,8 @@ void handleAddToken() {
     server.send(500, "application/json", "{\"ok\":false,\"error\":\"the flash would not take it\"}");
     return;
   }
-  strncpy(tokens[tokenCount], given.c_str(), TOKEN_MAX - 1);
-  tokens[tokenCount][TOKEN_MAX - 1] = '\0';
+  strncpy(tokens[tokenCount], given.c_str(), PORTAL_TOKEN_MAX - 1);
+  tokens[tokenCount][PORTAL_TOKEN_MAX - 1] = '\0';
   // Onto the new one, which is what typing one in is asking for.
   picked = tokenCount++;
   store.putUChar("tn", tokenCount);
@@ -842,10 +841,10 @@ void handleTrashToken() {
   }
   bool was = (uint8_t)at == picked;
   for (uint8_t i = (uint8_t)at; i + 1 < tokenCount; i++) {
-    memcpy(tokens[i], tokens[i + 1], TOKEN_MAX);
+    memcpy(tokens[i], tokens[i + 1], PORTAL_TOKEN_MAX);
   }
   tokenCount--;
-  memset(tokens[tokenCount], 0, TOKEN_MAX);
+  memset(tokens[tokenCount], 0, PORTAL_TOKEN_MAX);
   // The one that was picked is gone, so the front one takes over rather than
   // nothing doing: there is still an account to read and the board is for
   // reading it. The others only slid down a slot and keep their turn.
@@ -950,6 +949,10 @@ void portalBegin() {
   xTaskCreatePinnedToCore(task, "portal", 12288, nullptr, 1, nullptr, 0);
 }
 
-const char *portalToken() {
-  return picked < tokenCount && tokens[picked][0] ? tokens[picked] : nullptr;
+bool portalToken(char *out, size_t size) {
+  if (picked >= tokenCount || !tokens[picked][0]) {
+    return false;
+  }
+  snprintf(out, size, "%s", tokens[picked]);
+  return true;
 }
