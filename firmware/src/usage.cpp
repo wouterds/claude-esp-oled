@@ -426,7 +426,12 @@ void usageBegin() {
   uint8_t kept = store.getUChar("every", EVERY_MIN);
   every = (kept >= EVERY_MIN && kept <= EVERY_MAX) ? kept : EVERY_MIN;
   Serial.printf("usage: reading every %u minute%s\n", every, every == 1 ? "" : "s");
-  xTaskCreatePinnedToCore(task, "usage", 12288, nullptr, 0, nullptr, 0);
+  // Eight kilobytes, not twelve. A handshake's own buffers come off the heap
+  // rather than off here, so what this actually has to hold is HTTPClient and
+  // the parse above it - measured at a little over four kilobytes with a reply
+  // in hand. The four that frees is internal RAM, which is the memory the
+  // handshake then runs out of.
+  xTaskCreatePinnedToCore(task, "usage", 8192, nullptr, 0, nullptr, 0);
 }
 
 void usageTokenChanged() {

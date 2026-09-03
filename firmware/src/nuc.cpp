@@ -179,7 +179,12 @@ void nucBegin() {
   // there: this task lives inside HTTPClient, which waits on a socket by
   // yielding rather than blocking, and a task above the idle task that only ever
   // yields never lets the watchdog's own task run.
-  xTaskCreatePinnedToCore(task, "nuc", 12288, nullptr, 0, nullptr, 0);
+  // Eight kilobytes, not twelve. A handshake's own buffers come off the heap
+  // rather than off here, so what this actually has to hold is HTTPClient and
+  // the parse above it - measured at a little over four kilobytes with a reply
+  // in hand. The four that frees is internal RAM, which is the memory the
+  // handshake then runs out of.
+  xTaskCreatePinnedToCore(task, "nuc", 8192, nullptr, 0, nullptr, 0);
 }
 
 void nucWatching(bool on) { watching = on; }

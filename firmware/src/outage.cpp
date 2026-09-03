@@ -188,6 +188,11 @@ void task(void *) {
 // stays fed. Nothing is given up for it either - this is a poller on a minute's
 // timer sharing a core that is otherwise asleep, and the face is on the other
 // one.
-void outageBegin() { xTaskCreatePinnedToCore(task, "outage", 12288, nullptr, 0, nullptr, 0); }
+void outageBegin() { // Eight kilobytes, not twelve. A handshake's own buffers come off the heap
+  // rather than off here, so what this actually has to hold is HTTPClient and
+  // the parse above it - measured at a little over four kilobytes with a reply
+  // in hand. The four that frees is internal RAM, which is the memory the
+  // handshake then runs out of.
+  xTaskCreatePinnedToCore(task, "outage", 8192, nullptr, 0, nullptr, 0); }
 
 Outage outageLevel() { return level; }
