@@ -303,6 +303,25 @@ expecting core 3.0 dies inside its own headers with nothing pointing at the core
 version as the cause - `esp32-hal-periman.h` not existing is the usual shape of
 it. `platformio.ini` pins the **pioarduino** fork instead.
 
+**A panic already wrote down what happened, and it is still on the board.** Both
+partition tables carry a 64KB `coredump` partition, the framework is built with
+`CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH`, and so every panic and every task
+watchdog abort since the first flash has left a full ELF dump behind -
+registers, backtrace, and which task was running. `setup()` says `core dump: one is waiting
+in flash` when there is one. Reading it back:
+
+```
+esptool --port <port> read-flash 0xFF0000  0x10000 core.bin   # 16MB board
+esptool --port <port> read-flash 0x1FF0000 0x10000 core.bin   # 32MB board
+esp-coredump info_corefile -t raw -c core.bin \
+  firmware/.pio/build/<env>/firmware.elf
+```
+
+It has to be the ELF of the build that was running - a dump decoded against a
+later image gives plausible function names that are the wrong ones. The decode
+half of this has not been run against a real dump yet; the offsets are read off
+the two partition CSVs.
+
 ## When the port disappears
 
 Flashing ends with `Hard resetting via RTS pin`, and that reset sometimes leaves

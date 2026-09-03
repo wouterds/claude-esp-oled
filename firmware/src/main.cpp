@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_core_dump.h>
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 #include <string.h>
@@ -24,6 +25,7 @@
 #include "settings.h"
 #include "shot.h"
 #include "usage.h"
+#include "version.h"
 #include "vitals.h"
 
 // Sixty a second, in microseconds because it does not go into milliseconds: a
@@ -183,6 +185,16 @@ void setup() {
   // writes instead: a truncated log line is cheaper than a frozen panel.
   Serial.setTxTimeoutMs(0);
   Serial.printf("reset: %s\n", why(esp_reset_reason()));
+  // Which commit is on the board. It is on the info page too, but that is a page
+  // somebody has to be standing in front of, and the question is usually being
+  // asked about a board that is somewhere else.
+  Serial.printf("build: %s\n", BUILD_COMMIT);
+  // Every panic and every watchdog abort writes one of these to its own
+  // partition, and they have been piling up unread since the first flash. What
+  // to do with it is in the hardware guide.
+  if (esp_core_dump_image_check() == ESP_OK) {
+    Serial.println("core dump: one is waiting in flash - see .agents/docs/hardware.md");
+  }
   // Before the panel, which comes up at whatever this says.
   settingsBegin();
   if (!boardBegin(settingsBrightness())) {
