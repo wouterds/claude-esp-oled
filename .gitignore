@@ -1,7 +1,5 @@
 node_modules
 
-build/
-.turbo
 .env
 
 .DS_Store

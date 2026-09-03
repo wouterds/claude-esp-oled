@@ -2,7 +2,6 @@
   "name": "claude-esp-oled",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "firmware:build": "pio run -d firmware",
     "firmware:flash": "./firmware/flash.sh",
