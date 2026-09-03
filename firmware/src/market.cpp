@@ -4,7 +4,6 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <esp_heap_caps.h>
-#include <math.h>
 #include <string.h>
 
 #include "net.h"
