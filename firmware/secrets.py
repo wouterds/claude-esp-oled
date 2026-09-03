@@ -23,7 +23,11 @@ def read_env(path):
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            values[key.strip()] = value.strip()
+            # Only the line ending comes off the value. .env.example promises a
+            # password may contain whatever a delimiter would have been, and a
+            # trailing space is one of those - stripped here it joins nothing and
+            # the file it came from still looks right.
+            values[key.strip()] = value.rstrip("\r\n")
     return values
 
 
