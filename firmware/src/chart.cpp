@@ -40,9 +40,10 @@ constexpr float PLOT_Y1 = 266.0f * SCENE;
 // Sub-segments per gap between two prices. The line is drawn from these rather
 // than from the prices themselves, which is what takes the corners off it.
 constexpr uint8_t SUB = 4;
-// Half the stroke. A price line wants to read as one line rather than as the
-// pixels it is made of, and under a pixel and a half it stops.
-constexpr float STROKE = 1.6f * SCENE;
+// Half the stroke, and the same as the load line on the box's page wears - one
+// weight of line across the device. A price line wants to read as one line
+// rather than as the pixels it is made of, and under a pixel it stops.
+constexpr float STROKE = 1.15f * SCENE;
 // Room above and below the line, so a week that only went one way does not draw
 // itself along the very edge of its own box.
 constexpr float HEADROOM = 0.08f;
