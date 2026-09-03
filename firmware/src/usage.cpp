@@ -152,9 +152,7 @@ void dress(HTTPClient &http, const char *token) {
 bool fetch(const String &url, const char *token, String &out) {
   uint32_t began = millis();
   WiFiClientSecure tls;
-  // No certificate store on the device, and the only thing being carried is a
-  // token going back to the host that issued it.
-  tls.setInsecure();
+  netSecure(tls);
 
   HTTPClient http;
   http.setTimeout(12000);

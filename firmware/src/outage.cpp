@@ -28,8 +28,7 @@ volatile Outage level = Outage::Unknown;
 bool fetch(String &out) {
   uint32_t began = millis();
   WiFiClientSecure tls;
-  // No certificate store on the device, and nothing of ours goes up with it.
-  tls.setInsecure();
+  netSecure(tls);
 
   HTTPClient http;
   http.setTimeout(12000);

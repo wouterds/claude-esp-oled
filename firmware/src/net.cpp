@@ -149,6 +149,17 @@ void netGive() {
   }
 }
 
+// Reached by the name the linker knows it as. The store is in the image for
+// esp-tls's own use and the Arduino client only ever verifies against a store it
+// is handed one, so this is how the one already there gets handed over rather
+// than a second copy being carried.
+extern const uint8_t CA_BUNDLE_START[] asm("_binary_x509_crt_bundle_start");
+extern const uint8_t CA_BUNDLE_END[] asm("_binary_x509_crt_bundle_end");
+
+void netSecure(WiFiClientSecure &tls) {
+  tls.setCACertBundle(CA_BUNDLE_START, (size_t)(CA_BUNDLE_END - CA_BUNDLE_START));
+}
+
 bool netBody(HTTPClient &http, String &out, size_t cap, uint32_t patience) {
   int said = http.getSize();
   if (said > 0 && (size_t)said > cap) {

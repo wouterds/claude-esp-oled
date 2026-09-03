@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -20,6 +21,15 @@ void netBegin();
 // letting go before the session closes is letting go before it is given back.
 void netTake();
 void netGive();
+
+// Verifies the host against the root store esp-tls already carries for its own
+// use, and every request out of here goes through it. The session token is the
+// whole of an account's login and it rides on this: unverified, anything that
+// can answer for claude.ai - a poisoned resolver, a hop, whatever the network
+// hands back - is handed the token and can use it. The store costs flash the
+// board has and no clock at all: this platform's mbedTLS is built without date
+// checking, so it holds from a cold boot with no time set.
+void netSecure(WiFiClientSecure &tls);
 
 // The body of a reply, read without spinning on it.
 //

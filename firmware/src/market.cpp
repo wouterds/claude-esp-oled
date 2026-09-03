@@ -93,9 +93,7 @@ void dress(HTTPClient &http) {
 bool fetch(const String &url, String &out) {
   uint32_t began = millis();
   WiFiClientSecure tls;
-  // No certificate store on the device, and nothing of ours goes up with it -
-  // these are public prices asked for without so much as a name.
-  tls.setInsecure();
+  netSecure(tls);
 
   HTTPClient http;
   http.setTimeout(12000);

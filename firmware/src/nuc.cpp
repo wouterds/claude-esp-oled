@@ -56,9 +56,7 @@ void give() { xSemaphoreGive(lock); }
 bool fetch(String &out) {
   uint32_t began = millis();
   WiFiClientSecure tls;
-  // No certificate store on the device, and nothing of ours goes up with it -
-  // this endpoint takes no key and answers anybody.
-  tls.setInsecure();
+  netSecure(tls);
 
   HTTPClient http;
   http.setTimeout(12000);
