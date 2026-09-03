@@ -43,9 +43,15 @@ constexpr uint8_t PLOT_SCALE_COUNT = sizeof(PLOT_SCALES) / sizeof(PLOT_SCALES[0]
 // it. Without the slack, a box sitting on a boundary flips the scale back and
 // forth every second and the trace jumps with it.
 constexpr float PLOT_SLACK = 0.85f;
-// The trace, at full strength, so the top edge reads whatever the fill under it
-// is doing.
-constexpr float PLOT_LINE = 2.2f * SCENE;
+// Half the stroke on the trace. Under a pixel and a half it stops reading as one
+// line and starts reading as the pixels it is made of.
+constexpr float PLOT_STROKE = 1.7f * SCENE;
+// Sub-segments per gap between two readings. The stroke is measured as a distance
+// to these rather than as a thickness counted straight down the glass, which is
+// what keeps its width the same on a steep piece as on a flat one - and what
+// takes the stair off the steep ones.
+constexpr uint8_t PLOT_SUB = 4;
+constexpr uint16_t PLOT_SEGMENTS = (uint16_t)(NUC_POINTS - 1) * PLOT_SUB;
 // The most the wash ever comes to, directly under the trace, falling away to
 // nothing at the foot of the band. Squared rather than straight, and a good way
 // under half: a straight ramp puts most of its colour into the top of the fill,
@@ -265,39 +271,82 @@ float smoothAt(const Nuc &n, float at) {
   return out < low ? low : (out > high ? high : out);
 }
 
-// The area under the trace, one column of pixels at a time.
+// Where the curve sits at every sub-step, in panel rows. Worked out once a frame
+// rather than per pixel: there are a couple of hundred of these and several
+// thousand pixels that would otherwise ask for each one again.
+float rows[PLOT_SEGMENTS + 1];
+
+// The wash under the trace and the trace over it. One pass per column with only
+// the sub-segments that can reach that column asked about - written that way
+// rather than segment by segment because plot puts a colour down instead of
+// blending it, so one faint edge drawn second would rub out the solid pixel its
+// neighbour had already put there.
 void drawLoad(uint16_t *fb, const Nuc &n, float slide) {
   if (n.count < 2) {
     return;
   }
-  float x1 = (float)(SCREEN_W - 1);
   // A reading's width is fixed rather than shared out among however many there
   // are, so the trace scrolls at one speed from the first reading to the last
   // and a window still filling grows leftward instead of rescaling under the eye.
-  float step = x1 / (float)(NUC_POINTS - 1);
+  float step = (float)(SCREEN_W - 1) / (float)(NUC_POINTS - 1);
+  float sub = step / (float)PLOT_SUB;
   float band = PLOT_Y1 - PLOT_Y0;
   uint16_t ink = gaugeColour(percentOf(n.load[n.count - 1]));
 
+  uint16_t segments = (uint16_t)(n.count - 1) * PLOT_SUB;
+  for (uint16_t k = 0; k <= segments; k++) {
+    float value = smoothAt(n, (float)k / (float)PLOT_SUB);
+    rows[k] = PLOT_Y1 - clamp01(value / ceilingNow) * band;
+  }
+
+  // Where the oldest reading sits, less how far the trace has slid since the
+  // newest one landed.
+  float from = (float)(SCREEN_W - 1) - ((float)(n.count - 1) + slide) * step;
+  int16_t reach = (int16_t)(PLOT_STROKE / sub) + 2;
+  int16_t last = (int16_t)segments - 1;
+
   for (int16_t x = 0; x < SCREEN_W; x++) {
     float px = (float)x + 0.5f;
-    // Where the newest reading sits, less how far the trace has slid since it
-    // landed. Before the oldest there is no history, so there is no trace.
-    float at = (float)(n.count - 1) + slide - (x1 - px) / step;
-    if (at < 0.0f) {
+    float at = (px - from) / sub;
+    // Before the oldest reading there is no history, so there is no trace.
+    if (at < 0.0f || at > (float)segments) {
       continue;
     }
-    float lit = PLOT_Y1 - clamp01(smoothAt(n, at) / ceilingNow) * band;
-    float drop = PLOT_Y1 - lit;
+    int16_t mid = (int16_t)at;
+    int16_t first = within((int16_t)(mid - reach), last);
+    int16_t upto = within((int16_t)(mid + reach), last);
 
-    for (int16_t y = (int16_t)lit - 1; y <= (int16_t)PLOT_Y1; y++) {
-      float under = (float)y + 0.5f - lit;
-      if (under < -0.5f) {
-        continue;
+    // The wash hangs off where the trace is at this column, off a ramp that runs
+    // down the band rather than down from the trace.
+    int16_t i = within(mid, last);
+    float lit = rows[i] + (rows[i + 1] - rows[i]) * clamp01(at - (float)i);
+    float drop = PLOT_Y1 - lit;
+    for (int16_t y = (int16_t)lit; y <= (int16_t)PLOT_Y1; y++) {
+      float left = 1.0f - (drop > 0.0f ? ((float)y + 0.5f - lit) / drop : 1.0f);
+      plot(fb, x, y, 1.0f, mix(0x0000, ink, PLOT_WASH * left * left));
+    }
+
+    float top = PLOT_Y1;
+    float bottom = PLOT_Y0;
+    for (int16_t k = first; k <= upto + 1; k++) {
+      top = fminf(top, rows[k]);
+      bottom = fmaxf(bottom, rows[k]);
+    }
+    for (int16_t y = (int16_t)(top - PLOT_STROKE - 1); y <= (int16_t)(bottom + PLOT_STROKE + 1);
+         y++) {
+      float py = (float)y + 0.5f;
+      float near = 1e9f;
+      for (int16_t k = first; k <= upto; k++) {
+        float ax = from + sub * (float)k;
+        near = fminf(near, sdSegment(px, py, ax, rows[k], ax + sub, rows[k + 1]));
       }
-      float left = 1.0f - (drop > 0.0f ? under / drop : 1.0f);
-      plot(fb, x, y, clamp01(under + 0.5f),
-           mix(mix(0x0000, ink, PLOT_WASH * left * left), ink,
-               clamp01(PLOT_LINE - under + 0.5f)));
+      // A distance rather than a thickness counted down the glass, so the stroke
+      // is the same width however steep the piece is and its edge comes out
+      // smooth without a second pass over it.
+      float cover = 0.5f - (near - PLOT_STROKE);
+      if (cover > 0.02f) {
+        plot(fb, x, y, cover, ink);
+      }
     }
   }
 }
