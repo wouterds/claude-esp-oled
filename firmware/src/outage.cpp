@@ -81,7 +81,7 @@ Outage worstOf(const String &body) {
   int close = body.indexOf("],\"incidents\"", open);
   if (open < 0 || close < 0) {
     Serial.println("outage: no components in the reply");
-    return Outage::None;
+    return Outage::Unknown;
   }
   if (saysWithin(body, "\"major_outage\"", open, close)) {
     return Outage::Major;
@@ -113,7 +113,10 @@ void poll() {
     return;
   }
   Outage worst = worstOf(body);
-  if (worst == level) {
+  // A reply that arrived but could not be read is the same as no reply: the last
+  // level stands. Without this the ordering below reads a page it failed to
+  // parse as an improvement and rings the bell for it.
+  if (worst == Outage::Unknown || worst == level) {
     return;
   }
   // The same sound a usage window rolling over gets: either way the thing that
