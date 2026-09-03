@@ -48,15 +48,24 @@ while True:
 
 out_dir = os.path.join(env.subst("$BUILD_DIR"), "generated")  # noqa: F821
 os.makedirs(out_dir, exist_ok=True)
-with open(os.path.join(out_dir, "secrets.h"), "w", encoding="utf-8") as handle:
-    handle.write("// Generated from firmware/.env by secrets.py. Do not edit.\n")
-    handle.write("#pragma once\n\n")
-    handle.write("static const WifiNetwork WIFI_NETWORKS[] = {\n")
-    for ssid, password in networks:
-        handle.write("    {{{}, {}}},\n".format(quote(ssid), quote(password)))
-    if not networks:
-        handle.write("    {nullptr, nullptr},\n")
-    handle.write("};\n")
+path = os.path.join(out_dir, "secrets.h")
+body = (
+    "// Generated from firmware/.env by secrets.py. Do not edit.\n"
+    "#pragma once\n\n"
+    "static const WifiNetwork WIFI_NETWORKS[] = {\n"
+)
+for ssid, password in networks:
+    body += "    {{{}, {}}},\n".format(quote(ssid), quote(password))
+if not networks:
+    body += "    {nullptr, nullptr},\n"
+body += "};\n"
+
+# Only when it has actually changed, the same as version.py: rewritten every
+# build, the header's mtime moves every build and wifi.cpp is recompiled for
+# nothing every time anything at all is built.
+if not os.path.exists(path) or open(path, encoding="utf-8").read() != body:
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(body)
 
 env.Append(CPPPATH=[out_dir])  # noqa: F821
 print("secrets.py: {} network(s) from .env".format(len(networks)))
