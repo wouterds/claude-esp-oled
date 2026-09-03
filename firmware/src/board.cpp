@@ -153,7 +153,16 @@ void boardFlushRect(int16_t x0, int16_t x1, int16_t from, int16_t to) {
     if (flying) {
       xSemaphoreTake(bandSent, portMAX_DELAY);
     }
-    esp_lcd_panel_draw_bitmap(panel, x0, y, x1 + 1, y + rows, band[slot]);
+    // Nothing was queued if this refused, so there is no transfer to wait on -
+    // and the wait above is for a done callback that never comes, with the whole
+    // scene frozen behind it while the rest of the board carries on answering as
+    // if the panel were fine. Giving up on the frame is the recoverable half of
+    // that. Safe to leave here: the take above means the previous band's DMA has
+    // finished, so both buffers are ours again.
+    if (esp_lcd_panel_draw_bitmap(panel, x0, y, x1 + 1, y + rows, band[slot]) != ESP_OK) {
+      Serial.println("flush: the panel refused a band");
+      return;
+    }
     flying = true;
     slot ^= 1;
   }
