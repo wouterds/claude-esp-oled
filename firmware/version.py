@@ -26,6 +26,13 @@ def git(*args):
 # A checkout without git, or an archive of one, still builds - it just does not
 # know where it came from.
 commit = git("rev-parse", "--short=7", "HEAD") or "unknown"
+# A plus for a tree with changes in it. Through a development session the tree is
+# dirty on nearly every flash, so the bare hash names a commit whose code is not
+# what is running - and the pre-commit build is stamped with the parent, which is
+# the same lie one commit further back. The plus is the whole of what it can
+# honestly say.
+if git("status", "--porcelain"):
+    commit += "+"
 
 out_dir = os.path.join(env.subst("$BUILD_DIR"), "generated")  # noqa: F821
 os.makedirs(out_dir, exist_ok=True)
