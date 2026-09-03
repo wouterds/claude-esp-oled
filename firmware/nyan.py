@@ -325,7 +325,10 @@ def build():
     print("nyan.py: {} columns of trail in rows {}..{}, repeating every {}"
           " ({:.0f}% agree)".format(run, roof, floor, period, score * 100))
 
-    lcd = "-DBOARD_LCD_185B" in " ".join(env.get("BUILD_FLAGS", []))  # noqa: F821
+    # Off the env name, which cannot come back empty. Grepping BUILD_FLAGS, an
+    # empty list reads as "not the LCD board" and draws the larger board's trail
+    # on the smaller one - off the glass, and silently.
+    lcd = env.subst("$PIOENV") == "esp32-s3-touch-lcd-185"  # noqa: F821
     grow = (TRAIL_LCD_PX if lcd else TRAIL_PX) if period else 0
     left = x0 - grow
 
