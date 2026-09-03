@@ -85,12 +85,12 @@ constexpr float BAR_MOVED = 0.002f;
 // reaches out to the margin, and the circle has come in to meet it there.
 constexpr uint8_t ROWS = 6;
 constexpr int16_t ROW_Y = (int16_t)(158 * SCENE);
-constexpr int16_t ROW_PITCH = (int16_t)(25 * SCENE);
+constexpr int16_t ROW_PITCH = (int16_t)(24 * SCENE);
 // How much of the width the rows leave at either end. The labels start here and
 // the bars finish the same distance off the other rim - and whatever is left
 // once the type has had its four glyphs of label and six of reading all goes to
 // the bar, which is the part of the row that is read at a glance.
-constexpr float MARGIN = 0.125f * (float)SCREEN_W;
+constexpr float MARGIN = 0.115f * (float)SCREEN_W;
 // Not scaled, unlike the distances around it. The bar is read against the type
 // beside it rather than against the glass, and the type is the same size on
 // either panel - scaled, it grows into a slab next to letters that did not.
