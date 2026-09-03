@@ -21,15 +21,19 @@ post-checkout:
 
 pre-commit:
   commands:
-    # A sketch that does not compile is not a commit. Skipped rather than failed
-    # where PlatformIO is absent, because a checkout that only touches docs
-    # should not need a toolchain - CI compiles every push regardless.
+    # A sketch that does not compile is not a commit, and this is the only build
+    # there is - nothing runs on a push. So a missing toolchain fails rather than
+    # skipping: the glob already means a commit touching only docs never reaches
+    # here, and the only person who can be stopped by this is somebody changing
+    # firmware they have not compiled. The generators are in the glob because
+    # they write the headers the firmware includes.
     firmware:
-      glob: "firmware/**/*.{c,cpp,h,ini}"
+      glob: "firmware/**/*.{c,cpp,h,ini,py}"
       run: |
         pio="$(command -v pio || echo "$HOME/.platformio/penv/bin/pio")"
-        if [ -x "$pio" ]; then "$pio" run -d firmware; else
-          echo "platformio not installed - skipping the build"; fi
+        [ -x "$pio" ] || {
+          echo "platformio not installed - see .agents/docs/hardware.md" >&2; exit 1; }
+        "$pio" run -d firmware
 
 commit-msg:
   parallel: true
