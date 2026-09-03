@@ -21,9 +21,7 @@
 #include "outage.h"
 #include "portal.h"
 #include "settings.h"
-#include "shape.h"
 #include "shot.h"
-#include "text.h"
 #include "usage.h"
 
 // Sixty a second, in microseconds because it does not go into milliseconds: a
@@ -58,92 +56,6 @@ static int8_t sideways = 0;
 static uint8_t screenOf(int8_t at) {
   return at <= (int8_t)MARKET_INDICES ? (uint8_t)(MARKET_COINS + at - 1)
                                       : (uint8_t)(at - MARKET_INDICES - 1);
-}
-
-// The frame rate, put on the glass rather than into the log, for when the thing
-// being watched is what the drawing costs. Bright pink and across the top of
-// whatever is underneath: it is not part of any page and should not be taken
-// for one. It stays until it is asked to go, or until the board is restarted.
-// #ED0040, as near as five bits of red and five of blue reach: #EF0042, which
-// is the same colour to the eye and a rounding error on paper.
-static constexpr uint16_t BADGE = 0xE808;
-static constexpr uint16_t BADGE_INK = 0xFFFF;
-// Around the figures, and half a pixel is a real amount here: the badge is a
-// distance rather than a span of pixels, so a fractional edge lands as a lighter
-// row rather than as nothing at all. Still more above and below than at the ends,
-// because the glyphs are taller than they are wide and the same number all round
-// reads as tight at the top and loose at the sides.
-static constexpr float FPS_PAD_X = 5.0f * SCENE;
-static constexpr float FPS_PAD_Y = 5.5f * SCENE;
-// Enough to read as rounded at this size without turning the thing into a
-// lozenge. The badge is 24 tall, and a corner much under this reads as a square
-// one that has been sanded.
-static constexpr float FPS_RADIUS = 6.0f * SCENE;
-// Level with the outage triangle, whose middle is 63 rows down, and in the gap
-// to the right of it. The triangle reaches x=195 and the gauge arc's inner edge
-// comes in to x=290 on the badge's top row, which leaves 95 pixels; the badge is
-// centred in them rather than pushed against either side, so it grows both ways
-// and stays clear of both however many figures it ends up holding.
-static constexpr int16_t FPS_X = (int16_t)(242 * SCENE);
-static constexpr int16_t FPS_MID = (int16_t)(63 * SCENE);
-static constexpr int16_t FPS_SCALE = 2;
-// What the loop is pacing for. Belt and braces now that FRAME_US is the real
-// thing rather than a rounding of it: the smoothed figure still wanders a little
-// either side of sixty and there is no reading above it worth showing. Shown
-// rather than measured, so what is smoothed below stays honest.
-static constexpr unsigned FPS_CAP = 60;
-static bool counting = false;
-static float fps = 0.0f;
-
-static void countFrames(uint16_t *fb) {
-  char said[12];
-  unsigned shown = (unsigned)(fps + 0.5f);
-  snprintf(said, sizeof(said), "%u FPS", shown > FPS_CAP ? FPS_CAP : shown);
-
-  // The last glyph carries no gap after it, which is the one place this differs
-  // from the count times the step.
-  float ink = (float)(strlen(said) * textStep(FPS_SCALE) - FPS_SCALE);
-  float hx = ink * 0.5f + FPS_PAD_X;
-  float hy = (float)(7 * FPS_SCALE) * 0.5f + FPS_PAD_Y;
-  float mid = (float)FPS_MID;
-  float cx = (float)FPS_X;
-
-  // Its own box and nothing wider. A pixel of margin either way for the edge to
-  // fade into, and every row it touches is sent again below.
-  int16_t from = (int16_t)(mid - hy) - 1;
-  int16_t to = (int16_t)(mid + hy) + 1;
-  int16_t x0 = (int16_t)(cx - hx) - 1;
-  int16_t x1 = (int16_t)(cx + hx) + 1;
-
-  for (int16_t y = from; y <= to; y++) {
-    uint16_t *row = boardRow(fb, y);
-    float py = (float)y + 0.5f - mid;
-    // Turned, so the low index is the far edge and the walk stays in one row.
-    for (int16_t x = x0; x <= x1; x++) {
-      float px = (float)x + 0.5f - cx;
-      // A signed distance rather than a span, so the corners come out round and
-      // the edge comes out smooth without a second pass over it.
-      float cover = 0.5f - sdRoundBox(px, py, hx, hy, FPS_RADIUS);
-      if (cover <= 0.0f) {
-        // Outside the badge, and outside is somebody else's pixel.
-        continue;
-      }
-      if (cover > 1.0f) {
-        cover = 1.0f;
-      }
-      // Faded into black rather than into what was there. The corners are the
-      // only pixels this matters for and black is what a page puts behind them.
-      uint16_t r = (uint16_t)((float)((BADGE >> 11) & 0x1F) * cover + 0.5f);
-      uint16_t g = (uint16_t)((float)((BADGE >> 5) & 0x3F) * cover + 0.5f);
-      uint16_t b = (uint16_t)((float)(BADGE & 0x1F) * cover + 0.5f);
-      row[boardX(x)] = boardColour((uint16_t)((r << 11) | (g << 5) | b));
-    }
-  }
-
-  // Its top, from the middle the badge is built around.
-  textDraw(fb, said, (int16_t)cx, (int16_t)(mid - (float)(7 * FPS_SCALE) * 0.5f), FPS_SCALE,
-           boardColour(BADGE_INK));
-  boardFlushRows((int16_t)(SCREEN_H - 1 - to), (int16_t)(SCREEN_H - 1 - from));
 }
 
 // Neither button is wired to anything here. PWR switches the power path and the
@@ -289,12 +201,6 @@ void loop() {
   if (dt > 0.05f) {
     dt = 0.05f;
   }
-  // Smoothed, or the number is unreadable: it lands somewhere new every frame
-  // and half of what it says is the frame it is being read on.
-  if (dt > 0.0f) {
-    fps = fps > 0.0f ? fps * 0.9f + (0.1f / dt) : 1.0f / dt;
-  }
-
   // The cable landing is worth a sound: it is the one thing that happens to
   // this board without anybody touching it.
   static bool wasCharging = batteryRead().charging;
@@ -390,22 +296,12 @@ void loop() {
     }
   }
 
-  // The one button the chip can read, and it means whatever page is in front of
-  // it: the numbers on the face, the frame rate on the details. A press says so
-  // once and unambiguously, which two taps on a glass this size never did - a
-  // sleeve managed the first of them often enough to be a nuisance, and the pair
-  // had to land on the same thing to count at all.
-  if (buttonPressed()) {
-    if (page == Page::Main) {
-      gaugeFigures();
-    } else {
-      counting = !counting;
-      // Whatever it was covering has to come back, and the page underneath is
-      // the only thing that knows what was there.
-      if (!counting) {
-        turnTo(page);
-      }
-    }
+  // The one button the chip can read, and the numbers on the face are the only
+  // thing it means. A press says so once and unambiguously, which two taps on a
+  // glass this size never did - a sleeve managed the first of them often enough
+  // to be a nuisance, and the pair had to land on the same thing to count at all.
+  if (buttonPressed() && page == Page::Main) {
+    gaugeFigures();
   }
 
   if (page != Page::Main) {
@@ -417,9 +313,6 @@ void loop() {
     } else {
       chartStep(boardFramebuffer(), screenOf(sideways));
       statusBars(boardFramebuffer(), false);
-    }
-    if (counting) {
-      countFrames(boardFramebuffer());
     }
     pace();
     return;
@@ -440,9 +333,6 @@ void loop() {
   uint32_t t1 = micros();
   boardFlushRect(colFrom, colTo, from, to);
   statusDraw(boardFramebuffer(), from, to);
-  if (counting) {
-    countFrames(boardFramebuffer());
-  }
   uint32_t t2 = micros();
 
   // Where the frame actually goes. Guessing at this is how you optimise the
