@@ -297,7 +297,7 @@ float rows[PLOT_SEGMENTS + 1];
 // blending it, so one faint edge drawn second would rub out the solid pixel its
 // neighbour had already put there.
 void drawLoad(uint16_t *fb, const Nuc &n, float slide) {
-  if (n.count < 2) {
+  if (!n.count) {
     return;
   }
   // A reading's width is fixed rather than shared out among however many there
@@ -312,23 +312,26 @@ void drawLoad(uint16_t *fb, const Nuc &n, float slide) {
   int16_t showing = within((int16_t)((float)(n.count - 1) + slide), (int16_t)(n.count - 1));
   uint16_t ink = gaugeColour(percentOf(n.load[showing]));
 
-  uint16_t segments = (uint16_t)(n.count - 1) * PLOT_SUB;
-  for (uint16_t k = 0; k <= segments; k++) {
-    float value = smoothAt(n, (float)k / (float)PLOT_SUB);
+  // How many readings short of a full glass the history is. The curve is drawn
+  // across the whole width whatever there is of it and holds the oldest reading
+  // out to the left edge - so a page opened for the first time is a flat line
+  // that grows a shape, rather than an empty band that suddenly has one.
+  float lead = (float)(NUC_POINTS - n.count);
+  for (uint16_t k = 0; k <= PLOT_SEGMENTS; k++) {
+    float value = smoothAt(n, (float)k / (float)PLOT_SUB - lead);
     rows[k] = PLOT_Y1 - clamp01(value / ceilingNow) * band;
   }
 
-  // Where the oldest reading sits, less how far the trace has slid since the
-  // newest one landed.
-  float from = (float)(SCREEN_W - 1) - ((float)(n.count - 1) + slide) * step;
+  // Where the left edge of that sits, less how far the trace has slid since the
+  // newest reading landed.
+  float from = (float)(SCREEN_W - 1) - ((float)(NUC_POINTS - 1) + slide) * step;
   int16_t reach = (int16_t)(PLOT_STROKE / sub) + 2;
-  int16_t last = (int16_t)segments - 1;
+  int16_t last = (int16_t)PLOT_SEGMENTS - 1;
 
   for (int16_t x = 0; x < SCREEN_W; x++) {
     float px = (float)x + 0.5f;
     float at = (px - from) / sub;
-    // Before the oldest reading there is no history, so there is no trace.
-    if (at < 0.0f || at > (float)segments) {
+    if (at < 0.0f || at > (float)PLOT_SEGMENTS) {
       continue;
     }
     int16_t mid = (int16_t)at;
