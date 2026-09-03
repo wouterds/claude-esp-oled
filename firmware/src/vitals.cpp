@@ -26,7 +26,7 @@ constexpr int16_t TITLE_SCALE = 2;
 // was fill the page with letters and leave the bars and the chart - the two
 // things worth looking at - squeezed in around them.
 constexpr int16_t ROW_SCALE = 2;
-constexpr float PLOT_Y0 = 72.0f * SCENE;
+constexpr float PLOT_Y0 = 68.0f * SCENE;
 constexpr float PLOT_Y1 = 142.0f * SCENE;
 // The scale the trace is drawn against: nought at the floor and one of these at
 // the ceiling. Fixed, and stepped, rather than closed onto whatever the window
@@ -34,10 +34,13 @@ constexpr float PLOT_Y1 = 142.0f * SCENE;
 // under them, and then the whole chart is going up and down when only the line
 // should be.
 //
-// A quarter is the first step because that is the one a box at rest lives in,
-// and it leaves an idle wander of a few points as a few rows of movement rather
-// than as a flat line along the bottom of the whole hundred.
-constexpr float PLOT_SCALES[] = {25.0f, 50.0f, 100.0f};
+// Fifteen is the first step because that is the one a box at rest lives in, and
+// what it has to show there is a wander of a point or two. Against a quarter
+// that came out as five rows of movement and read as a flat line; against
+// fifteen it is twenty, which is a shape. The steps above it are wide because
+// nothing up there is being read to the point - past a third of the machine
+// what matters is that it is busy, not how busy.
+constexpr float PLOT_SCALES[] = {15.0f, 40.0f, 100.0f};
 constexpr uint8_t PLOT_SCALE_COUNT = sizeof(PLOT_SCALES) / sizeof(PLOT_SCALES[0]);
 // How far under a step the readings have to fall before the scale drops back to
 // it. Without the slack, a box sitting on a boundary flips the scale back and
