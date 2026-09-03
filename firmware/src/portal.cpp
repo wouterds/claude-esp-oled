@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include <esp_heap_caps.h>
 #include <WebServer.h>
 #include <string.h>
 #include <uri/UriBraces.h>
@@ -9,6 +10,7 @@
 #include "net.h"
 #include "shot.h"
 #include "usage.h"
+#include "version.h"
 #include "wifi.h"
 
 namespace {
@@ -637,6 +639,20 @@ void handleState() {
   json += usageEvery();
   json += ",\"calls\":";
   json += netCallsMade();
+  // What the board can say about itself over the one channel that does not need
+  // a serial cable. The smallest free block rather than the total: a handshake
+  // wants tens of kilobytes of it contiguous, so that is the number that says
+  // whether the next read will land or abort.
+  json += ",\"uptime\":";
+  json += millis() / 1000;
+  json += ",\"internal\":";
+  json += (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  json += ",\"internalLow\":";
+  json += (uint32_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+  json += ",\"largest\":";
+  json += (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  json += ",\"build\":";
+  appendQuoted(json, BUILD_COMMIT);
   json += "}";
   server.send(200, "application/json", json);
 }
