@@ -19,14 +19,12 @@
 #include "load.h"
 #include "market.h"
 #include "net.h"
-#include "nuc.h"
 #include "outage.h"
 #include "portal.h"
 #include "settings.h"
 #include "shot.h"
 #include "usage.h"
 #include "version.h"
-#include "vitals.h"
 
 // Sixty a second, in microseconds because it does not go into milliseconds: a
 // whole 16 is 62.5 frames a second and a whole 17 is 58.8, and neither of them
@@ -42,26 +40,20 @@ static uint32_t nextFrame = 0;
 static constexpr uint32_t SHOT_HOLD_MS = 3000;
 
 // The face, what it is running on over it, the two things about the board that
-// are somebody's taste under it, the market screens one side of it and the box
-// in the other room on the other. None knows the others exist - what turns the
-// page is here.
-enum class Page : uint8_t { Main, Info, Settings, Chart, Vitals };
+// are somebody's taste under it, and the market screens to one side. None knows
+// the others exist - what turns the page is here.
+enum class Page : uint8_t { Main, Info, Settings, Chart };
 static Page page = Page::Main;
 
-// How far along the row from the face. The market screens are to its left - the
-// indices first and the coins behind them - and the one step to its right is the
-// box in the other room, so one line runs through all of them and a swipe drags
-// it past. Up and down only mean anything from along the row: the details above
-// a chart would be a page with no way back to it that anybody would guess.
+// How far along the row from the face. All of the market screens are to its
+// left - the indices first and the coins behind them - so the face is the end
+// of the line rather than the middle of it and there is nothing to its right.
+// Up and down only mean anything from along the row: the details above a chart
+// would be a page with no way back to it that anybody would guess.
 static int8_t sideways = 0;
 
 // Which page a place along the row is.
-static Page pageAt(int8_t at) {
-  if (at < 0) {
-    return Page::Vitals;
-  }
-  return at == 0 ? Page::Main : Page::Chart;
-}
+static Page pageAt(int8_t at) { return at == 0 ? Page::Main : Page::Chart; }
 
 // Which of the market screens that is, for the places along the row that are
 // one. The indices are held after the coins, so the order they are walked in is
@@ -137,11 +129,8 @@ static void turnTo(Page to) {
   // coming back to it after long enough asks again at once.
   netWatching(to == Page::Main);
   // And a market screen is read only while it is the one up, for the same
-  // reason: what came back would be drawn on a page nobody is looking at. The
-  // box in the other room is asked the same question and answers it the same
-  // way.
+  // reason: what came back would be drawn on a page nobody is looking at.
   marketWatching(to == Page::Chart ? (int8_t)screenOf(sideways) : (int8_t)-1);
-  nucWatching(to == Page::Vitals);
   memset(fb, 0, (size_t)SCREEN_W * SCREEN_H * 2);
   if (to == Page::Info) {
     infoForget();
@@ -155,14 +144,9 @@ static void turnTo(Page to) {
     statusBars(fb, true);
     return;
   }
-  if (to == Page::Chart || to == Page::Vitals) {
-    if (to == Page::Chart) {
-      chartForget();
-      chartStep(fb, screenOf(sideways));
-    } else {
-      vitalsForget();
-      vitalsStep(fb);
-    }
+  if (to == Page::Chart) {
+    chartForget();
+    chartStep(fb, screenOf(sideways));
     statusBars(fb, true);
     // Both of those sent their own rows; this is for the ones between them,
     // which were cleared above and belong to nobody.
@@ -216,7 +200,6 @@ void setup() {
   usageBegin();
   outageBegin();
   marketBegin();
-  nucBegin();
   faceBegin();
   gaugeBegin();
   // Empty, and on the glass straight away. They have nothing to say until the
@@ -278,7 +261,7 @@ void loop() {
   // rather than to the middle - the position along the row is kept, so a swipe
   // up from a chart and a swipe back down is where you started and not a
   // journey home.
-  bool row = page == Page::Main || page == Page::Chart || page == Page::Vitals;
+  bool row = page == Page::Main || page == Page::Chart;
   Page back = pageAt(sideways);
   if (swipe == Swipe::Up && row) {
     turnTo(Page::Info);
@@ -291,17 +274,17 @@ void loop() {
   } else if ((swipe == Swipe::Left || swipe == Swipe::Right) && row) {
     // A finger dragged right takes the row right with it, which brings what was
     // off the left edge onto the glass - so the markets, which are the left of
-    // this row, are what a swipe right arrives at, and the box in the other room
-    // is what a swipe left does.
+    // this row, are what a swipe right arrives at.
     int8_t to = (int8_t)(sideways + (swipe == Swipe::Right ? 1 : -1));
     // The row ends rather than wrapping: a list that comes back round to where
     // it started gives no clue how far along it you are. One end is the last
-    // market screen and the other is the one screen the other side of the face.
+    // market screen and the other is the face, so a swipe left from it goes
+    // nowhere.
     int8_t end = (int8_t)(MARKET_INDICES + MARKET_COINS);
     if (to > end) {
       to = end;
-    } else if (to < -1) {
-      to = -1;
+    } else if (to < 0) {
+      to = 0;
     }
     if (to != sideways) {
       sideways = to;
@@ -343,9 +326,6 @@ void loop() {
       infoStep(boardFramebuffer());
     } else if (page == Page::Settings) {
       settingsStep(boardFramebuffer());
-      statusBars(boardFramebuffer(), false);
-    } else if (page == Page::Vitals) {
-      vitalsStep(boardFramebuffer());
       statusBars(boardFramebuffer(), false);
     } else {
       chartStep(boardFramebuffer(), screenOf(sideways));
