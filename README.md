@@ -27,12 +27,6 @@ volume - tap or drag either slider, and it remembers - and up to put it away.
 Double-tap the cat and it takes the whole glass; double-tap again to give it
 back.
 
-Sideways there is a row: five market screens one way - three coins and two index
-futures, each with a day's trace - and the box in the corner of the room the
-other, with its load, its temperature and what it is drawing. That last one
-reads `nuc.cpp`'s own hardcoded address, which is a machine of mine; with
-nothing answering there the page sits at `NO DATA`.
-
 `PWR` switches the power path and the chip cannot see it - it is the small one
 beside the USB-C, pressed for a second to power on and held for three to power
 off. `BOOT` is the strapping pin, and held down at reset it traps the board in
