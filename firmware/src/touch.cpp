@@ -12,6 +12,9 @@ namespace {
 // what it sounds like - a deliberate inch - rather than the fraction of one
 // that used to survive being sampled once a frame.
 constexpr int16_t CROSSED = 30;
+// How many times further up or down than sideways a finger has to have gone to
+// be a swipe - within about twenty-seven degrees of straight.
+constexpr int16_t STEEP = 2;
 // The controller reports at about a hundred hertz while a finger is on the
 // glass, so a gap this long with nothing arriving is the finger being gone.
 constexpr uint32_t RELEASE_MS = 200;
@@ -119,7 +122,17 @@ void look() {
   // Reported on the way past rather than on the way off: the page turns under
   // the finger that asked for it, which is both what a swipe feels like
   // everywhere else and one less thing to depend on the controller mentioning.
+  //
+  // Only near enough straight up or down. A finger dragged at an angle is doing
+  // something else, and once it has gone a swipe's length sideways it is done
+  // with for the rest of the touch - a drag that bends into a page turn on its
+  // way somewhere else was never asking for one.
   int16_t by = (int16_t)(along - fromAlong);
+  int16_t aside = (int16_t)abs(across - fromAcross);
+  if (abs(by) < STEEP * aside) {
+    fired = aside >= CROSSED;
+    return;
+  }
   if (by >= CROSSED) {
     went = Swipe::Down;
     fired = true;
