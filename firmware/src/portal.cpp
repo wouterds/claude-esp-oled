@@ -278,18 +278,11 @@ async function tokens() {
     return;
   }
   $('tokenState').textContent = list.length ? list.length + ' stored' : 'None set';
-  // The radio is drawn rather than accented: accent-color fills the whole disc
-  // and puts a white dot in it, which against a dark page reads as a blob and
-  // not as a ring with a chosen one inside it.
+  // Which one is read is swiped between on the glass, so the list only says.
   $('tokenList').innerHTML = list.map((t, i) => `<li class="flex items-center justify-between
     gap-3 px-5 py-3">
-    <label class="flex min-w-0 cursor-pointer items-center gap-3">
-      <input type=radio name=pick value=${i} ${t.picked ? 'checked' : ''}
-             class="h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-full border-2
-                    border-white/25 text-blue-500 checked:border-blue-500 checked:bg-[radial-gradient(circle_at_center,currentColor_0_3px,transparent_3.5px)]">
-      <span class="truncate font-mono text-xs ${t.picked ? 'text-white' : 'text-white/60'}"
-        >${esc(t.hint)}</span>
-    </label>
+    <span class="min-w-0 truncate font-mono text-xs ${t.picked ? 'text-white' : 'text-white/60'}"
+      >${esc(t.hint)}</span>
     <button data-token=${i} class="inline-flex shrink-0 items-center gap-1.5 rounded-md
       border border-white/15 px-2.5 py-1 text-xs text-white/60 hover:border-rose-500/50
       hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50">Remove</button>
@@ -434,18 +427,6 @@ $('tokenForm').addEventListener('submit', async (e) => {
     // seconds' time.
     tick();
   }
-});
-
-$('tokenList').addEventListener('change', async (e) => {
-  const radio = e.target.closest('input[name=pick]');
-  if (!radio) return;
-  try {
-    await post('/tokens/pick', {index: radio.value});
-    $('tokenMsg').classList.add('hidden');
-  } catch (err) {
-    say($('tokenMsg'), 'Not picked: ' + err.message, false);
-  }
-  tick();
 });
 
 $('tokenList').addEventListener('click', async (e) => {
@@ -828,25 +809,10 @@ void handleAddToken() {
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
-// Which slot the requests go out with, by position in the list the page drew.
+// Which slot is meant, by position in the list the page drew.
 int tokenAt() {
   long at = server.arg("index").toInt();
   return at >= 0 && at < (long)tokenCount ? (int)at : -1;
-}
-
-void handlePickToken() {
-  int at = tokenAt();
-  if (at < 0) {
-    server.send(409, "application/json", "{\"ok\":false,\"error\":\"that is not one it has\"}");
-    return;
-  }
-  if ((uint8_t)at != picked) {
-    picked = (uint8_t)at;
-    store.putUChar("tp", picked);
-    Serial.printf("portal: token %u picked\n", picked + 1);
-    usageTokenChanged();
-  }
-  server.send(200, "application/json", "{\"ok\":true}");
 }
 
 void handleTrashToken() {
@@ -951,7 +917,6 @@ void portalBegin() {
   server.on("/every", HTTP_POST, handleSetEvery);
   server.on("/tokens", HTTP_GET, handleTokens);
   server.on("/tokens", HTTP_POST, handleAddToken);
-  server.on("/tokens/pick", HTTP_POST, handlePickToken);
   server.on("/tokens/trash", HTTP_POST, handleTrashToken);
   server.on("/shots", HTTP_GET, handleShots);
   server.on("/shots/trash", HTTP_POST, handleTrashShot);
