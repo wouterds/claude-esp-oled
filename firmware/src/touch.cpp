@@ -12,8 +12,8 @@ namespace {
 // what it sounds like - a deliberate inch - rather than the fraction of one
 // that used to survive being sampled once a frame.
 constexpr int16_t CROSSED = 30;
-// How many times further up or down than sideways a finger has to have gone to
-// be a swipe - within about twenty-seven degrees of straight.
+// How many times further along one axis than the other a finger has to have
+// gone to be a swipe - within about twenty-seven degrees of straight.
 constexpr int16_t STEEP = 2;
 // The controller reports at about a hundred hertz while a finger is on the
 // glass, so a gap this long with nothing arriving is the finger being gone.
@@ -123,23 +123,33 @@ void look() {
   // the finger that asked for it, which is both what a swipe feels like
   // everywhere else and one less thing to depend on the controller mentioning.
   //
-  // Only near enough straight up or down. A finger dragged at an angle is doing
-  // something else, and once it has gone a swipe's length sideways it is done
-  // with for the rest of the touch - a drag that bends into a page turn on its
-  // way somewhere else was never asking for one.
-  int16_t by = (int16_t)(along - fromAlong);
-  int16_t aside = (int16_t)abs(across - fromAcross);
-  if (abs(by) < STEEP * aside) {
-    fired = aside >= CROSSED;
+  // Only near enough straight along one axis or the other. A finger dragged at
+  // an angle is doing something else, and once it has gone a swipe's length
+  // both ways it is done with for the rest of the touch - a drag that bends into
+  // a swipe on its way somewhere else was never asking for one.
+  int16_t down = (int16_t)(along - fromAlong);
+  int16_t right = (int16_t)(across - fromAcross);
+  if (abs(down) >= STEEP * abs(right)) {
+    if (down >= CROSSED) {
+      went = Swipe::Down;
+      fired = true;
+    } else if (down <= -CROSSED) {
+      went = Swipe::Up;
+      fired = true;
+    }
     return;
   }
-  if (by >= CROSSED) {
-    went = Swipe::Down;
-    fired = true;
-  } else if (by <= -CROSSED) {
-    went = Swipe::Up;
-    fired = true;
+  if (abs(right) >= STEEP * abs(down)) {
+    if (right >= CROSSED) {
+      went = Swipe::Right;
+      fired = true;
+    } else if (right <= -CROSSED) {
+      went = Swipe::Left;
+      fired = true;
+    }
+    return;
   }
+  fired = abs(down) >= CROSSED && abs(right) >= CROSSED;
 }
 
 // Woken by the controller rather than by the frame. The glass reports about
