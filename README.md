@@ -24,6 +24,8 @@ nuisance.
 Swipe up for the charge, the network, the address and the commit it is running,
 and down again to send it back. Swipe down from the face for brightness and
 volume - tap or drag either slider, and it remembers - and up to put it away.
+With more than one token on the page, swipe left or right on the face to read
+the next account or the one before, and it stays on that one.
 Double-tap the cat and it takes the whole glass; double-tap again to give it
 back.
 
