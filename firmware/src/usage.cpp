@@ -38,6 +38,10 @@ volatile uint8_t session = 0;
 volatile uint8_t weekly = 0;
 volatile bool wake = false;
 volatile bool switched = false;
+// Bumped by the first read that lands after a switch, and only once the numbers
+// it brought are in place - so a reader who sees it move sees them as well.
+volatile uint8_t account = 0;
+bool fresh = false;
 volatile uint8_t still = 0;
 // When each window rolls over, as a deadline on the device's own clock. Nought
 // for one nobody has spent anything in, which is what the endpoint says by
@@ -276,6 +280,7 @@ void poll(const char *token) {
     // so this task stays the only one that ever touches it.
     org[0] = '\0';
     misses = 0;
+    fresh = true;
   }
   String body;
   uint8_t hours = 0;
@@ -318,8 +323,9 @@ void poll(const char *token) {
   }
 
   // A window only ever fills while it is open, so the one time either number
-  // falls is the one time it rolled over.
-  if (ready && (hours < session || week < weekly)) {
+  // falls is the one time it rolled over - unless what fell was another
+  // account's figures replacing this one's.
+  if (ready && !fresh && (hours < session || week < weekly)) {
     Serial.println("usage: a window rolled over");
     audioCheered();
   }
@@ -338,6 +344,10 @@ void poll(const char *token) {
   session = hours;
   weekly = week;
   ready = true;
+  if (fresh) {
+    fresh = false;
+    account = account + 1;
+  }
 }
 
 void task(void *) {
@@ -451,6 +461,8 @@ bool usageSetEvery(uint8_t minutes) {
 }
 
 bool usageReady() { return ready; }
+
+uint8_t usageAccount() { return account; }
 
 uint8_t usageStill() { return still; }
 

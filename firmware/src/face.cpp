@@ -92,6 +92,7 @@ struct State {
   float held;          // seconds the current mood has been worn
   uint8_t seen[2];     // what the gauges last said
   bool read;           // and whether they have ever said anything
+  uint8_t account;     // and whose they were
   float cheer;         // seconds of good cheer still owed
   bool easy;           // whether both windows were last seen with room to spare
   float startle;       // seconds of surprise still owed
@@ -478,6 +479,7 @@ void faceBegin() {
   me.held = 0.0f;
   me.seen[0] = me.seen[1] = 0;
   me.read = false;
+  me.account = 0;
   me.cheer = 0.0f;
   me.easy = false;
   me.startle = 0.0f;
@@ -513,6 +515,14 @@ static void settle(float dt) {
   // read below, where the drop is spotted, and read after it.
   bool revived = false;
   if (usageReady()) {
+    // Somebody else's numbers start the face over rather than being weighed
+    // against the last account's - a fall between the two is not a window
+    // rolling over, and a dead face is not dead on an account with room.
+    bool other = usageAccount() != me.account;
+    if (other) {
+      me.account = usageAccount();
+      me.read = false;
+    }
     uint8_t a = usageSession();
     uint8_t b = usageWeekly();
     bool dropped = me.read && (a + A_RESET <= me.seen[0] || b + A_RESET <= me.seen[1]);
@@ -524,7 +534,7 @@ static void settle(float dt) {
     if (dropped || (easy && (!me.read || !me.easy))) {
       me.cheer = CHEER_S;
     }
-    revived = dropped;
+    revived = dropped || other;
     // Climbing into the yellow is worth the same. Dropping back out of it says
     // nothing - it only re-arms this, so the next climb can say it again.
     if (warm && !me.warm) {

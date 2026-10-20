@@ -23,6 +23,11 @@ bool usageSetEvery(uint8_t minutes);
 // Whether the last read worked. Until it has, there is nothing real to show.
 bool usageReady();
 
+// Which account the numbers are for, as a count that moves when the first read
+// from a newly picked token lands. Asked before the numbers rather than after:
+// one account's figures falling and another's arriving lower look the same.
+uint8_t usageAccount();
+
 // How many reads in a row have come back saying exactly what the last one did.
 // Nothing is happening, and something upstairs would like to know.
 uint8_t usageStill();
