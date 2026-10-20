@@ -972,3 +972,13 @@ bool portalToken(char *out, size_t size) {
   snprintf(out, size, "%s", tokens[picked]);
   return true;
 }
+
+void portalTurn(int8_t by) {
+  if (tokenCount < 2) {
+    return;
+  }
+  picked = (uint8_t)((picked + tokenCount + by % tokenCount) % tokenCount);
+  store.putUChar("tp", picked);
+  Serial.printf("portal: token %u of %u picked\n", picked + 1, tokenCount);
+  usageTokenChanged();
+}

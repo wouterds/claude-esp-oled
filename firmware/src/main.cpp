@@ -231,6 +231,10 @@ void loop() {
     turnTo(Page::Settings);
   } else if (swipe == Swipe::Up && page == Page::Settings) {
     turnTo(Page::Main);
+  } else if ((swipe == Swipe::Left || swipe == Swipe::Right) && page == Page::Main) {
+    // Sideways on the face is another account rather than another page: the
+    // bars walk to its numbers once they are read, and the face starts over.
+    portalTurn(swipe == Swipe::Left ? 1 : -1);
   }
 
   // Held rather than pressed, and asked first: the release that ends a hold is

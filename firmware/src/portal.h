@@ -18,3 +18,7 @@ void portalBegin();
 // reader holding a pointer across a request is reading a buffer that moves under
 // it - which spends the token on a request that then reads as a refused login.
 bool portalToken(char *out, size_t size);
+
+// Picks the next token along, or the one before it with a negative step, going
+// round from the last to the first. Nothing with fewer than two to go between.
+void portalTurn(int8_t by);
