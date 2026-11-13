@@ -73,7 +73,7 @@ constexpr uint16_t GREEN = 0x07F6;
 constexpr uint16_t YELLOW = 0xFE48;
 constexpr uint16_t ORANGE = 0xFC00;
 // Rose rather than pure red, for the same reason yellow is warmed off its own.
-constexpr uint16_t RED = 0xF8E8;
+constexpr uint16_t RED = 0xFA6D;
 // Not as dark as it looks like it should be. Black here is a crystal failing
 // to block a backlight that is always on, so anything under about a third
 // sinks into it and the ring may as well not have been drawn.
