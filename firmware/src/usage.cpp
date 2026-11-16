@@ -273,6 +273,15 @@ bool window(const String &body, const char *name, uint8_t &out, uint32_t &reset)
   if (at < 0) {
     return false;
   }
+  // A window nobody has opened is null rather than an object with nothing in
+  // it. Searched past, the first utilization after it is the next window's -
+  // which put the week's figure and the week's reset on the five hour bar of an
+  // account that was sitting idle.
+  if (body.charAt(at + (int)strlen(name) + 3) != '{') {
+    out = 0;
+    reset = 0;
+    return true;
+  }
   int found = body.indexOf("\"utilization\":", at);
   if (found < 0) {
     return false;
