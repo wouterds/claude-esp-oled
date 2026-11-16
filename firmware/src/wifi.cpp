@@ -250,6 +250,8 @@ const char *wifiAddress() { return joined ? onAddress : nullptr; }
 
 int wifiRssi() { return joined ? onRssi : 0; }
 
+void wifiAwake(bool on) { WiFi.setSleep(!on); }
+
 uint8_t wifiKnown() { return knownCount; }
 
 const char *wifiKnownSsid(uint8_t i) { return i < knownCount ? known[i].ssid : nullptr; }

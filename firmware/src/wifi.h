@@ -40,3 +40,9 @@ const char *wifiAddress();
 // How strong that network is in dBm - always negative, and closer to zero is
 // better. Zero exactly when it is on nothing.
 int wifiRssi();
+
+// Holds the radio awake, or lets it go back to sleeping between beacons. Asleep
+// it hears nothing until the next beacon it wakes for, so everything sent to
+// the board waits on that - which costs a poller nothing and costs somebody
+// with the page open most of a second on every request.
+void wifiAwake(bool on);

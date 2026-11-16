@@ -910,10 +910,21 @@ void handleTrashShot() {
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
+// How long after the last request the radio is held awake for. The page asks
+// every five seconds while it is open, so this is several of those missed
+// before the board decides nobody is there.
+constexpr uint32_t AWAKE_MS = 30000;
+bool awake = false;
+uint32_t askedAt = 0;
+
 void task(void *) {
   server.begin();
   for (;;) {
     server.handleClient();
+    if (awake && millis() - askedAt > AWAKE_MS) {
+      awake = false;
+      wifiAwake(false);
+    }
     vTaskDelay(pdMS_TO_TICKS(5));
   }
 }
@@ -925,6 +936,17 @@ void portalBegin() {
   loadTokens();
   Serial.printf("portal: %u token%s in store\n", tokenCount, tokenCount == 1 ? "" : "s");
 
+  // Ahead of every route: somebody is on the page, so the radio stays up for
+  // them. The first request still pays for the board having been asleep - the
+  // ones behind it do not.
+  server.addMiddleware([](WebServer &, Middleware::Callback next) {
+    askedAt = millis();
+    if (!awake) {
+      awake = true;
+      wifiAwake(true);
+    }
+    return next();
+  });
   server.on("/", HTTP_GET, handleRoot);
   server.on("/state", HTTP_GET, handleState);
   server.on("/requests", HTTP_GET, handleRequests);
