@@ -947,3 +947,5 @@ void portalTurn(int8_t by) {
   Serial.printf("portal: token %u of %u picked\n", picked + 1, tokenCount);
   usageTokenChanged();
 }
+
+uint8_t portalPicked() { return tokenCount ? (uint8_t)(picked + 1) : 0; }

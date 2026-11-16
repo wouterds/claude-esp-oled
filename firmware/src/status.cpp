@@ -8,6 +8,7 @@
 #include "board.h"
 #include "gauge.h"
 #include "outage.h"
+#include "portal.h"
 #include "shape.h"
 #include "text.h"
 #include "usage.h"
@@ -137,8 +138,14 @@ void clockOf(char *out, size_t size, uint32_t ms) {
 // What the bottom line is about, as opposed to what it says. The typewriter is
 // keyed off this: a countdown rewrites itself every frame, and a reveal keyed off
 // the text restarts with it and never reaches a second glyph.
-enum class Line : uint8_t { Empty, Address, Clock, Alarm };
+enum class Line : uint8_t { Empty, Address, Clock, Alarm, Account };
 Line line = Line::Empty;
+
+// How long the line names the account just picked. The tokens look alike from
+// here, so which one a swipe landed on is otherwise anybody's guess.
+constexpr uint32_t ACCOUNT_MS = 3000;
+bool naming = false;
+uint32_t namedAt = 0;
 
 // One slot and two things worth putting in it, so they take turns - long enough
 // on the clock to watch it move, long enough on the outage to read it twice.
@@ -450,8 +457,21 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       clockOf(clock, sizeof(clock), left);
     }
   }
+  // Read on the first frame rather than started at nought, so the account the
+  // board comes up on is not announced as if somebody had just picked it.
+  static uint8_t account = portalPicked();
+  uint8_t picked = portalPicked();
+  if (picked != account) {
+    account = picked;
+    naming = picked > 0;
+    namedAt = millis();
+  }
+  if (naming && millis() - namedAt >= ACCOUNT_MS) {
+    naming = false;
+  }
+
   bool ticking = clock[0] != '\0';
-  bool dim = expired && ((millis() / EXPIRED_BLINK_MS) & 1) != 0;
+  bool dim = expired && !naming && ((millis() / EXPIRED_BLINK_MS) & 1) != 0;
 
   // The outage borrows the line for five seconds in every thirty-five, and only
   // while the clock is up to lend it. Off the clock there is nothing to hand it
@@ -462,7 +482,12 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
 
   Line subject = Line::Empty;
   const char *want = "";
-  if (alarmTurn) {
+  char label[16];
+  if (naming) {
+    subject = Line::Account;
+    snprintf(label, sizeof(label), "ACCOUNT %u", (unsigned)account);
+    want = label;
+  } else if (alarmTurn) {
     subject = Line::Alarm;
     // Fourteen glyphs at this size come to 86 either side of the middle and the
     // bars' bottom ends reach in to about 89, so that is the ceiling for a line
@@ -541,7 +566,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
       int16_t left = (int16_t)(SCREEN_R - (full * step) / 2);
       // The outage line wears the triangle's own colour, so the two are one
       // thing said twice rather than two things that happen to agree.
-      float level = ticking ? up : 1.0f;
+      float level = ticking && !naming ? up : 1.0f;
       uint16_t ink = line == Line::Alarm ? fade(alarmColour(alarm), up)
                                         : fade(WHITE, dim ? level * EXPIRED_DIP : level);
       textDraw(fb, typing, (int16_t)(left + (typed * step) / 2), ADDRESS_Y, BOTTOM_SCALE,

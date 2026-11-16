@@ -22,3 +22,7 @@ bool portalToken(char *out, size_t size);
 // Picks the next token along, or the one before it with a negative step, going
 // round from the last to the first. Nothing with fewer than two to go between.
 void portalTurn(int8_t by);
+
+// Which of them is picked, counted from one the way the page lists them.
+// Nought with none kept.
+uint8_t portalPicked();
