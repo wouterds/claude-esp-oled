@@ -223,8 +223,24 @@ function say(el, text, ok) {
 // something typed. It also puts a phone's keyboard away.
 const unfocus = (form) => form.querySelectorAll('input').forEach((i) => i.blur());
 
-async function post(url, fields) {
-  const r = await fetch(url, {
+// The board answers one connection at a time and makes every other one wait
+// its turn - a connection that has not said anything yet included. So nothing
+// here is asked while something else is still being answered: asked together,
+// the requests queued up on the board faster than it cleared them, and the
+// browser gave up on the ones at the back.
+let line = Promise.resolve();
+function queued(job) {
+  const run = line.then(job, job);
+  line = run.catch(() => {});
+  return run;
+}
+
+// Given up on rather than waited out. A request the board never answers would
+// otherwise hold the line above for as long as the browser cares to wait.
+const call = (url, options) => fetch(url, {...options, signal: AbortSignal.timeout(15000)});
+
+const post = (url, fields) => queued(async () => {
+  const r = await call(url, {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
     body: new URLSearchParams(fields),
@@ -232,21 +248,27 @@ async function post(url, fields) {
   const d = await r.json().catch(() => ({}));
   if (!r.ok || !d.ok) throw new Error(d.error || ('the board answered ' + r.status));
   return d;
-}
+});
 
-async function refresh() {
+const refresh = () => queued(async () => {
   let s;
   try {
-    s = await (await fetch('/state')).json();
+    s = await (await call('/state')).json();
   } catch (e) {
     who.textContent = 'The board stopped answering.';
     who.classList.remove('hidden');
     return;
   }
   who.classList.add('hidden');
+  // A press in flight owns its list: the five second tick would otherwise
+  // redraw it underneath the button and replace the one that is spinning with a
+  // fresh one, which reads as the click having been dropped.
+  if (!trashing) tokens(s.tokens);
+  if (!forgetting) networks(s.networks);
+  if (!binning) shots(s.shots);
   if (s.calls !== drawn) {
     drawn = s.calls;
-    requests();
+    await requests();
   }
   // Not while it is being dragged, or the poll would drag it back every five
   // seconds under the finger holding it.
@@ -254,25 +276,13 @@ async function refresh() {
     $('every').value = s.every;
     showEvery();
   }
-}
+});
 
-// A press in flight owns its list: the five second tick would otherwise redraw
-// it underneath the button and replace the one that is spinning with a fresh
-// one, which reads as the click having been dropped.
 let forgetting = false;
 let trashing = false;
 let binning = false;
 
-async function tokens() {
-  if (trashing) {
-    return;
-  }
-  let list;
-  try {
-    list = await (await fetch('/tokens')).json();
-  } catch (e) {
-    return;
-  }
+function tokens(list) {
   $('tokenState').textContent = list.length ? list.length + ' stored' : 'None set';
   // Which one is read is swiped between on the glass, so the list only says.
   $('tokenList').innerHTML = list.map((t, i) => `<li class="flex items-center justify-between
@@ -285,16 +295,7 @@ async function tokens() {
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None set.</li>';
 }
 
-async function networks() {
-  if (forgetting) {
-    return;
-  }
-  let list;
-  try {
-    list = await (await fetch('/networks')).json();
-  } catch (e) {
-    return;
-  }
+function networks(list) {
   $('netCount').textContent = list.length + (list.length === 1 ? ' known' : ' known');
   $('netList').innerHTML = list.map((n) => `<li class="flex items-center justify-between gap-3 px-5 py-3">
     <div class="min-w-0">
@@ -313,16 +314,7 @@ async function networks() {
   </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None known.</li>';
 }
 
-async function shots() {
-  if (binning) {
-    return;
-  }
-  let list;
-  try {
-    list = await (await fetch('/shots')).json();
-  } catch (e) {
-    return;
-  }
+function shots(list) {
   $('shotCount').textContent = list.length ? list.length + ' kept' : 'None yet';
   // The name is the link. It goes to its own path rather than to a query, so
   // the tab it opens is called what the file is called and saving it out of the
@@ -351,7 +343,7 @@ let drawn = -1;
 async function requests() {
   let list;
   try {
-    list = await (await fetch('/requests')).json();
+    list = await (await call('/requests')).json();
   } catch (e) {
     return;
   }
@@ -418,10 +410,9 @@ $('tokenForm').addEventListener('submit', async (e) => {
     say($('tokenMsg'), 'Not added: ' + err.message, false);
   } finally {
     busy(btn, false);
-    // Everything, not just the token's own list: adding one sets the poller off
-    // and what that turns up belongs on the page now rather than in five
-    // seconds' time.
-    tick();
+    // Now rather than in five seconds' time: adding one sets the poller off, and
+    // what that turns up belongs on the page.
+    refresh();
   }
 });
 
@@ -444,8 +435,7 @@ $('tokenList').addEventListener('click', async (e) => {
   }
   // Awaited, so the button spins until the row it sits in has actually gone
   // rather than until the board said it would.
-  await tokens();
-  refresh();
+  await refresh();
 });
 
 $('netForm').addEventListener('submit', async (e) => {
@@ -462,7 +452,7 @@ $('netForm').addEventListener('submit', async (e) => {
     say($('netMsg'), 'Not added: ' + err.message, false);
   } finally {
     busy(btn, false);
-    tick();
+    refresh();
   }
 });
 
@@ -488,8 +478,7 @@ $('netList').addEventListener('click', async (e) => {
   }
   // Awaited, so the button spins until the row it sits in has actually gone
   // rather than until the board said it would. A refusal redraws it as it was.
-  await networks();
-  refresh();
+  await refresh();
 });
 
 $('shotList').addEventListener('click', async (e) => {
@@ -511,21 +500,17 @@ $('shotList').addEventListener('click', async (e) => {
   }
   // Awaited, so the button spins until the row it sits in has actually gone
   // rather than until the board said it would.
-  await shots();
+  await refresh();
 });
 
-// requests() is not in here: refresh() asks for it when the board says there is
-// something new to ask for.
-function tick() {
-  refresh();
-  tokens();
-  networks();
-  shots();
-}
-tick();
-// None of this changes because the page did it: another tab, the board joining
-// a different network, or the poller going round again a minute from now.
-setInterval(tick, 5000);
+// Asked again five seconds after the last answer rather than every five
+// seconds: on a slow radio an answer can take that long by itself, and a clock
+// that does not wait for it only adds to what the board is behind on. None of
+// this changes because the page did it - another tab, the board joining a
+// different network, or the poller going round again a minute from now.
+(function poll() {
+  refresh().then(() => setTimeout(poll, 5000));
+})();
 </script>
 )HTML";
 
@@ -606,47 +591,21 @@ void appendQuoted(String &json, const char *s) {
   json += '"';
 }
 
-void handleState() {
-  String json = "{\"address\":";
-  // Once, because the radio task can drop the association between two reads of
-  // it and the second would come back null for the first one's non-null answer.
-  const char *address = wifiAddress();
-  appendQuoted(json, address ? address : "");
-  json += ",\"every\":";
-  json += usageEvery();
-  json += ",\"calls\":";
-  json += netCallsMade();
-  // What the board can say about itself over the one channel that does not need
-  // a serial cable. The smallest free block rather than the total: a handshake
-  // wants tens of kilobytes of it contiguous, so that is the number that says
-  // whether the next read will land or abort.
-  json += ",\"uptime\":";
-  json += millis() / 1000;
-  json += ",\"internal\":";
-  json += (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-  json += ",\"internalLow\":";
-  json += (uint32_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
-  json += ",\"largest\":";
-  json += (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  json += ",\"build\":";
-  appendQuoted(json, BUILD_COMMIT);
-  json += "}";
-  server.send(200, "application/json", json);
-}
-
 // Names only. There is no accessor for a stored password and this is the reason
 // there is not: the page that would show one is this one.
-void handleNetworks() {
+void networksInto(String &json) {
   const char *on = wifiNetwork();
-  String json = "[";
+  json += '[';
+  bool any = false;
   for (uint8_t i = 0; i < wifiKnown(); i++) {
     const char *ssid = wifiKnownSsid(i);
     if (!ssid) {
       continue;
     }
-    if (json.length() > 1) {
+    if (any) {
       json += ',';
     }
+    any = true;
     json += "{\"ssid\":";
     appendQuoted(json, ssid);
     bool live = on && strcmp(on, ssid) == 0;
@@ -662,7 +621,6 @@ void handleNetworks() {
     json += '}';
   }
   json += ']';
-  server.send(200, "application/json", json);
 }
 
 void handleAddNetwork() {
@@ -741,10 +699,10 @@ void handleRequests() {
   server.sendContent("");
 }
 
-// Hints only, for the same reason /networks is names only: the page that would
-// show a token is the page anybody on this network can open.
-void handleTokens() {
-  String json = "[";
+// Hints only, for the same reason the networks are names only: the page that
+// would show a token is the page anybody on this network can open.
+void tokensInto(String &json) {
+  json += '[';
   char hint[32];
   for (uint8_t i = 0; i < tokenCount; i++) {
     if (i) {
@@ -758,7 +716,6 @@ void handleTokens() {
     json += '}';
   }
   json += ']';
-  server.send(200, "application/json", json);
 }
 
 void handleAddToken() {
@@ -839,10 +796,9 @@ void handleTrashToken() {
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
-// Names and sizes. Ten of them, so this is built and sent rather than streamed
-// the way the call log has to be.
-void handleShots() {
-  String json = "[";
+// Names and sizes, and ten of them at the most.
+void shotsInto(String &json) {
+  json += '[';
   char name[SHOT_NAME_MAX];
   uint32_t bytes = 0;
   for (uint8_t i = 0; shotAt(i, name, &bytes); i++) {
@@ -856,6 +812,47 @@ void handleShots() {
     json += '}';
   }
   json += ']';
+}
+
+// Everything the page shows but the call log, in the one reply. It used to be
+// four, asked for together every five seconds - and this server answers one
+// connection at a time, so on a slow radio the next four arrived before the
+// last four were done and the queue only ever grew. Small enough to go out in a
+// single write, which is the other half: a reply that fits the socket's buffer
+// is the stack's to deliver, and one that does not is this task's to wait on.
+void handleState() {
+  String json;
+  json.reserve(1536);
+  json = "{\"address\":";
+  // Once, because the radio task can drop the association between two reads of
+  // it and the second would come back null for the first one's non-null answer.
+  const char *address = wifiAddress();
+  appendQuoted(json, address ? address : "");
+  json += ",\"every\":";
+  json += usageEvery();
+  json += ",\"calls\":";
+  json += netCallsMade();
+  // What the board can say about itself over the one channel that does not need
+  // a serial cable. The smallest free block rather than the total: a handshake
+  // wants tens of kilobytes of it contiguous, so that is the number that says
+  // whether the next read will land or abort.
+  json += ",\"uptime\":";
+  json += millis() / 1000;
+  json += ",\"internal\":";
+  json += (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  json += ",\"internalLow\":";
+  json += (uint32_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+  json += ",\"largest\":";
+  json += (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  json += ",\"build\":";
+  appendQuoted(json, BUILD_COMMIT);
+  json += ",\"tokens\":";
+  tokensInto(json);
+  json += ",\"networks\":";
+  networksInto(json);
+  json += ",\"shots\":";
+  shotsInto(json);
+  json += "}";
   server.send(200, "application/json", json);
 }
 
@@ -907,14 +904,11 @@ void portalBegin() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/state", HTTP_GET, handleState);
   server.on("/requests", HTTP_GET, handleRequests);
-  server.on("/networks", HTTP_GET, handleNetworks);
   server.on("/networks", HTTP_POST, handleAddNetwork);
   server.on("/forget", HTTP_POST, handleForgetNetwork);
   server.on("/every", HTTP_POST, handleSetEvery);
-  server.on("/tokens", HTTP_GET, handleTokens);
   server.on("/tokens", HTTP_POST, handleAddToken);
   server.on("/tokens/trash", HTTP_POST, handleTrashToken);
-  server.on("/shots", HTTP_GET, handleShots);
   server.on("/shots/trash", HTTP_POST, handleTrashShot);
   // Last of the three, and a pattern rather than a path. The two above are
   // exact and are matched first, so neither is read as the name of a file.
