@@ -16,14 +16,10 @@
 namespace {
 
 constexpr uint16_t PORT = 80;
-// One per account somebody wants to watch. Held in RAM rather than read out of
-// the store per request, which is half a kilobyte each and the reason there are
-// four of them rather than a list that grows.
-constexpr uint8_t TOKEN_SLOTS = 4;
 
 Preferences store;
 WebServer server(PORT);
-char tokens[TOKEN_SLOTS][PORTAL_TOKEN_MAX] = {{0}};
+char tokens[PORTAL_TOKEN_SLOTS][PORTAL_TOKEN_MAX] = {{0}};
 uint8_t tokenCount = 0;
 // Which one the requests go out with. Always a real slot while there is one.
 uint8_t picked = 0;
@@ -546,7 +542,7 @@ void saveTokens() {
     tokenKey(key, sizeof(key), i);
     store.putString(key, tokens[i]);
   }
-  for (uint8_t i = tokenCount; i < TOKEN_SLOTS; i++) {
+  for (uint8_t i = tokenCount; i < PORTAL_TOKEN_SLOTS; i++) {
     tokenKey(key, sizeof(key), i);
     store.remove(key);
   }
@@ -557,8 +553,8 @@ void saveTokens() {
 void loadTokens() {
   if (store.isKey("tn")) {
     tokenCount = store.getUChar("tn", 0);
-    if (tokenCount > TOKEN_SLOTS) {
-      tokenCount = TOKEN_SLOTS;
+    if (tokenCount > PORTAL_TOKEN_SLOTS) {
+      tokenCount = PORTAL_TOKEN_SLOTS;
     }
     char key[4];
     for (uint8_t i = 0; i < tokenCount; i++) {
@@ -777,7 +773,7 @@ void handleAddToken() {
                 "{\"ok\":false,\"error\":\"that is longer than the store will take\"}");
     return;
   }
-  if (tokenCount >= TOKEN_SLOTS) {
+  if (tokenCount >= PORTAL_TOKEN_SLOTS) {
     server.send(409, "application/json",
                 "{\"ok\":false,\"error\":\"there is no room for another one\"}");
     return;

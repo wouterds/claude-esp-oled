@@ -8,10 +8,8 @@
 void usageBegin();
 
 // The picked token has changed - a new one stored, or another of them picked.
-// Whatever was worked out from the last one is dropped - the organisation
-// before anything else, because that belongs to the account the token was for
-// rather than to the device - and the next read happens now rather than at the
-// next slot.
+// What was last read with that one goes back on the glass at once if anything
+// was, and it is read again now rather than at the next slot.
 void usageTokenChanged();
 
 // How long the poller waits between reads, in whole minutes. One to five, kept
@@ -20,17 +18,19 @@ void usageTokenChanged();
 uint8_t usageEvery();
 bool usageSetEvery(uint8_t minutes);
 
-// Whether the last read worked. Until it has, there is nothing real to show.
+// Whether there is a reading for the picked token. Until there is, there is
+// nothing real to show.
 bool usageReady();
 
-// Which account the numbers are for, as a count that moves when the first read
-// from a newly picked token lands. Asked before the numbers rather than after:
-// one account's figures falling and another's arriving lower look the same.
+// Which account the numbers are for, as a count that moves when another
+// account's take the glass. Asked before the numbers rather than after: one
+// account's figures falling and another's arriving lower look the same.
 uint8_t usageAccount();
 
-// Whether a token has been picked that nothing has been read from yet. Until
-// one is, the numbers below are still the last account's.
-bool usageSwitching();
+// Whether the picked token is one nothing has been read with yet, and a read is
+// on its way. Not the same as not being ready: a token that was turned away is
+// not ready either, and nothing is coming for that one.
+bool usageWaiting();
 
 // How many reads in a row have come back saying exactly what the last one did.
 // Nothing is happening, and something upstairs would like to know.

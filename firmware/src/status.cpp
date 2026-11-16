@@ -482,12 +482,11 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
     account = picked;
     statusAccount();
   }
-  // Held for as long as the bars stand empty waiting on its numbers, which with
-  // two handshakes to get through is a good many seconds: the name is what says
-  // the empty bars are a wait and not a fault. Not once the read has given up -
-  // the address is what is wanted then, and this would be sat on top of it.
-  bool waiting = usageSwitching() && usageReady();
-  if (naming && millis() - namedAt >= ACCOUNT_MS && !waiting) {
+  // Held for as long as the bars stand empty waiting on a first read of it: the
+  // name is what says the empty bars are a wait and not a fault. Not once the
+  // read has given up - the address is what is wanted then, and this would be
+  // sat on top of it.
+  if (naming && millis() - namedAt >= ACCOUNT_MS && !usageWaiting()) {
     naming = false;
   }
 

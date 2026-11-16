@@ -509,15 +509,12 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
     return;
   }
 
-  // Left is the session window, right is the week. Empty until a read comes
-  // back, and then they walk to it. Emptied again between accounts, so a swipe
-  // is answered at once rather than when the read lands - and is answered at
-  // all when the two accounts have spent the same.
-  if (usageReady()) {
-    bool between = usageSwitching();
-    target[0] = between ? 0.0f : (float)usageSession();
-    target[1] = between ? 0.0f : (float)usageWeekly();
-  }
+  // Left is the session window, right is the week. Empty while there is no
+  // reading to show - before the first one, and on an account nothing has been
+  // read from yet - and otherwise they walk to it.
+  bool ready = usageReady();
+  target[0] = ready ? (float)usageSession() : 0.0f;
+  target[1] = ready ? (float)usageWeekly() : 0.0f;
 
   // Long only while nothing else wants the bottom of the glass: the address has
   // it until a token does, and the countdown has it whenever the figures are up.

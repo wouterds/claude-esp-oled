@@ -32,21 +32,39 @@ constexpr uint32_t PATIENCE_MS = 6000;
 
 Preferences store;
 volatile uint8_t every = EVERY_MIN;
-char org[40] = {0};
-volatile bool ready = false;
-volatile uint8_t session = 0;
-volatile uint8_t weekly = 0;
 volatile bool wake = false;
-volatile bool switched = false;
-// Bumped by the first read that lands after a switch, and only once the numbers
-// it brought are in place - so a reader who sees it move sees them as well.
+
+// What is kept for each token the board has read with, so that going back to an
+// account puts what it last said on the glass at once rather than an empty one
+// and a wait. Found by a hash of the token and not by its slot: the slots slide
+// down when one is trashed, and a token is not something to hold a second copy
+// of. In RAM only - it is a reading, and it goes with the power like one.
+//
+// The organisation is kept with it for the same reason. It belongs to the
+// account rather than to the device, it never changes, and asking for it again
+// on every swipe was half of what a swipe cost.
+enum class Seen : uint8_t { Never, Read, Lost };
+struct Account {
+  uint32_t key;   // nought for a place nothing has used
+  uint32_t used;  // when it was last picked, for choosing which to give up
+  char org[40];
+  volatile Seen seen;
+  volatile uint8_t session;
+  volatile uint8_t weekly;
+  // When each window rolls over, as a deadline on the device's own clock.
+  // Nought for one nobody has spent anything in, which is what the endpoint
+  // says by giving no date at all.
+  volatile uint32_t resetAt[2];
+};
+Account accounts[PORTAL_TOKEN_SLOTS] = {};
+// Which of them the glass is on, or none of them with no token to read with.
+volatile int8_t picked = -1;
+uint32_t picks = 0;
+// Bumped when the numbers on the glass become another account's: as one with a
+// reading is picked, or as the first read of one without lands - and only once
+// the numbers are in place, so a reader who sees it move sees them as well.
 volatile uint8_t account = 0;
-volatile bool fresh = false;
 volatile uint8_t still = 0;
-// When each window rolls over, as a deadline on the device's own clock. Nought
-// for one nobody has spent anything in, which is what the endpoint says by
-// giving no date at all.
-volatile uint32_t resetAt[2] = {0, 0};
 // What the endpoint said the time was, and when that was heard. The device has
 // no clock of its own and no reason to ask the network for one: the reply that
 // carries the deadlines carries the time they are measured against.
@@ -58,6 +76,9 @@ uint8_t misses = 0;
 // device goes back to asking for a new one: the address returns, the numbers go
 // away and the bars come in.
 constexpr uint8_t GIVE_UP_AT = 3;
+// Which place the last read was for. The strikes above are against one token,
+// and do not carry over to the next.
+int8_t polled = -1;
 // The last read was turned away rather than lost. A token that has been
 // refused is not let in fifteen seconds later, and asking that often is four
 // requests a minute with a dead login from an address other people share - so
@@ -120,14 +141,14 @@ uint32_t deadlineOf(uint32_t when) {
 // A window rolling over is worth a read of its own: what is behind it has just
 // changed, and sitting out the rest of the interval leaves the old figures on
 // the glass with a countdown at nought under them.
-bool rolled() {
+bool rolled(Account &a) {
   bool over = false;
   for (uint8_t i = 0; i < 2; i++) {
-    if (resetAt[i] && (int32_t)(millis() - resetAt[i]) >= 0) {
+    if (a.resetAt[i] && (int32_t)(millis() - a.resetAt[i]) >= 0) {
       // Spent as soon as it is acted on. A read that fails leaves the deadline
       // in the past, and left there the wait would break on it every quarter
       // second - which is a poller with no interval at all.
-      resetAt[i] = 0;
+      a.resetAt[i] = 0;
       over = true;
     }
   }
@@ -221,8 +242,8 @@ bool get(const String &url, const char *token, String &out) {
 // Which organisation the account is in, which the address of everything else
 // hangs off. Asked for rather than written down: it is not the same for
 // everybody and it does not belong in a public repository.
-bool findOrg(const char *token) {
-  if (org[0]) {
+bool findOrg(const char *token, Account &a) {
+  if (a.org[0]) {
     return true;
   }
   String body;
@@ -236,11 +257,11 @@ bool findOrg(const char *token) {
   }
   int open = body.indexOf('"', body.indexOf(':', at) + 1);
   int close = body.indexOf('"', open + 1);
-  if (open < 0 || close < 0 || close - open > (int)sizeof(org)) {
+  if (open < 0 || close < 0 || close - open > (int)sizeof(a.org)) {
     return false;
   }
-  body.substring(open + 1, close).toCharArray(org, sizeof(org));
-  Serial.printf("usage: organisation %s\n", org);
+  body.substring(open + 1, close).toCharArray(a.org, sizeof(a.org));
+  Serial.printf("usage: organisation %s\n", a.org);
   return true;
 }
 
@@ -284,28 +305,71 @@ bool window(const String &body, const char *name, uint8_t &out, uint32_t &reset)
   return true;
 }
 
-void poll(const char *token) {
-  if (switched) {
-    // Before the other is dropped, so the two are never both down mid-switch
-    // for a frame asking usageSwitching.
-    fresh = true;
-    switched = false;
-    // The organisation was worked out from the token before this one and is not
-    // the same account's. Dropped here rather than where the new token landed,
-    // so this task stays the only one that ever touches it.
-    org[0] = '\0';
-    misses = 0;
-    barred = false;
+// Zero is the place nothing has used, so no token is allowed to come to it.
+uint32_t keyOf(const char *token) {
+  uint32_t hash = 2166136261u;
+  for (; *token; token++) {
+    hash = (hash ^ (uint8_t)*token) * 16777619u;
   }
+  return hash ? hash : 1;
+}
+
+// Points the glass at whatever the portal has picked: the place kept for that
+// token, or the one picked longest ago made over into it.
+void pick() {
+  char token[PORTAL_TOKEN_MAX];
+  if (!portalToken(token, sizeof(token))) {
+    picked = -1;
+    return;
+  }
+  uint32_t key = keyOf(token);
+  int8_t at = -1;
+  int8_t oldest = 0;
+  for (int8_t i = 0; i < (int8_t)PORTAL_TOKEN_SLOTS; i++) {
+    if (accounts[i].key == key) {
+      at = i;
+    }
+    if (accounts[i].used < accounts[oldest].used) {
+      oldest = i;
+    }
+  }
+  if (at < 0) {
+    at = oldest;
+    Account &a = accounts[at];
+    a.seen = Seen::Never;
+    a.org[0] = '\0';
+    a.session = 0;
+    a.weekly = 0;
+    a.resetAt[0] = 0;
+    a.resetAt[1] = 0;
+    a.key = key;
+  }
+  accounts[at].used = ++picks;
+  if (at == picked) {
+    return;
+  }
+  still = 0;
+  if (accounts[at].seen == Seen::Read) {
+    account = account + 1;
+  }
+  picked = at;
+}
+
+void poll(const char *token, int8_t at) {
+  Account &a = accounts[at];
   String body;
   uint8_t hours = 0;
   uint8_t week = 0;
   uint32_t hoursOn = 0;
   uint32_t weekOn = 0;
-  bool got = findOrg(token) &&
-             get(String(HOST) + "/api/organizations/" + org + "/usage", token, body) &&
+  bool got = findOrg(token, a) &&
+             get(String(HOST) + "/api/organizations/" + a.org + "/usage", token, body) &&
              window(body, "five_hour", hours, hoursOn) &&
              window(body, "seven_day", week, weekOn);
+  // A read takes seconds and a swipe does not wait for it. What comes back is
+  // still this account's and is kept as that - but the sound and the count of
+  // readings that have not moved are about what is on the glass.
+  bool shown = at == picked;
 
   if (!got) {
     // A 404 on the usage path is the organisation not being this account's - a
@@ -314,7 +378,7 @@ void poll(const char *token) {
     // is asked for again next round rather than counting as a strike.
     if (lastCode == 404) {
       Serial.println("usage: 404, asking which organisation again");
-      org[0] = '\0';
+      a.org[0] = '\0';
       misses = 0;
       return;
     }
@@ -323,46 +387,50 @@ void poll(const char *token) {
     bool refused = lastCode == 401 || lastCode == 403;
     barred = refused;
     if (refused || ++misses >= GIVE_UP_AT) {
-      if (ready) {
+      if (a.seen == Seen::Read) {
         Serial.printf("usage: %s, asking for a token again\n",
                       refused ? "refused" : "no answer");
       }
-      ready = false;
-      still = 0;
+      a.seen = Seen::Lost;
       misses = 0;
-      resetAt[0] = 0;
-      resetAt[1] = 0;
+      a.resetAt[0] = 0;
+      a.resetAt[1] = 0;
       // A new token may belong to somebody else.
-      org[0] = '\0';
+      a.org[0] = '\0';
+      if (shown) {
+        still = 0;
+      }
     }
     return;
   }
 
   // A window only ever fills while it is open, so the one time either number
-  // falls is the one time it rolled over - unless what fell was another
-  // account's figures replacing this one's.
-  if (ready && !fresh && (hours < session || week < weekly)) {
+  // falls is the one time it rolled over. Against this account's own last
+  // reading, however long ago the glass was last on it.
+  bool known = a.seen == Seen::Read;
+  if (known && shown && (hours < a.session || week < a.weekly)) {
     Serial.println("usage: a window rolled over");
     audioCheered();
   }
 
   misses = 0;
   barred = false;
-  resetAt[0] = deadlineOf(hoursOn);
-  resetAt[1] = deadlineOf(weekOn);
-  if (!ready || hours != session || week != weekly) {
+  a.resetAt[0] = deadlineOf(hoursOn);
+  a.resetAt[1] = deadlineOf(weekOn);
+  if (!known || hours != a.session || week != a.weekly) {
     Serial.printf("usage: five hour %u%% for another %lus, seven day %u%% for another %lus\n",
-                  hours, (unsigned long)(leftOn(resetAt[0]) / 1000), week,
-                  (unsigned long)(leftOn(resetAt[1]) / 1000));
-    still = 0;
-  } else if (still < 255) {
+                  hours, (unsigned long)(leftOn(a.resetAt[0]) / 1000), week,
+                  (unsigned long)(leftOn(a.resetAt[1]) / 1000));
+    if (shown) {
+      still = 0;
+    }
+  } else if (shown && still < 255) {
     still = still + 1;
   }
-  session = hours;
-  weekly = week;
-  ready = true;
-  if (fresh) {
-    fresh = false;
+  a.session = hours;
+  a.weekly = week;
+  a.seen = Seen::Read;
+  if (!known && shown) {
     account = account + 1;
   }
 }
@@ -382,12 +450,21 @@ void task(void *) {
     }
     bool timed = false;
     uint32_t until = millis() + WAITING_MS;
+    // The place first and the token after, and the one checked against the
+    // other: a token picked between the two is another account's, and read into
+    // this place its numbers would be kept under the wrong one.
+    int8_t at = picked;
     char token[PORTAL_TOKEN_MAX];
-    bool have = portalToken(token, sizeof(token));
+    bool have = at >= 0 && portalToken(token, sizeof(token)) && keyOf(token) == accounts[at].key;
     if (wifiConnected() && have && (netWatched() || due) && netRoom("usage")) {
       due = false;
-      poll(token);
-      timed = ready;
+      if (at != polled) {
+        polled = at;
+        misses = 0;
+        barred = false;
+      }
+      poll(token, at);
+      timed = accounts[at].seen == Seen::Read;
       until = millis() + (barred ? (uint32_t)every * 60000UL : RETRY_MS);
     }
     // A quarter second at a time rather than one long delay: the wait can be
@@ -423,7 +500,7 @@ void task(void *) {
         wake = false;
         break;
       }
-      if (timed && rolled()) {
+      if (timed && rolled(accounts[at])) {
         break;
       }
     }
@@ -452,6 +529,7 @@ void usageBegin() {
   uint8_t kept = store.getUChar("every", EVERY_MIN);
   every = (kept >= EVERY_MIN && kept <= EVERY_MAX) ? kept : EVERY_MIN;
   Serial.printf("usage: reading every %u minute%s\n", every, every == 1 ? "" : "s");
+  pick();
   // Eight kilobytes, not twelve. A handshake's own buffers come off the heap
   // rather than off here, so what this actually has to hold is HTTPClient and
   // the parse above it - measured at a little over four kilobytes with a reply
@@ -461,7 +539,7 @@ void usageBegin() {
 }
 
 void usageTokenChanged() {
-  switched = true;
+  pick();
   wake = true;
 }
 
@@ -477,18 +555,36 @@ bool usageSetEvery(uint8_t minutes) {
   return true;
 }
 
-bool usageReady() { return ready; }
+bool usageReady() {
+  int8_t at = picked;
+  return at >= 0 && accounts[at].seen == Seen::Read;
+}
+
+bool usageWaiting() {
+  int8_t at = picked;
+  return at >= 0 && accounts[at].seen == Seen::Never;
+}
 
 uint8_t usageAccount() { return account; }
 
-bool usageSwitching() { return switched || fresh; }
-
 uint8_t usageStill() { return still; }
 
-uint8_t usageSession() { return session; }
+uint8_t usageSession() {
+  int8_t at = picked;
+  return at >= 0 ? accounts[at].session : 0;
+}
 
-uint8_t usageWeekly() { return weekly; }
+uint8_t usageWeekly() {
+  int8_t at = picked;
+  return at >= 0 ? accounts[at].weekly : 0;
+}
 
-uint32_t usageSessionResetsIn() { return leftOn(resetAt[0]); }
+uint32_t usageSessionResetsIn() {
+  int8_t at = picked;
+  return at >= 0 ? leftOn(accounts[at].resetAt[0]) : 0;
+}
 
-uint32_t usageWeeklyResetsIn() { return leftOn(resetAt[1]); }
+uint32_t usageWeeklyResetsIn() {
+  int8_t at = picked;
+  return at >= 0 ? leftOn(accounts[at].resetAt[1]) : 0;
+}

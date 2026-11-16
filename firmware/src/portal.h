@@ -5,6 +5,10 @@
 
 // Room for one token and its terminator, which is what portalToken copies into.
 constexpr size_t PORTAL_TOKEN_MAX = 512;
+// One per account somebody wants to watch. Held in RAM rather than read out of
+// the store per request, which is half a kilobyte each and the reason there are
+// four of them rather than a list that grows.
+constexpr uint8_t PORTAL_TOKEN_SLOTS = 4;
 
 // A page on port 80. A session token it takes is the whole of somebody's
 // claude.ai login, so one is never in this repository and never on a wire out
