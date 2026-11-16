@@ -178,6 +178,14 @@ int16_t wiped = 0;
 inline int16_t bandFrom(int16_t screenTo) { return (int16_t)(SCREEN_H - 1 - screenTo); }
 inline int16_t bandTo(int16_t screenFrom) { return (int16_t)(SCREEN_H - 1 - screenFrom); }
 
+// The same box clearBand takes, sent. As wide as what was cleared and no wider:
+// whole rows carry the bars' ends and the face out again for the sake of a few
+// glyphs in the middle, and the countdown asks for that sixty times a second.
+void sendBand(int16_t from, int16_t to, int16_t x0, int16_t x1) {
+  boardFlushRect((int16_t)(SCREEN_W - 1 - x1), (int16_t)(SCREEN_W - 1 - x0), bandFrom(to),
+                 bandTo(from));
+}
+
 bool overlaps(int16_t aFrom, int16_t aTo, int16_t bFrom, int16_t bTo) {
   return aFrom <= bTo && bFrom <= aTo;
 }
@@ -393,14 +401,15 @@ void bars(uint16_t *fb, bool wipe) {
   if (!changed) {
     return;
   }
-  clearBand(fb, BAR_TOP, BAR_BOTTOM, WIFI_X - (int16_t)(14 * SCENE),
-            BATTERY_X + (int16_t)(19 * SCENE));
+  const int16_t x0 = WIFI_X - (int16_t)(14 * SCENE);
+  const int16_t x1 = BATTERY_X + (int16_t)(19 * SCENE);
+  clearBand(fb, BAR_TOP, BAR_BOTTOM, x0, x1);
   if (battery.present) {
     // The bar inside it already says how much, so the number said it twice.
     drawBattery(fb, level, batteryColour(battery, blink));
   }
   drawWifi(fb, strength, online);
-  boardFlushRows(bandFrom(BAR_BOTTOM), bandTo(BAR_TOP));
+  sendBand(BAR_TOP, BAR_BOTTOM, x0, x1);
   shown.percent = battery.percent;
   shown.charging = battery.charging;
   shown.present = battery.present;
@@ -532,15 +541,16 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   typed = reveal;
 
   if (alarmChanged) {
-    clearBand(fb, ALARM_TOP, ALARM_BOTTOM, (int16_t)(SCREEN_R - ALARM_HALF),
-              (int16_t)(SCREEN_R + ALARM_HALF));
+    const int16_t x0 = (int16_t)(SCREEN_R - ALARM_HALF);
+    const int16_t x1 = (int16_t)(SCREEN_R + ALARM_HALF);
+    clearBand(fb, ALARM_TOP, ALARM_BOTTOM, x0, x1);
     // Up from the first frame, grey, and grey covers both not having looked yet
     // and having looked and found nothing. It is the shape that says where the
     // news will appear, so it is worth more standing there dark than it is
     // missing - and an empty space is not a quieter warning, it is no warning.
     uint16_t ink = alarmColour(alarm);
     drawAlarm(fb, lit ? ink : fade(ink, 0.25f));
-    boardFlushRows(bandFrom(ALARM_BOTTOM), bandTo(ALARM_TOP));
+    sendBand(ALARM_TOP, ALARM_BOTTOM, x0, x1);
     shown.alarm = (uint8_t)alarm;
     shown.alarmLit = lit;
   }
@@ -554,9 +564,10 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
     int16_t half = full > 0 ? (int16_t)((full * step) / 2 + 2) : 0;
     int16_t widest = half > wiped ? half : wiped;
     wiped = half;
+    const int16_t x0 = (int16_t)(SCREEN_R - widest);
+    const int16_t x1 = (int16_t)(SCREEN_R + widest);
     if (widest > 0) {
-      clearBand(fb, BOTTOM_FROM, BOTTOM_TO, (int16_t)(SCREEN_R - widest),
-                (int16_t)(SCREEN_R + widest));
+      clearBand(fb, BOTTOM_FROM, BOTTOM_TO, x0, x1);
     }
     if (typed > 0) {
       memcpy(typing, shown.address, typed);
@@ -573,6 +584,8 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
                boardColour(ink));
     }
     shown.clockDim = dim;
-    boardFlushRows(bandFrom(BOTTOM_TO), bandTo(BOTTOM_FROM));
+    if (widest > 0) {
+      sendBand(BOTTOM_FROM, BOTTOM_TO, x0, x1);
+    }
   }
 }
