@@ -11,14 +11,15 @@
 #include <string.h>
 
 #include "board.h"
+#include "net.h"
 #include "pins.h"
 
 namespace {
 
-// A file is its number and nothing else: the folder already says what it is.
-// Nothing here ever reuses one - the next is the highest already on the flash
-// plus one - so both the order the page is drawn in and the choice of which
-// file to evict come out of the names.
+// A file is a number and nothing else: the folder already says what it is, and
+// the number is the second it was taken, in UTC. Never one already used and
+// never one lower than the newest on the flash - so both the order the page is
+// drawn in and the choice of which file to evict come out of the names.
 constexpr char DIR[] = "/screenshots";
 // The folder and the longest name that goes in it.
 constexpr size_t PATH_MAX_LEN = sizeof(DIR) + SHOT_NAME_MAX;
@@ -283,6 +284,13 @@ bool shotTake() {
 
   shotHold();
   char name[SHOT_NAME_MAX];
+  // Before anything has said what the time is there is no second to name it
+  // for, and it takes the number after the newest instead - as does a second
+  // one taken inside the same second.
+  uint32_t now = netNow();
+  if (now > next) {
+    next = now;
+  }
   snprintf(name, sizeof(name), "%lu.png", (unsigned long)next);
   char path[PATH_MAX_LEN];
   pathOf(name, path, sizeof(path));

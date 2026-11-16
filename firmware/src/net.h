@@ -130,6 +130,10 @@ uint32_t netDueIn(uint32_t period, uint32_t phase);
 // a reply says so here, and the log below timestamps itself from that.
 void netHeard(uint32_t unix);
 
+// What the time is, in UTC seconds, counted on from the last reply that said.
+// Nought until one has.
+uint32_t netNow();
+
 // One call, timed from `began`. Called from inside the lock above, which is
 // what keeps the two pollers from writing over each other.
 void netRecord(const char *url, uint32_t began, int code, uint32_t size);

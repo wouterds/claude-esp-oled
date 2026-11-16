@@ -100,6 +100,8 @@ void netHeard(uint32_t unix) {
   heardAt = millis();
 }
 
+uint32_t netNow() { return heard ? heard + (millis() - heardAt) / 1000 : 0; }
+
 void netRecord(const char *url, uint32_t began, int code, uint32_t size) {
   if (!calls) {
     return;
