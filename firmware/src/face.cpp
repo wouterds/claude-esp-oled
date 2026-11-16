@@ -51,6 +51,12 @@ constexpr float JUMP_S = 0.1f;
 constexpr float SHAKE = 3.0f * SCENE;
 constexpr float SHAKE_S = 0.6f;
 
+// The far eye gives up this much of its size on a look off to one side, the
+// way the far side of anything turning away does. Without it the pair slide
+// about like a sticker; with it there is a head behind them.
+constexpr float TURN = 0.07f;
+constexpr float TURN_AT = 20.0f;
+
 enum class Mood : uint8_t { Neutral, Happy, Surprised, Angry, Dead, Tired };
 
 // Constants, but sinf and cosf are not free and the shapes below are asked for
@@ -932,12 +938,17 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
   // is tilted and dead is a pair of strokes: in both, x and y are mixed before
   // the distance is taken, so there is no half a row can settle in advance and
   // they go the long way round.
-  Blob blob = eyeBlob(mood, squeeze);
-  Blob blobWas = eyeBlob(before, squeeze);
-  bool byRow = blob.plain && (mix >= 1.0f || blobWas.plain);
+  bool byRow = eyeBlob(mood, squeeze).plain && (mix >= 1.0f || eyeBlob(before, squeeze).plain);
 
   for (uint8_t i = 0; i < 2; i++) {
     float side = i == 0 ? -1.0f : 1.0f;
+    // Only ever smaller, so the box worked out above still holds both.
+    float turn = 1.0f - TURN * clamp01(-side * me.lookX / TURN_AT);
+    float lid = squeeze * turn;
+    Blob blob = eyeBlob(mood, lid);
+    Blob blobWas = eyeBlob(before, lid);
+    blob.hx *= turn;
+    blobWas.hx *= turn;
     int16_t x0 = (int16_t)(eyeX[i] - spanX) - 1;
     int16_t x1 = (int16_t)(eyeX[i] + spanX) + 1;
     int16_t y0 = (int16_t)(eyeY + lidMid - lidHalf - GLOW_RADIUS) - 1;
@@ -956,7 +967,7 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
       uint16_t *row = boardRow(fb, y);
       for (int16_t x = x1; x >= x0; x--) {
         float lx = (float)x + 0.5f - eyeX[i];
-        lay(row, x, eyeShapeMixed(mood, before, lx, ly, side, squeeze, mix));
+        lay(row, x, eyeShapeMixed(mood, before, lx, ly, side, lid, mix));
       }
     }
   }
