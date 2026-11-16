@@ -33,7 +33,19 @@ uint8_t picked = 0;
 // Tailwind off a CDN, which the board never fetches - the browser does, and the
 // browser is the thing on this network with a way out of it. The alternative is
 // a stylesheet in the firmware image, paid for on every flash.
+//
+// And it is only sent to a browser that does not have it. The page is the one
+// reply here that does not fit in a single packet, which on a bad link makes it
+// the one that fails - so it is worth getting across once, and after that a
+// reload is the browser asking whether its copy still stands and being told
+// that it does.
 void handleRoot() {
+  server.sendHeader("ETag", PAGE_TAG);
+  server.sendHeader("Cache-Control", "no-cache");
+  if (server.header("If-None-Match") == PAGE_TAG) {
+    server.send(304, "text/html", "");
+    return;
+  }
   server.sendHeader("Content-Encoding", "gzip");
   server.send_P(200, PSTR("text/html"), (PGM_P)PAGE, sizeof(PAGE));
 }
@@ -459,6 +471,8 @@ void portalBegin() {
     }
     return next();
   });
+  static const char *WANTED[] = {"If-None-Match"};
+  server.collectHeaders(WANTED, 1);
   server.on("/", HTTP_GET, handleRoot);
   server.on("/state", HTTP_GET, handleState);
   server.on("/requests", HTTP_GET, handleRequests);
