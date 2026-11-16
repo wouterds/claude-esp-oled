@@ -28,6 +28,10 @@ bool usageReady();
 // one account's figures falling and another's arriving lower look the same.
 uint8_t usageAccount();
 
+// Whether a token has been picked that nothing has been read from yet. Until
+// one is, the numbers below are still the last account's.
+bool usageSwitching();
+
 // How many reads in a row have come back saying exactly what the last one did.
 // Nothing is happening, and something upstairs would like to know.
 uint8_t usageStill();

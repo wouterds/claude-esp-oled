@@ -41,7 +41,7 @@ volatile bool switched = false;
 // Bumped by the first read that lands after a switch, and only once the numbers
 // it brought are in place - so a reader who sees it move sees them as well.
 volatile uint8_t account = 0;
-bool fresh = false;
+volatile bool fresh = false;
 volatile uint8_t still = 0;
 // When each window rolls over, as a deadline on the device's own clock. Nought
 // for one nobody has spent anything in, which is what the endpoint says by
@@ -274,13 +274,15 @@ bool window(const String &body, const char *name, uint8_t &out, uint32_t &reset)
 
 void poll(const char *token) {
   if (switched) {
+    // Before the other is dropped, so the two are never both down mid-switch
+    // for a frame asking usageSwitching.
+    fresh = true;
     switched = false;
     // The organisation was worked out from the token before this one and is not
     // the same account's. Dropped here rather than where the new token landed,
     // so this task stays the only one that ever touches it.
     org[0] = '\0';
     misses = 0;
-    fresh = true;
   }
   String body;
   uint8_t hours = 0;
@@ -463,6 +465,8 @@ bool usageSetEvery(uint8_t minutes) {
 bool usageReady() { return ready; }
 
 uint8_t usageAccount() { return account; }
+
+bool usageSwitching() { return switched || fresh; }
 
 uint8_t usageStill() { return still; }
 

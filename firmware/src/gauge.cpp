@@ -379,10 +379,13 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
   }
 
   // Left is the session window, right is the week. Empty until a read comes
-  // back, and then they walk to it.
+  // back, and then they walk to it. Emptied again between accounts, so a swipe
+  // is answered at once rather than when the read lands - and is answered at
+  // all when the two accounts have spent the same.
   if (usageReady()) {
-    target[0] = (float)usageSession();
-    target[1] = (float)usageWeekly();
+    bool between = usageSwitching();
+    target[0] = between ? 0.0f : (float)usageSession();
+    target[1] = between ? 0.0f : (float)usageWeekly();
   }
 
   // Long only while nothing else wants the bottom of the glass: the address has
