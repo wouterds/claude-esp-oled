@@ -8,7 +8,13 @@
 void faceBegin();
 void faceStep(float dt);
 
-// Draws, and reports the box of framebuffer rows and columns it touched so the
-// flush can leave the rest of the panel alone. The columns matter as much as
-// the rows: the bars and the figures share these rows and never move.
-void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom, int16_t *colTo);
+// A box of the framebuffer, the way boardFlushRect takes one.
+struct FaceBox {
+  int16_t x0, x1, from, to;
+};
+
+// Draws, and reports the two boxes of framebuffer it touched - the eyes, then
+// the mouth - so the flush can leave the rest of the panel alone. The columns
+// matter as much as the rows: the bars and the figures share these rows and
+// never move.
+void faceDraw(uint16_t *fb, FaceBox touched[2]);

@@ -84,6 +84,10 @@ constexpr float GAP_JITTER = 0.25f;
 // like the panel had frozen rather than like the face had given up.
 constexpr float DEAD_SLOW = 0.25f;
 
+struct Box {
+  float l, t, r, b;
+};
+
 struct State {
   float x, y;          // where the eyes are
   float tx, ty;        // where they are drifting to
@@ -104,11 +108,16 @@ struct State {
   float blend;         // 0 while settled, counts up through a change
   Mood mood;
   Mood was;
-  // The box the last frame actually painted, so exactly that much of the panel
-  // is put back to black - no more, and no less. A generous constant either
-  // wipes rows nothing was ever drawn on, or comes up short when a look far to
-  // one side carries an eye further out than the constant allowed for.
-  float paintedL, paintedT, paintedR, paintedB;
+  // The boxes the last frame actually painted, so exactly that much of the
+  // panel is put back to black - no more, and no less. A generous constant
+  // either wipes rows nothing was ever drawn on, or comes up short when a look
+  // far to one side carries an eye further out than the constant allowed for.
+  //
+  // One for the eyes and one for the mouth, not one round both. The mouth is a
+  // third as wide as the pair of eyes, so the box that held all three was
+  // nearly half rows beside the mouth with nothing in them - cleared and sent
+  // sixty times a second all the same.
+  Box last[2];
   bool painted;
   float lookX, lookY;      // where it is looking, eased
   float lookTX, lookTY;    // and where it has decided to look next
@@ -492,15 +501,19 @@ ALWAYS float eyeShapeMixed(Mood mood, Mood before, float x, float y, float side,
   return d;
 }
 
-void clearBox(uint16_t *fb, float fx0, float fy0, float fx1, float fy1) {
-  int16_t x0 = fx0 < 0.0f ? 0 : (int16_t)fx0;
-  int16_t y0 = fy0 < 0.0f ? 0 : (int16_t)fy0;
-  int16_t x1 = fx1 > SCREEN_W - 1 ? SCREEN_W - 1 : (int16_t)fx1;
-  int16_t y1 = fy1 > SCREEN_H - 1 ? SCREEN_H - 1 : (int16_t)fy1;
+// Put back to black, and reported the way the flush takes a box: turned, since
+// framebuffer rows and columns both run the other way to the screen's.
+FaceBox clearBox(uint16_t *fb, const Box &box) {
+  int16_t x0 = box.l < 0.0f ? 0 : (int16_t)box.l;
+  int16_t y0 = box.t < 0.0f ? 0 : (int16_t)box.t;
+  int16_t x1 = box.r > SCREEN_W - 1 ? SCREEN_W - 1 : (int16_t)box.r;
+  int16_t y1 = box.b > SCREEN_H - 1 ? SCREEN_H - 1 : (int16_t)box.b;
   // Turned, so the span is still contiguous and still one memset a row.
   for (int16_t y = y0; y <= y1; y++) {
     memset(boardRow(fb, y) + boardX(x1), 0, (size_t)(x1 - x0 + 1) * 2);
   }
+  return {(int16_t)(SCREEN_W - 1 - x1), (int16_t)(SCREEN_W - 1 - x0), (int16_t)(SCREEN_H - 1 - y1),
+          (int16_t)(SCREEN_H - 1 - y0)};
 }
 
 ALWAYS Blob mouthBlob(Mood mood) {
@@ -770,8 +783,7 @@ void faceStep(float dt) {
 
 
 
-void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom,
-              int16_t *colTo) {
+void faceDraw(uint16_t *fb, FaceBox touched[2]) {
   // The float: a slow rise and fall that never quite repeats, plus a shiver
   // while it is excited.
   float floatY = sinf(me.clock * 1.5f) * 4.0f + sinf(me.clock * 0.61f) * 2.5f;
@@ -854,37 +866,29 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom,
               sinf(me.clock * 2.3f + (side > 0.0f ? 1.7f : 0.0f)) * 1.1f;
   }
 
-  // Exactly what this frame will paint, eyes and mouth together.
+  // Exactly what this frame will paint: the eyes, then the mouth.
   float left = (eyeX[0] < eyeX[1] ? eyeX[0] : eyeX[1]) - spanX - 1.0f;
   float right = (eyeX[0] > eyeX[1] ? eyeX[0] : eyeX[1]) + spanX + 1.0f;
-  float top = eyeY + lidMid - lidHalf - GLOW_RADIUS - 1.0f;
-  float bottom = eyeY + lidMid + lidHalf + GLOW_RADIUS + 1.0f;
-  float mouthL = centreX - mouthHX - GLOW_RADIUS - 1.0f;
-  float mouthR = centreX + mouthHX + GLOW_RADIUS + 1.0f;
-  float mouthT = mouthY - mouthHY - GLOW_RADIUS - 1.0f;
-  float mouthB = mouthY + mouthHY + GLOW_RADIUS + 1.0f;
-  if (mouthL < left) left = mouthL;
-  if (mouthR > right) right = mouthR;
-  if (mouthT < top) top = mouthT;
-  if (mouthB > bottom) bottom = mouthB;
+  Box now[2] = {{left, eyeY + lidMid - lidHalf - GLOW_RADIUS - 1.0f, right,
+                 eyeY + lidMid + lidHalf + GLOW_RADIUS + 1.0f},
+                {centreX - mouthHX - GLOW_RADIUS - 1.0f, mouthY - mouthHY - GLOW_RADIUS - 1.0f,
+                 centreX + mouthHX + GLOW_RADIUS + 1.0f, mouthY + mouthHY + GLOW_RADIUS + 1.0f}};
 
   // Clear the union of that and whatever the last frame left behind. Nothing
-  // else owns these rows, so what is not cleared here stays on the glass.
-  float dirtyTop = top;
-  float dirtyBottom = bottom;
-  float dirtyLeft = left;
-  float dirtyRight = right;
-  if (me.painted) {
-    if (me.paintedT < dirtyTop) dirtyTop = me.paintedT;
-    if (me.paintedB > dirtyBottom) dirtyBottom = me.paintedB;
-    if (me.paintedL < dirtyLeft) dirtyLeft = me.paintedL;
-    if (me.paintedR > dirtyRight) dirtyRight = me.paintedR;
+  // else owns these rows, so what is not cleared here stays on the glass. Both
+  // before either is drawn: at their closest the two boxes touch, and a clear
+  // after the eyes would take the bottom of their glow with it.
+  for (uint8_t i = 0; i < 2; i++) {
+    Box dirty = now[i];
+    if (me.painted) {
+      if (me.last[i].l < dirty.l) dirty.l = me.last[i].l;
+      if (me.last[i].t < dirty.t) dirty.t = me.last[i].t;
+      if (me.last[i].r > dirty.r) dirty.r = me.last[i].r;
+      if (me.last[i].b > dirty.b) dirty.b = me.last[i].b;
+    }
+    touched[i] = clearBox(fb, dirty);
+    me.last[i] = now[i];
   }
-  clearBox(fb, dirtyLeft, dirtyTop, dirtyRight, dirtyBottom);
-  me.paintedL = left;
-  me.paintedT = top;
-  me.paintedR = right;
-  me.paintedB = bottom;
   me.painted = true;
 
   // Both shapes on the glass are plain blobs, so a row can settle its own half
@@ -922,26 +926,14 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom,
   }
 
   {
-    int16_t x0 = (int16_t)mouthL;
-    int16_t x1 = (int16_t)mouthR;
-    int16_t y0 = (int16_t)mouthT;
-    int16_t y1 = (int16_t)mouthB;
+    int16_t x0 = (int16_t)now[1].l;
+    int16_t x1 = (int16_t)now[1].r;
+    int16_t y0 = (int16_t)now[1].t;
+    int16_t y1 = (int16_t)now[1].b;
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
     if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
     if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
     drawBlob(fb, mouthBlob(mood), mouthBlob(before), mix, centreX, mouthY, x0, x1, y0, y1);
   }
-
-  // Screen rows run the other way to framebuffer rows, so the band is flipped
-  // as well as clamped.
-  int16_t sTop = dirtyTop < 0.0f ? 0 : (int16_t)dirtyTop;
-  int16_t sBottom = dirtyBottom > SCREEN_H - 1 ? SCREEN_H - 1 : (int16_t)dirtyBottom;
-  *rowFrom = (int16_t)(SCREEN_H - 1 - sBottom);
-  *rowTo = (int16_t)(SCREEN_H - 1 - sTop);
-  // Columns run the other way too, for the same reason.
-  int16_t sLeft = dirtyLeft < 0.0f ? 0 : (int16_t)dirtyLeft;
-  int16_t sRight = dirtyRight > SCREEN_W - 1 ? SCREEN_W - 1 : (int16_t)dirtyRight;
-  *colFrom = (int16_t)(SCREEN_W - 1 - sRight);
-  *colTo = (int16_t)(SCREEN_W - 1 - sLeft);
 }

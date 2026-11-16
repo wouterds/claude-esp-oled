@@ -278,20 +278,22 @@ void loop() {
   }
 
   uint32_t t0 = micros();
-  int16_t from = 0;
-  int16_t to = SCREEN_H - 1;
-  int16_t colFrom = 0;
-  int16_t colTo = SCREEN_W - 1;
+  FaceBox touched[2];
   gaugeStep(boardFramebuffer(), now);
   faceStep(dt);
-  faceDraw(boardFramebuffer(), &from, &to, &colFrom, &colTo);
+  faceDraw(boardFramebuffer(), touched);
   // Whatever of the bars the face just cleared goes back in before the flush
   // rather than being repaired after it - and only that much of them, since the
   // rest of the panel is neither cleared nor sent.
-  gaugeDraw(boardFramebuffer(), colFrom, colTo, from, to);
+  for (const FaceBox &box : touched) {
+    gaugeDraw(boardFramebuffer(), box.x0, box.x1, box.from, box.to);
+  }
   uint32_t t1 = micros();
-  boardFlushRect(colFrom, colTo, from, to);
-  statusDraw(boardFramebuffer(), from, to);
+  for (const FaceBox &box : touched) {
+    boardFlushRect(box.x0, box.x1, box.from, box.to);
+  }
+  // The eyes are over the mouth, and framebuffer rows run the other way up.
+  statusDraw(boardFramebuffer(), touched[1].from, touched[0].to);
   uint32_t t2 = micros();
 
   // Where the frame actually goes. Guessing at this is how you optimise the
