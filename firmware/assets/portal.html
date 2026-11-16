@@ -292,7 +292,7 @@ function shots(list) {
   // browser keeps that name.
   $('shotList').innerHTML = list.map((s) => `<li class="flex items-center justify-between gap-3
     px-5 py-3">
-    <a href="/shots/${esc(s.name)}" target=_blank rel="noopener noreferrer"
+    <a href="/screenshots/${esc(s.name)}" target=_blank rel="noopener noreferrer"
        class="min-w-0 truncate font-mono text-xs text-white/80 hover:text-white hover:underline"
       >${esc(s.name)}</a>
     <div class="flex shrink-0 items-center gap-3">
@@ -467,7 +467,7 @@ $('shotList').addEventListener('click', async (e) => {
   btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
   binning = true;
   try {
-    await post('/shots/trash', {name: btn.dataset.shot});
+    await post('/screenshots/trash', {name: btn.dataset.shot});
   } catch (err) {
     // Nothing to say here that the list does not say better. A removal only
     // fails because the board no longer has that one, and what it does have is

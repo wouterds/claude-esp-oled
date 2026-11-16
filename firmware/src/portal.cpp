@@ -481,10 +481,10 @@ void portalBegin() {
   server.on("/every", HTTP_POST, handleSetEvery);
   server.on("/tokens", HTTP_POST, handleAddToken);
   server.on("/tokens/trash", HTTP_POST, handleTrashToken);
-  server.on("/shots/trash", HTTP_POST, handleTrashShot);
-  // Last of the three, and a pattern rather than a path. The two above are
-  // exact and are matched first, so neither is read as the name of a file.
-  server.on(UriBraces("/shots/{}"), HTTP_GET, handleShotFile);
+  server.on("/screenshots/trash", HTTP_POST, handleTrashShot);
+  // After it, and a pattern rather than a path. The one above is exact and is
+  // matched first, so it is not read as the name of a file.
+  server.on(UriBraces("/screenshots/{}"), HTTP_GET, handleShotFile);
   server.onNotFound(handleRoot);
   // Core 0, with the radio. Nothing here may sit in the way of a frame. The
   // stack carries a copy of the whole call log on its way out, which is most of
