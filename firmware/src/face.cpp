@@ -57,6 +57,11 @@ constexpr float SHAKE_S = 0.6f;
 constexpr float TURN = 0.07f;
 constexpr float TURN_AT = 20.0f;
 
+// A yawn, on every other trip down: the mouth opens tall while the lids give
+// up, and it is the only time the tired face does anything but sink.
+constexpr float YAWN_FROM = 1.2f;
+constexpr float YAWN_S = 2.2f;
+
 enum class Mood : uint8_t { Neutral, Happy, Surprised, Angry, Dead, Tired };
 
 // Constants, but sinf and cosf are not free and the shapes below are asked for
@@ -252,6 +257,9 @@ constexpr Mouth MOUTHS[] = {
     {12.0f, 6.5f, 6.5f, 6.5f},     // tired, a small even blob - a sag here
                                    // reads as a frown, and a frown is cross
 };
+// Tired's own mouth at the top of a yawn. Short of surprised's o in both
+// directions, which is the tallest thing the layout under the face has room for.
+constexpr Mouth YAWN = {13.0f, 17.0f, 13.0f, 13.0f};
 
 // How far one eye reaches from its own centre, per expression, before the glow.
 // The box walked below is this rather than the widest of all of them, which on a
@@ -832,6 +840,7 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
   }
 
   float squeeze = 1.0f;
+  float yawn = 0.0f;
   if (me.mood == Mood::Tired) {
     // Losing the argument with sleep: the lids sink, catch themselves twice on
     // the way down and lose a little more each time, and then it jolts awake in
@@ -856,6 +865,16 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
     // rather than a line, so what you see is something catching itself just
     // before it goes under rather than something that has already gone.
     squeeze = 0.30f + 0.70f * open;
+
+    float u = (fmodf(me.clock, 18.0f) - 9.0f - YAWN_FROM) / YAWN_S;
+    if (u > 0.0f && u < 1.0f) {
+      // Held open at the top rather than touched and left: a yawn has a middle.
+      yawn = clamp01(sinf(u * PI_F) * 1.5f);
+      float shut = 1.0f - 0.8f * yawn;
+      if (shut < squeeze) {
+        squeeze = shut;
+      }
+    }
   }
   if (me.blinking > 0.0f) {
     squeeze = 0.06f + 0.94f * fabsf(cosf((me.blinking / 0.16f) * PI_F));
@@ -888,11 +907,19 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
   // biggest entry in it. A neutral mouth is seven pixels tall where the widest
   // is twenty-two, and the fifteen rows between them were being walked, cleared
   // and sent every frame for nothing.
-  float mouthHX = MOUTHS[(uint8_t)mood].hx;
-  float mouthHY = MOUTHS[(uint8_t)mood].hy;
+  Blob lips = mouthBlob(mood);
+  if (yawn > 0.0f) {
+    lips.hx += (YAWN.hx - lips.hx) * yawn;
+    lips.hy += (YAWN.hy - lips.hy) * yawn;
+    lips.rTop += (YAWN.rTop - lips.rTop) * yawn;
+    lips.rBottom += (YAWN.rBottom - lips.rBottom) * yawn;
+  }
+  Blob lipsWas = mouthBlob(before);
+  float mouthHX = lips.hx;
+  float mouthHY = lips.hy;
   if (mix < 1.0f) {
-    if (MOUTHS[(uint8_t)before].hx > mouthHX) mouthHX = MOUTHS[(uint8_t)before].hx;
-    if (MOUTHS[(uint8_t)before].hy > mouthHY) mouthHY = MOUTHS[(uint8_t)before].hy;
+    if (lipsWas.hx > mouthHX) mouthHX = lipsWas.hx;
+    if (lipsWas.hy > mouthHY) mouthHY = lipsWas.hy;
   }
 
   float eyeY = centreY - EYE_RISE + me.lookY * 0.5f;
@@ -981,6 +1008,6 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
     if (y0 < 0) y0 = 0;
     if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
     if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
-    drawBlob(fb, mouthBlob(mood), mouthBlob(before), mix, centreX, mouthY, x0, x1, y0, y1);
+    drawBlob(fb, lips, lipsWas, mix, centreX, mouthY, x0, x1, y0, y1);
   }
 }
