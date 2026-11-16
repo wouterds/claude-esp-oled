@@ -4,6 +4,9 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
+#include <esp_netif.h>
+#include <esp_netif_net_stack.h>
+#include <lwip/netif.h>
 #include <string.h>
 
 // Generated from firmware/.env into the build directory by secrets.py. A
@@ -36,6 +39,24 @@ uint8_t knownCount = 0;
 // Held over every read and every change of the list above. The portal changes
 // it from its own task while the radio task is walking it.
 SemaphoreHandle_t lock = nullptr;
+
+// The largest packet the board will send or ask to be sent. Not the fifteen
+// hundred the network allows: on a crowded 2.4GHz network this radio was
+// measured getting every small packet through and losing between a third and
+// two thirds of the full-sized ones, in both directions, with the access point
+// at -72dBm. A reply that fits one small packet arrives; one that needs several
+// large ones waits out a retransmission for each that is lost, and three
+// seconds at a time that is the page never loading and a handshake taking ten.
+// 576 is the size every host on the internet has to accept, and is what the
+// stack tells the far end as well - so what comes back is cut to it too.
+constexpr uint16_t LARGEST = 576;
+
+void small() {
+  struct netif *nif = (struct netif *)esp_netif_get_netif_impl(WiFi.STA.netif());
+  if (nif) {
+    nif->mtu = LARGEST;
+  }
+}
 // How many things are holding the radio awake, and what keeps two tasks from
 // counting at once.
 SemaphoreHandle_t awakeLock = nullptr;
@@ -196,6 +217,7 @@ void wifiTask(void *) {
         }
         strncpy(onNetwork, WiFi.SSID().c_str(), sizeof(onNetwork) - 1);
         strncpy(onAddress, WiFi.localIP().toString().c_str(), sizeof(onAddress) - 1);
+        small();
         Serial.printf("wifi: on %s, %d dBm, %s\n", onNetwork, WiFi.RSSI(),
                       WiFi.localIP().toString().c_str());
         joined = true;
