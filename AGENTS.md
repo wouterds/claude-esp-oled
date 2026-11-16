@@ -93,6 +93,16 @@ Invisible in the code until they are broken.
   in the bootloader**, and **opening the serial port resets it**. All three
   present as a dead or possessed board and none of them says so; see the
   hardware guide before suspecting anything in here
+- **The page's server answers one connection at a time.** Every other one waits
+  its turn, a connection that has not said anything yet included, and that one
+  is waited on for five seconds. The page therefore asks one thing at a time and
+  only after the last answer; anything added to it that asks alongside is how
+  the board ends up behind and the browser gives up
+- **The radio loses large packets where it carries small ones.** On a crowded
+  2.4GHz network it was measured getting every small packet through and losing
+  a third to two thirds of the full-sized ones, so the board keeps its packets
+  small and its replies short. A reply that grows past a few of them is the one
+  that stops arriving
 - **The account's session token is on the device, not in the repo.** It is typed
   into the portal and kept in NVS, and
   `esptool read-flash 0x9000 0x5000 nvs.bin` with `strings` is how to read it
