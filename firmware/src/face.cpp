@@ -820,7 +820,9 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
   if (me.blinking > 0.0f) {
     squeeze = 0.06f + 0.94f * fabsf(cosf((me.blinking / 0.16f) * PI_F));
   }
-  float mix = me.blend;
+  // Eased at both ends. Straight, the change starts and stops at full speed,
+  // which is a shape being swapped rather than a face changing its mind.
+  float mix = me.blend * me.blend * (3.0f - 2.0f * me.blend);
   // Read once. Off the global they are a load the compiler has to repeat for
   // every pixel; in a local it can lift the whole choice of shape out of the
   // loop instead of deciding it eighteen thousand times.
