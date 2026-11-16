@@ -160,6 +160,12 @@ bool fetch(const String &url, const char *token, String &out) {
 
   HTTPClient http;
   http.setTimeout(12000);
+  // One request and done, and said so. Asked to keep the connection claude.ai
+  // does, and its replies are chunked - so with no length to count down and no
+  // close to wait for, the read below sat out the whole of its patience after
+  // the last byte had landed. Six seconds on every read that worked, with the
+  // session's forty-eight kilobytes held for all of them.
+  http.setReuse(false);
   if (!http.begin(tls, url)) {
     Serial.println("usage: begin failed");
     netRecord(url.c_str(), began, 0, 0);
