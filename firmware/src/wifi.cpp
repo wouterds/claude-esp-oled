@@ -36,6 +36,10 @@ uint8_t knownCount = 0;
 // Held over every read and every change of the list above. The portal changes
 // it from its own task while the radio task is walking it.
 SemaphoreHandle_t lock = nullptr;
+// How many things are holding the radio awake, and what keeps two tasks from
+// counting at once.
+SemaphoreHandle_t awakeLock = nullptr;
+uint8_t holding = 0;
 void listTake() { xSemaphoreTake(lock, portMAX_DELAY); }
 void listGive() { xSemaphoreGive(lock); }
 // The list has changed and the radio's copy of it has not. Rebuilt on the wifi
@@ -231,6 +235,7 @@ void wifiBegin() {
   WiFi.setAutoReconnect(true);
 
   lock = xSemaphoreCreateMutex();
+  awakeLock = xSemaphoreCreateMutex();
   store.begin("wifi", false);
   load();
   seed();
@@ -250,7 +255,17 @@ const char *wifiAddress() { return joined ? onAddress : nullptr; }
 
 int wifiRssi() { return joined ? onRssi : 0; }
 
-void wifiAwake(bool on) { WiFi.setSleep(!on); }
+void wifiAwake(bool on) {
+  xSemaphoreTake(awakeLock, portMAX_DELAY);
+  if (on) {
+    if (holding++ == 0) {
+      WiFi.setSleep(false);
+    }
+  } else if (holding > 0 && --holding == 0) {
+    WiFi.setSleep(true);
+  }
+  xSemaphoreGive(awakeLock);
+}
 
 uint8_t wifiKnown() { return knownCount; }
 

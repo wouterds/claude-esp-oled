@@ -144,9 +144,15 @@ void netTake() {
   if (held) {
     xSemaphoreTake(held, portMAX_DELAY);
   }
+  // Awake for the length of the request. A handshake is a dozen packets each
+  // way and a sleeping radio makes every one of them wait for a beacon, which
+  // turned a read of about a second into one of three or four - with the
+  // session's memory held, and the radio up on and off, for all of it.
+  wifiAwake(true);
 }
 
 void netGive() {
+  wifiAwake(false);
   if (held) {
     xSemaphoreGive(held);
   }

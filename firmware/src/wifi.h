@@ -41,8 +41,11 @@ const char *wifiAddress();
 // better. Zero exactly when it is on nothing.
 int wifiRssi();
 
-// Holds the radio awake, or lets it go back to sleeping between beacons. Asleep
-// it hears nothing until the next beacon it wakes for, so everything sent to
-// the board waits on that - which costs a poller nothing and costs somebody
-// with the page open most of a second on every request.
+// Holds the radio awake, or lets go of it to sleep between beacons again.
+// Asleep it hears nothing until the next beacon it wakes for, so everything
+// sent to the board waits on that: most of a second on every request for
+// somebody with the page open, and a dozen times over for a handshake.
+//
+// Counted. The page and a read can both be holding it, and the first of them to
+// finish does not get to put it to sleep under the other.
 void wifiAwake(bool on);
