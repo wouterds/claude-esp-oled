@@ -148,18 +148,57 @@ Arc arcAt(float bisector, float aperture) {
   return {cosf(bisector), sinf(bisector), sinf(aperture), cosf(aperture)};
 }
 
-// The point is turned so the bisector points along y, and from there it is
-// symmetric: inside the aperture the nearest thing is the circle, outside it
-// the nearer end.
-float sdArc(float px, float py, const Arc &a) {
+// Where a pixel stops being all bar and where it stops being any, as distances
+// from the middle of the stroke: the edge is a pixel wide and centred on it.
+constexpr float ALL_IN = HALF_THICK - 0.5f;
+constexpr float ALL_OUT = HALF_THICK + 0.5f;
+
+// How much of a pixel the arc covers. The point is turned so the bisector
+// points along y, and from there it is symmetric: inside the aperture the
+// nearest thing is the circle, outside it the nearer end.
+//
+// The distance is only taken on the edge. A root is a library call on this
+// chip and a bar is mostly its own middle, where the answer is one whatever the
+// distance comes to - and with one root for the track and another for the fill
+// on every pixel, a bar on its way somewhere cost three frames for each one it
+// drew. The squares say which side of the edge a pixel is on for nothing.
+float arcCover(float px, float py, const Arc &a) {
   float qx = fabsf(px * a.by - py * a.bx);
   float qy = px * a.bx + py * a.by;
   if (a.c * qx > a.s * qy) {
     float ex = qx - a.s * RADIUS;
     float ey = qy - a.c * RADIUS;
-    return sqrtf(ex * ex + ey * ey) - HALF_THICK;
+    float d2 = ex * ex + ey * ey;
+    if (d2 <= ALL_IN * ALL_IN) {
+      return 1.0f;
+    }
+    return d2 >= ALL_OUT * ALL_OUT ? 0.0f : ALL_OUT - sqrtf(d2);
   }
-  return fabsf(sqrtf(qx * qx + qy * qy) - RADIUS) - HALF_THICK;
+  // A turn keeps a length, so the point's own will do.
+  float r2 = px * px + py * py;
+  if (r2 >= (RADIUS - ALL_IN) * (RADIUS - ALL_IN) && r2 <= (RADIUS + ALL_IN) * (RADIUS + ALL_IN)) {
+    return 1.0f;
+  }
+  if (r2 <= (RADIUS - ALL_OUT) * (RADIUS - ALL_OUT) ||
+      r2 >= (RADIUS + ALL_OUT) * (RADIUS + ALL_OUT)) {
+    return 0.0f;
+  }
+  return ALL_OUT - fabsf(sqrtf(r2) - RADIUS);
+}
+
+// Whether a pixel of the track is in the part of it that is coloured in. Only
+// asked of a pixel the track covers, and the fill is a piece of the track: so
+// between the fill's ends the answer is already yes, and past one it is whether
+// the pixel is inside that end's cap - neither of which wants a root.
+bool inFill(float px, float py, const Arc &a) {
+  float qx = fabsf(px * a.by - py * a.bx);
+  float qy = px * a.bx + py * a.by;
+  if (a.c * qx <= a.s * qy) {
+    return true;
+  }
+  float ex = qx - a.s * RADIUS;
+  float ey = qy - a.c * RADIUS;
+  return ex * ex + ey * ey < ALL_OUT * ALL_OUT;
 }
 
 // Teal at nothing, orange halfway, and #ED0040 at full - the same red the frame
@@ -252,6 +291,8 @@ void build(uint8_t side, float percent) {
   edgeY1[side] = -1;
   uint16_t filled = colourAt(percent);
   float fraction = clamp01(percent / 100.0f);
+  // Most of a bar is fully covered, and those pixels are one of two colours.
+  const uint16_t whole[2] = {shade(TRACK, 1.0f), shade(filled, 1.0f)};
 
   // Ends measured from the horizontal, and no longer the same as each other, so
   // the arc is bisected off-centre by however much they differ.
@@ -278,23 +319,20 @@ void build(uint8_t side, float percent) {
       // through nothing for the pixel either side of its cap - a black crack
       // across a bar that is solid underneath - so the silhouette stays the
       // track's throughout and only the colour crosses over.
-      float d = sdArc(px, py, track);
-      uint16_t colour = TRACK;
+      float coverage = arcCover(px, py, track);
+      if (coverage <= 0.02f) {
+        continue;
+      }
       // The colour crosses on the fill's own edge rather than on a fade of it.
       // Both distances fall away together across the bar's width, so a fade
       // driven by one of them greys off every antialiased pixel down both long
       // edges of the fill - which leaves it fringed rather than filled, and the
       // fringe shifts along the curve as the bar bends.
-      if (fraction > 0.0f && sdArc(px, py, fill) < 0.5f) {
-        colour = filled;
-      }
-      float coverage = 0.5f - d;
-      if (coverage <= 0.02f) {
-        continue;
-      }
+      bool lit = fraction > 0.0f && inFill(px, py, fill);
       if (count[side] < SIDE_PIXELS) {
         int16_t at = right ? (int16_t)(SCREEN_W - 1 - x) : x;
-        pixels[side * SIDE_PIXELS + count[side]++] = {at, y, shade(colour, clamp01(coverage))};
+        uint16_t colour = coverage >= 1.0f ? whole[lit] : shade(lit ? filled : TRACK, coverage);
+        pixels[side * SIDE_PIXELS + count[side]++] = {at, y, colour};
         if (at < edgeX0[side]) edgeX0[side] = at;
         if (at > edgeX1[side]) edgeX1[side] = at;
         if (y < edgeY0[side]) edgeY0[side] = y;
