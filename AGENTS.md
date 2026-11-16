@@ -71,6 +71,11 @@ Invisible in the code until they are broken.
   transfer and returns, so refilling the band buffer walks over a transfer in
   flight and the panel shows bands from two frames at once. That reads as a
   broken panel rather than as a race
+- **A flush costs by the call as well as by the byte.** Measured on the AMOLED
+  board, a box goes out at about eight kilobytes a millisecond and every
+  `boardFlushRect` costs most of a millisecond before its first pixel. A box
+  that is mostly empty and a box cut into too many pieces both cost frames, and
+  the whole panel is fifty milliseconds - three frames, not one
 - **The framebuffer is in PSRAM and the SPI DMA cannot reach it.** Every band is
   copied down into internal RAM on its way out, and that copy is also where the
   bytes get swapped, which this panel wants
