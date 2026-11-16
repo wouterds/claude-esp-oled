@@ -422,6 +422,14 @@ void bars(uint16_t *fb, bool wipe) {
 
 void statusBars(uint16_t *fb, bool wipe) { bars(fb, wipe); }
 
+void statusAccount() {
+  naming = portalPicked() > 0;
+  namedAt = millis();
+  // Typed again even when it is the line already up, or a second swipe into
+  // the end of the list changes nothing anybody can see.
+  typedAt = namedAt;
+}
+
 void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   // Only worth the room while somebody still has to type the token into it.
   const char *address = usageReady() ? nullptr : wifiAddress();
@@ -472,8 +480,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   uint8_t picked = portalPicked();
   if (picked != account) {
     account = picked;
-    naming = picked > 0;
-    namedAt = millis();
+    statusAccount();
   }
   if (naming && millis() - namedAt >= ACCOUNT_MS) {
     naming = false;
@@ -494,7 +501,7 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo) {
   char label[16];
   if (naming) {
     subject = Line::Account;
-    snprintf(label, sizeof(label), "ACCOUNT %u", (unsigned)account);
+    snprintf(label, sizeof(label), "ACCOUNT %u", (unsigned)picked);
     want = label;
   } else if (alarmTurn) {
     subject = Line::Alarm;

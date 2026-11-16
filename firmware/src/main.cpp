@@ -235,6 +235,7 @@ void loop() {
     // Sideways on the face is another account rather than another page: the
     // bars walk to its numbers once they are read, and the face starts over.
     portalTurn(swipe == Swipe::Left ? 1 : -1);
+    statusAccount();
   }
 
   // Held rather than pressed, and asked first: the release that ends a hold is

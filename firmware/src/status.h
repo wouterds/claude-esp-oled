@@ -19,3 +19,9 @@ void statusDraw(uint16_t *fb, int16_t faceFrom, int16_t faceTo);
 // `wipe` for a page that has only just been cleared. There is nothing on the
 // glass to compare against then, so what was last drawn is not what is there.
 void statusBars(uint16_t *fb, bool wipe);
+
+// Names the picked account on the bottom line, from the first letter. For a
+// swipe sideways whether or not it had anywhere to go: at either end of the
+// list nothing is picked, and saying nothing there is exactly how a swipe that
+// was never seen answers.
+void statusAccount();
