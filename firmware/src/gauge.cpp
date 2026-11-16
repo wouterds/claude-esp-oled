@@ -132,6 +132,21 @@ bool wanted = false;
 bool figures = false;
 bool figuresMoved = false;
 float shown[2] = {0.0f, 0.0f};
+// What each side still has to put on the panel, and whose turn it is when both
+// do. A bar's rebuild and its sends are most of a frame between them, so two
+// bars walking at once take a frame each rather than sharing one - thirty
+// times a second apiece, which a bar cannot be seen to do, in place of the face
+// dropping to twenty for as long as they move.
+bool owed[2] = {false, false};
+// And whether what it owes is all of itself: its shape has changed, so what is
+// on the glass has to come off first.
+bool reshaped[2] = {false, false};
+uint8_t turn = 0;
+// The reading each side was last sent for, which is also the one its number
+// says: the two sides take turns, and a number redrawn for a reading its bar
+// has not been sent for yet is a number the next flush of the face sends half
+// of.
+float sent[2] = {0.0f, 0.0f};
 float target[2] = {0.0f, 0.0f};
 uint32_t lastStep = 0;
 
@@ -282,6 +297,25 @@ bool ringSpan(float py, int16_t &x0, int16_t &x1) {
   return x0 <= x1;
 }
 
+// How far the bar reaches above the horizontal and below it. Not the same as
+// each other any more, so the arc is bisected off-centre by however much they
+// differ.
+void sweep(float &up, float &down) {
+  up = (SWEEP_SHORT + (SWEEP_TOP - SWEEP_SHORT) * reach) * grow;
+  down = (SWEEP_SHORT + (SWEEP_BOTTOM - SWEEP_SHORT) * reach) * grow;
+}
+
+// The highest row a fill of this much reaches. The fill grows from the bottom
+// end upward and is one colour throughout, so a reading that moves changes
+// every row from here down and none above it.
+int16_t fillTop(float percent) {
+  float up;
+  float down;
+  sweep(up, down);
+  float above = (up + down) * clamp01(percent / 100.0f) - down;
+  return (int16_t)(SCREEN_R - RADIUS * sinf(above) - ALL_OUT - 2.0f);
+}
+
 void build(uint8_t side, float percent) {
   bool right = side == 1;
   count[side] = 0;
@@ -294,10 +328,9 @@ void build(uint8_t side, float percent) {
   // Most of a bar is fully covered, and those pixels are one of two colours.
   const uint16_t whole[2] = {shade(TRACK, 1.0f), shade(filled, 1.0f)};
 
-  // Ends measured from the horizontal, and no longer the same as each other, so
-  // the arc is bisected off-centre by however much they differ.
-  float up = (SWEEP_SHORT + (SWEEP_TOP - SWEEP_SHORT) * reach) * grow;
-  float down = (SWEEP_SHORT + (SWEEP_BOTTOM - SWEEP_SHORT) * reach) * grow;
+  float up;
+  float down;
+  sweep(up, down);
   float span = up + down;
   Arc track = arcAt((float)M_PI + (up - down) * 0.5f, span * 0.5f);
   Arc fill = arcAt((float)M_PI - down + span * fraction * 0.5f, span * fraction * 0.5f);
@@ -360,19 +393,80 @@ void clearFigures(uint16_t *fb) {
 // A bar that has just got shorter leaves its old ends behind, and nothing else
 // on the panel is ever going to clear them. Only the ring gets cleared, not the
 // box around it: at this width the box would take the address with it.
-void wipe(uint16_t *fb) {
+void wipe(uint16_t *fb, uint8_t side) {
   for (int16_t y = BOX_Y0; y <= BOX_Y1; y++) {
     int16_t x0;
     int16_t x1;
     if (!ringSpan((float)y + 0.5f - SCREEN_R, x0, x1)) {
       continue;
     }
-    uint16_t *line = boardRow(fb, y);
     size_t bytes = (size_t)(x1 - x0 + 1) * 2;
-    memset(line + boardX(x1), 0, bytes);
-    memset(line + boardX(SCREEN_W - 1 - x0), 0, bytes);
+    memset(boardRow(fb, y) + boardX(side == 0 ? x1 : (int16_t)(SCREEN_W - 1 - x0)), 0, bytes);
   }
   clearFigures(fb);
+}
+
+// The ring cut into bands of rows, each only as wide as the piece of arc that
+// crosses it. A bar is a dozen pixels thick and bows a hundred and forty across
+// its length, so the one box that holds it is three quarters empty - and the
+// wire carries about eight kilobytes a millisecond, which made a bar walking
+// somewhere the most expensive thing this board ever did. Not many bands, all
+// the same: each send costs most of a millisecond before its first pixel, and
+// past eight the calls cost more than the rows they save.
+constexpr uint8_t BANDS = 8;
+constexpr int16_t BAND_ROWS = (BOX_Y1 - BOX_Y0 + 1 + BANDS - 1) / BANDS;
+int16_t bandX0[BANDS];
+int16_t bandX1[BANDS];
+
+void bandsBegin() {
+  for (uint8_t band = 0; band < BANDS; band++) {
+    bandX0[band] = BOX_X1;
+    bandX1[band] = BOX_X0;
+    for (int16_t y = BOX_Y0 + band * BAND_ROWS; y < BOX_Y0 + (band + 1) * BAND_ROWS; y++) {
+      int16_t x0;
+      int16_t x1;
+      if (y > BOX_Y1 || !ringSpan((float)y + 0.5f - SCREEN_R, x0, x1)) {
+        continue;
+      }
+      if (x0 < bandX0[band]) bandX0[band] = x0;
+      if (x1 > bandX1[band]) bandX1[band] = x1;
+    }
+  }
+}
+
+// A box of one side sent, given the way the left bar has it and turned for the
+// flush - and mirrored first for the right one.
+void sendBox(uint8_t side, int16_t x0, int16_t x1, int16_t y0, int16_t y1) {
+  int16_t from = (int16_t)(SCREEN_H - 1 - y1);
+  int16_t to = (int16_t)(SCREEN_H - 1 - y0);
+  if (side == 0) {
+    boardFlushRect((int16_t)(SCREEN_W - 1 - x1), (int16_t)(SCREEN_W - 1 - x0), from, to);
+  } else {
+    boardFlushRect(x0, x1, from, to);
+  }
+}
+
+// One side rebuilt, put back and sent: its ring a band at a time from `top`
+// down, and the box its number stands in. Nothing else of a side is ever
+// written, so nothing else is owed.
+void send(uint16_t *fb, uint8_t side, int16_t top) {
+  build(side, shown[side]);
+  sent[side] = shown[side];
+  gaugeDraw(fb, side == 0 ? (int16_t)(SCREEN_W - 1 - BOX_X1) : BOX_X0,
+            side == 0 ? (int16_t)(SCREEN_W - 1 - BOX_X0) : BOX_X1,
+            (int16_t)(SCREEN_H - 1 - BOX_Y1), (int16_t)(SCREEN_H - 1 - BOX_Y0));
+  for (uint8_t band = 0; band < BANDS; band++) {
+    int16_t y0 = BOX_Y0 + band * BAND_ROWS;
+    int16_t y1 = (int16_t)(y0 + BAND_ROWS - 1);
+    if (y0 < top) y0 = top;
+    if (y1 > BOX_Y1) y1 = BOX_Y1;
+    if (y0 > y1 || bandX0[band] > bandX1[band]) {
+      continue;
+    }
+    sendBox(side, bandX0[band], bandX1[band], y0, y1);
+  }
+  sendBox(side, FIGURE_X - FIGURE_HW, FIGURE_X + FIGURE_HW, FIGURE_TOP - 2,
+          FIGURE_TOP + FIGURE_HEIGHT + 1);
 }
 
 }  // namespace
@@ -387,6 +481,7 @@ void gaugeBegin() {
     Serial.println("gauges: no room");
     return;
   }
+  bandsBegin();
   lastStep = millis();
 }
 
@@ -407,12 +502,10 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
     }
     // Out of the middle as they come up, rather than appearing full length.
     grow = alpha * alpha * (3.0f - 2.0f * alpha);
-    wipe(fb);
-    build(0, shown[0]);
-    build(1, shown[1]);
-    gaugeDraw(fb, 0, SCREEN_W - 1, (int16_t)(SCREEN_H - 1 - BOX_Y1),
-              (int16_t)(SCREEN_H - 1 - BOX_Y0));
-    boardFlushRows((int16_t)(SCREEN_H - 1 - BOX_Y1), (int16_t)(SCREEN_H - 1 - BOX_Y0));
+    for (uint8_t side = 0; side < 2; side++) {
+      wipe(fb, side);
+      send(fb, side, BOX_Y0);
+    }
     return;
   }
 
@@ -452,34 +545,37 @@ void gaugeStep(uint16_t *fb, uint32_t now) {
     reshape = true;
   }
 
-  bool moved = false;
   float k = 1.0f - expf(-dt * APPROACH);
   for (uint8_t side = 0; side < 2; side++) {
+    owed[side] |= reshape;
+    reshaped[side] |= reshape;
     float gap = target[side] - shown[side];
     if (fabsf(gap) < ARRIVED) {
       if (shown[side] != target[side]) {
         shown[side] = target[side];
-        moved = true;
+        owed[side] = true;
       }
       continue;
     }
     shown[side] += gap * k;
-    moved = true;
+    owed[side] = true;
   }
 
-  if (!moved && !reshape) {
+  if (!owed[0] && !owed[1]) {
     return;
   }
+  uint8_t side = owed[0] && owed[1] ? turn : (owed[0] ? 0 : 1);
+  turn = side ^ 1;
+  int16_t top = fillTop(shown[side] > sent[side] ? shown[side] : sent[side]);
   // A bar that just got shorter, or a number that just went away, leaves itself
   // behind otherwise.
-  if (reshape) {
-    wipe(fb);
+  if (reshaped[side]) {
+    wipe(fb, side);
+    top = BOX_Y0;
   }
-  build(0, shown[0]);
-  build(1, shown[1]);
-  gaugeDraw(fb, 0, SCREEN_W - 1, (int16_t)(SCREEN_H - 1 - BOX_Y1),
-            (int16_t)(SCREEN_H - 1 - BOX_Y0));
-  boardFlushRows((int16_t)(SCREEN_H - 1 - BOX_Y1), (int16_t)(SCREEN_H - 1 - BOX_Y0));
+  send(fb, side, top);
+  owed[side] = false;
+  reshaped[side] = false;
 }
 
 void gaugeReveal() {
@@ -532,7 +628,7 @@ void gaugeDraw(uint16_t *fb, int16_t x0, int16_t x1, int16_t from, int16_t to) {
   // already wiped and put back every frame.
   for (uint8_t side = 0; side < 2; side++) {
     char said[6];
-    snprintf(said, sizeof(said), "%u%%", (unsigned)(shown[side] + 0.5f));
+    snprintf(said, sizeof(said), "%u%%", (unsigned)(sent[side] + 0.5f));
     int16_t at = side == 1 ? (int16_t)(SCREEN_W - 1 - FIGURE_X) : FIGURE_X;
     textDraw(fb, said, at, FIGURE_TOP, 2, boardColour(0xFFFF));
   }
