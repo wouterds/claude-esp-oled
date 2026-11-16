@@ -19,8 +19,8 @@ void portalBegin();
 // it - which spends the token on a request that then reads as a refused login.
 bool portalToken(char *out, size_t size);
 
-// Picks the next token along, or the one before it with a negative step, going
-// round from the last to the first. Nothing with fewer than two to go between.
+// Picks the next token along, or the one before it with a negative step. The
+// ends are ends: a step past the last or before the first picks nothing.
 void portalTurn(int8_t by);
 
 // Which of them is picked, counted from one the way the page lists them.
