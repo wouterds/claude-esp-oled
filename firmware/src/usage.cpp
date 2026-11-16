@@ -58,6 +58,12 @@ uint8_t misses = 0;
 // device goes back to asking for a new one: the address returns, the numbers go
 // away and the bars come in.
 constexpr uint8_t GIVE_UP_AT = 3;
+// The last read was turned away rather than lost. A token that has been
+// refused is not let in fifteen seconds later, and asking that often is four
+// requests a minute with a dead login from an address other people share - so
+// it is asked again at the pace the readings are, and at once when a token
+// changes.
+bool barred = false;
 
 // Days from the epoch to a civil date. No calendar library and no local time to
 // be wrong about - everything on this endpoint is UTC, and this is the whole of
@@ -289,6 +295,7 @@ void poll(const char *token) {
     // so this task stays the only one that ever touches it.
     org[0] = '\0';
     misses = 0;
+    barred = false;
   }
   String body;
   uint8_t hours = 0;
@@ -314,6 +321,7 @@ void poll(const char *token) {
     // Turned away outright is answer enough; anything else gets the benefit of
     // the doubt for a couple of rounds, because a radio drops.
     bool refused = lastCode == 401 || lastCode == 403;
+    barred = refused;
     if (refused || ++misses >= GIVE_UP_AT) {
       if (ready) {
         Serial.printf("usage: %s, asking for a token again\n",
@@ -339,6 +347,7 @@ void poll(const char *token) {
   }
 
   misses = 0;
+  barred = false;
   resetAt[0] = deadlineOf(hoursOn);
   resetAt[1] = deadlineOf(weekOn);
   if (!ready || hours != session || week != weekly) {
@@ -379,7 +388,7 @@ void task(void *) {
       due = false;
       poll(token);
       timed = ready;
-      until = millis() + RETRY_MS;
+      until = millis() + (barred ? (uint32_t)every * 60000UL : RETRY_MS);
     }
     // A quarter second at a time rather than one long delay: the wait can be
     // cut short by a wake, the idle task the watchdog watches is scheduled all
