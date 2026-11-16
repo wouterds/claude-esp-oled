@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "board.h"
 #include "pins.h"
 #include "touchpad.h"
 
@@ -11,7 +12,11 @@ namespace {
 // this is very nearly the distance the finger actually travelled, so it can be
 // what it sounds like - a deliberate inch - rather than the fraction of one
 // that used to survive being sampled once a frame.
-constexpr int16_t CROSSED = 30;
+//
+// A length like any other, so it takes SCENE: the reports come in the panel's
+// own pixels, and unscaled the same thirty of them was a quarter less finger on
+// the denser glass than on the one it was tuned against.
+constexpr int16_t CROSSED = (int16_t)(30 * SCENE);
 // How many times further along one axis than the other a finger has to have
 // gone to be a swipe - within about twenty-seven degrees of straight.
 constexpr int16_t STEEP = 2;
@@ -24,7 +29,7 @@ constexpr uint32_t RELEASE_MS = 200;
 constexpr uint32_t WAKE_MS = 50;
 // How far a finger may wobble between landing and lifting and still have
 // tapped rather than dragged.
-constexpr int16_t SLOP = 20;
+constexpr int16_t SLOP = (int16_t)(20 * SCENE);
 // From the first tap lifting to the second landing. Longer apart is two taps.
 constexpr uint32_t DOUBLE_MS = 400;
 
