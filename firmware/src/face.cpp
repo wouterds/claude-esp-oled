@@ -773,7 +773,9 @@ void faceStep(float dt) {
       me.blinkIn -= dt;
       if (me.blinkIn <= 0.0f) {
         me.blinking = 0.16f;
-        me.blinkIn = frand(2.4f, 6.0f);
+        // Now and then a second one straight behind the first, which is what
+        // keeps the blinks from being a timer going off.
+        me.blinkIn = random(0, 5) == 0 ? 0.12f : frand(2.4f, 6.0f);
       }
     }
   } else {
