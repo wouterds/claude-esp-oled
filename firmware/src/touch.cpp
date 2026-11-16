@@ -17,6 +17,10 @@ namespace {
 // own pixels, and unscaled the same thirty of them was a quarter less finger on
 // the denser glass than on the one it was tuned against.
 constexpr int16_t CROSSED = (int16_t)(30 * SCENE);
+// Sideways it is twice that. Up and down only turn a page, and a page turns
+// back; sideways changes whose numbers these are and keeps the change, which is
+// more than a sleeve brushing the glass should be able to ask for.
+constexpr int16_t CROSSED_ACROSS = 2 * CROSSED;
 // How many times further along one axis than the other a finger has to have
 // gone to be a swipe - within about twenty-seven degrees of straight.
 constexpr int16_t STEEP = 2;
@@ -145,10 +149,10 @@ void look() {
     return;
   }
   if (abs(right) >= STEEP * abs(down)) {
-    if (right >= CROSSED) {
+    if (right >= CROSSED_ACROSS) {
       went = Swipe::Right;
       fired = true;
-    } else if (right <= -CROSSED) {
+    } else if (right <= -CROSSED_ACROSS) {
       went = Swipe::Left;
       fired = true;
     }
