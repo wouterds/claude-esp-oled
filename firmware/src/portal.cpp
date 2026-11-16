@@ -266,8 +266,12 @@ const refresh = () => queued(async () => {
   if (!trashing) tokens(s.tokens);
   if (!forgetting) networks(s.networks);
   if (!binning) shots(s.shots);
+  // Fewer than the page has seen is a board that has been reset since.
+  if (s.calls < drawn) {
+    drawn = 0;
+    log = [];
+  }
   if (s.calls !== drawn) {
-    drawn = s.calls;
     await requests();
   }
   // Not while it is being dragged, or the poll would drag it back every five
@@ -334,19 +338,25 @@ function shots(list) {
     'the board for three seconds.</li>';
 }
 
-// What the board had made last time the rows were drawn. A thousand of them is
-// a hundred kilobytes of JSON and as many table rows to build, and none of it
-// changes between calls - so the rows are fetched when that number moves rather
-// than on the clock.
-let drawn = -1;
+// How many calls the rows on the page run up to, and the rows. A thousand of
+// them is a hundred kilobytes of JSON, and the board was sending all of it again
+// every time it made one call - so the page keeps what it has and asks only for
+// what it has not seen, which is a row.
+let drawn = 0;
+let log = [];
 
 async function requests() {
-  let list;
+  let fresh;
   try {
-    list = await (await call('/requests')).json();
+    fresh = await (await call('/requests?since=' + drawn)).json();
   } catch (e) {
     return;
   }
+  // The count the board answered with rather than the one that prompted the
+  // asking: it may have made another call in between, and that row is in here.
+  drawn = fresh.calls;
+  log = fresh.rows.concat(log).slice(0, 1000);
+  const list = log;
   // Held across the redraw, or reading back through the log would throw
   // somebody to the top every time the board made a call.
   const box = $('rows').closest('div');
@@ -660,6 +670,16 @@ void handleForgetNetwork() {
 }
 
 void handleRequests() {
+  // Only the calls made since the one the page says it has seen, newest first.
+  // A page that claims more than were ever made is from before a reset, and one
+  // that says nothing has none of them - both get the lot.
+  uint32_t made = netCallsMade();
+  uint32_t since = strtoul(server.arg("since").c_str(), nullptr, 10);
+  uint16_t n = netCallCount();
+  if (since <= made && made - since < n) {
+    n = (uint16_t)(made - since);
+  }
+
   // Sent as it is built rather than assembled and then sent. A hundred rows is
   // thirteen kilobytes of JSON, and a String that size is thirteen kilobytes of
   // internal heap taken while a TLS handshake on the other task may be wanting
@@ -667,11 +687,15 @@ void handleRequests() {
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "application/json", "");
 
-  String out = "[";
+  String out = "{\"calls\":";
+  out += made;
+  out += ",\"rows\":[";
   NetCall c;
-  uint16_t n = netCallCount();
   for (uint16_t i = 0; i < n; i++) {
-    if (!netCallAt(i, &c)) {
+    // Counted back from the call the reply says it runs up to, not from
+    // whatever is newest by now: one made while this is being sent would
+    // otherwise be in here and then sent again as new.
+    if (!netCallAt((uint16_t)(i + (netCallsMade() - made)), &c)) {
       break;
     }
     if (i) {
@@ -693,7 +717,7 @@ void handleRequests() {
       out = "";
     }
   }
-  out += ']';
+  out += "]}";
   server.sendContent(out);
   // An empty chunk is what ends a chunked reply.
   server.sendContent("");
