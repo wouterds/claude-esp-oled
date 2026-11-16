@@ -36,6 +36,21 @@ constexpr float MOUTH_DROP = 52.0f * SCENE;
 
 constexpr float BLEND_SECONDS = 0.35f;
 
+// How far the float alone carries the face either side of where it is.
+constexpr float FLOAT_REACH = 6.5f;
+
+// What an expression does with the whole face on its way in, over and above
+// wearing it. A shape changing says what the mood is; the body moving is what
+// says it just happened - a hop for the good news, a start for the surprise, a
+// shake for the cross one. All three are spent well inside the five seconds the
+// shortest of those moods lasts, so none of them is cut off by the next.
+constexpr float HOP = 7.0f * SCENE;
+constexpr float HOP_S = 1.6f;
+constexpr float JUMP = 8.0f * SCENE;
+constexpr float JUMP_S = 0.1f;
+constexpr float SHAKE = 3.0f * SCENE;
+constexpr float SHAKE_S = 0.6f;
+
 enum class Mood : uint8_t { Neutral, Happy, Surprised, Angry, Dead, Tired };
 
 // Constants, but sinf and cosf are not free and the shapes below are asked for
@@ -793,6 +808,22 @@ void faceDraw(uint16_t *fb, FaceBox touched[2]) {
   float floatX = sinf(me.clock * 0.83f) * 3.0f;
   float centreX = me.x + floatX;
   float centreY = me.y + floatY;
+  if (me.mood == Mood::Happy && me.held < HOP_S) {
+    // A few hops, each smaller than the last.
+    centreY -= HOP * fabsf(sinf(me.held * 2.4f * PI_F)) * (1.0f - me.held / HOP_S);
+  } else if (me.mood == Mood::Surprised) {
+    // Up at once and back down slowly: a start, not a bounce.
+    float u = me.held / JUMP_S;
+    centreY -= JUMP * u * expf(1.0f - u);
+  } else if (me.mood == Mood::Angry && me.held < SHAKE_S) {
+    centreX += SHAKE * sinf(me.held * 30.0f * PI_F) * (1.0f - me.held / SHAKE_S);
+  }
+  // The alarm's band starts right above the highest the float carries the
+  // face, so a hop taken from the top of its drift is cut short rather than
+  // taken through the triangle.
+  if (centreY < HOME_Y - ROAM - FLOAT_REACH) {
+    centreY = HOME_Y - ROAM - FLOAT_REACH;
+  }
 
   float squeeze = 1.0f;
   if (me.mood == Mood::Tired) {
