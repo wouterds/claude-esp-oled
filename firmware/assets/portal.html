@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang=en>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>buddy</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<body class="bg-gray-950 text-white/90 antialiased">
+<main class="max-w-7xl px-8 py-10">
+  <h1 class="text-2xl font-bold text-white">Settings</h1>
+  <p id=who class="mt-1 hidden text-sm text-rose-400"></p>
+
+  <div class="mt-8 grid items-start gap-6 xl:grid-cols-[26rem_minmax(0,1fr)]">
+    <div class="grid gap-6">
+
+      <section class="rounded-xl border border-white/10 bg-white/[0.05]">
+        <div class="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Claude session tokens</h2>
+          <span id=tokenState class="text-xs text-white/45">&nbsp;</span>
+        </div>
+        <ul id=tokenList class="divide-y divide-white/[0.06]"></ul>
+        <form id=tokenForm class="border-t border-white/[0.06] px-5 py-4">
+          <input id=token name=token type=password autocomplete=off spellcheck=false
+                 placeholder="sk-ant-sid02-..."
+                 class="w-full rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
+                        text-white/95 placeholder-white/30 outline-none
+                        focus:outline focus:outline-[1.5px] focus:outline-offset-0
+                        focus:outline-blue-500 disabled:opacity-50">
+          <p class="mt-2 text-xs text-white/45">
+            Kept on the device. A new one is used straight away; it goes in and is never shown
+            again, here or anywhere.
+          </p>
+          <button id=tokenAdd data-label="Add token" data-busy="Adding"
+                  class="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2
+                         text-sm font-medium text-white hover:bg-blue-600/85
+                         disabled:cursor-not-allowed disabled:opacity-50"><span>Add token</span></button>
+          <p id=tokenMsg class="mt-3 hidden text-sm"></p>
+        </form>
+      </section>
+
+      <section class="rounded-xl border border-white/10 bg-white/[0.05]">
+        <div class="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Wi-Fi networks</h2>
+          <span id=netCount class="text-xs text-white/45">&nbsp;</span>
+        </div>
+        <ul id=netList class="divide-y divide-white/[0.06]"></ul>
+        <form id=netForm class="border-t border-white/[0.06] px-5 py-4">
+          <div class="grid gap-2 sm:grid-cols-2">
+            <input id=ssid name=ssid autocomplete=off spellcheck=false maxlength=32
+                   placeholder="Network name"
+                   class="rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
+                          text-white/95 placeholder-white/30 outline-none
+                          focus:outline focus:outline-[1.5px] focus:outline-offset-0
+                          focus:outline-blue-500 disabled:opacity-50">
+            <input id=pass name=password type=password autocomplete=new-password maxlength=63
+                   placeholder="Password"
+                   class="rounded-md border border-white/10 bg-gray-950 px-3 py-2 text-sm
+                          text-white/95 placeholder-white/30 outline-none
+                          focus:outline focus:outline-[1.5px] focus:outline-offset-0
+                          focus:outline-blue-500 disabled:opacity-50">
+          </div>
+          <p class="mt-2 text-xs text-white/45">
+            Kept on the device. A password goes in and is never shown again, here or anywhere.
+          </p>
+          <button id=netAdd data-label="Add network" data-busy="Adding"
+                  class="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2
+                         text-sm font-medium text-white hover:bg-blue-600/85
+                         disabled:cursor-not-allowed disabled:opacity-50"><span>Add network</span></button>
+          <p id=netMsg class="mt-3 hidden text-sm"></p>
+        </form>
+      </section>
+
+    </div>
+
+    <!-- The column, rather than the one card that used to be here. The cap on
+         how tall it gets moved up to this: the screenshots take what they need
+         and the requests take the rest, so the two together stop where the one
+         did instead of running the page off the bottom. -->
+    <div class="grid min-w-0 gap-6 xl:max-h-[calc(100vh-10rem)]
+                xl:grid-rows-[auto_minmax(0,1fr)]">
+
+      <section class="rounded-xl border border-white/10 bg-white/[0.05]">
+        <div class="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Screenshots</h2>
+          <span id=shotCount class="text-xs text-white/45">&nbsp;</span>
+        </div>
+        <!-- Capped and scrolling rather than as tall as it needs. Ten rows is
+             most of the column on a laptop, and what it would be taking that
+             from is the request log underneath - which is the thing on this
+             page somebody is actually reading. The cap cuts a row in half on
+             purpose: a list that ends flush with its own border looks like the
+             whole of it. -->
+        <ul id=shotList class="max-h-72 divide-y divide-white/[0.06] overflow-y-auto"></ul>
+      </section>
+
+      <section class="flex max-h-[200px] min-h-0 flex-col overflow-hidden rounded-xl
+                      border border-white/10 bg-white/[0.05] xl:max-h-none">
+        <div class="flex flex-none flex-wrap items-center justify-between gap-x-4 gap-y-2
+                    border-b border-white/[0.06] px-5 py-3">
+          <h2 class="text-xs uppercase tracking-wider text-white/60">Requests</h2>
+          <div class="flex items-center gap-3">
+            <label for=every class="text-xs text-white/45">Refresh interval</label>
+            <input id=every type=range min=1 max=5 step=1 value=1
+                   class="h-1 w-28 cursor-pointer appearance-none rounded-full bg-white/10
+                          accent-blue-500">
+            <span id=everyLabel
+                  class="w-12 shrink-0 text-right text-xs tabular-nums text-white/80">&nbsp;</span>
+          </div>
+        </div>
+        <!-- The rows scroll and the two ends hold still. They stay inside the one
+             table so the columns cannot drift apart, which is what a second table
+             for the head would risk the moment a scrollbar took a width off this
+             one. A stuck row has to be opaque or the rows pass through it, and
+             #10131E is this panel's own colour resolved - the one fixed value on
+             the page, and only because there is no way to name a composite. -->
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <!-- Fixed, so a path longer than the column ends in an ellipsis rather
+               than widening the table until the last column is outside the card. -->
+          <table class="w-full table-fixed text-xs">
+            <thead>
+              <tr class="text-[10px] uppercase tracking-wider text-white/45">
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
+                           pl-5 pr-3 text-left font-normal">Time</th>
+                <th class="sticky top-0 z-10 border-b border-white/[0.06] bg-[#10131E] px-3 py-2
+                           text-left font-normal">Endpoint</th>
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
+                           py-2 text-right font-normal">Status</th>
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] px-3
+                           py-2 text-right font-normal">Took</th>
+                <th class="sticky top-0 z-10 w-20 border-b border-white/[0.06] bg-[#10131E] py-2
+                           pl-3 pr-5 text-right font-normal">Size</th>
+              </tr>
+            </thead>
+            <tbody id=rows class="divide-y divide-white/[0.06]"></tbody>
+            <tfoot id=totals class="hidden">
+              <tr class="text-white/45">
+                <td colspan=3 id=avgLabel
+                    class="sticky bottom-0 z-10 border-t border-white/[0.06] bg-[#10131E] py-2 pl-5
+                           pr-3 text-[10px] uppercase tracking-wider"></td>
+                <td id=avgMs class="sticky bottom-0 z-10 whitespace-nowrap border-t
+                           border-white/[0.06] bg-[#10131E] px-3 py-2 text-right tabular-nums"></td>
+                <td id=avgSize class="sticky bottom-0 z-10 whitespace-nowrap border-t
+                           border-white/[0.06] bg-[#10131E] py-2 pl-3 pr-5 text-right
+                           tabular-nums"></td>
+              </tr>
+            </tfoot>
+          </table>
+          <p id=quiet class="px-5 py-6 text-sm text-white/45">Nothing asked for yet.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const who = $('who');
+
+const spin = (size) => '<svg class="' + size + ' animate-spin" viewBox="0 0 24 24" fill=none>' +
+  '<circle class="opacity-25" cx=12 cy=12 r=10 stroke=currentColor stroke-width=4></circle>' +
+  '<path class="opacity-75" fill=currentColor d="M4 12a8 8 0 0 1 8-8V0C5.4 0 0 5.4 0 12h4z"></path></svg>';
+
+const esc = (s) => String(s).replace(/[&<>"]/g,
+  (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const clock = (at) => (at ? new Date(at * 1000).toISOString().slice(11, 19) : '--:--:--');
+const bytes = (n) => (n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB');
+
+function busy(btn, on) {
+  btn.disabled = on;
+  btn.innerHTML =
+    (on ? spin('h-4 w-4') : '') + '<span>' + (on ? btn.dataset.busy : btn.dataset.label) + '</span>';
+}
+
+// Said and then taken back: the answer is about the press that caused it, and
+// left up it goes on describing a page that has moved on since.
+const SAID_MS = 5000;
+const fading = new WeakMap();
+
+function say(el, text, ok) {
+  el.textContent = text;
+  el.className = 'mt-3 text-sm ' + (ok ? 'text-teal-400' : 'text-rose-400');
+  // Restarted rather than stacked, so a second message gets its own five
+  // seconds instead of inheriting what is left of the first one's.
+  clearTimeout(fading.get(el));
+  fading.set(el, setTimeout(() => el.classList.add('hidden'), SAID_MS));
+}
+
+// Blurred the moment a form is sent: the answer appears under the field, and a
+// field still holding focus with a ring around it reads as still wanting
+// something typed. It also puts a phone's keyboard away.
+const unfocus = (form) => form.querySelectorAll('input').forEach((i) => i.blur());
+
+// The board answers one connection at a time and makes every other one wait
+// its turn - a connection that has not said anything yet included. So nothing
+// here is asked while something else is still being answered: asked together,
+// the requests queued up on the board faster than it cleared them, and the
+// browser gave up on the ones at the back.
+let line = Promise.resolve();
+function queued(job) {
+  const run = line.then(job, job);
+  line = run.catch(() => {});
+  return run;
+}
+
+// Given up on rather than waited out. A request the board never answers would
+// otherwise hold the line above for as long as the browser cares to wait.
+const call = (url, options) => fetch(url, {...options, signal: AbortSignal.timeout(15000)});
+
+const post = (url, fields) => queued(async () => {
+  const r = await call(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams(fields),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) throw new Error(d.error || ('the board answered ' + r.status));
+  return d;
+});
+
+const refresh = () => queued(async () => {
+  let s;
+  try {
+    s = await (await call('/state')).json();
+  } catch (e) {
+    who.textContent = 'The board stopped answering.';
+    who.classList.remove('hidden');
+    return;
+  }
+  who.classList.add('hidden');
+  // A press in flight owns its list: the five second tick would otherwise
+  // redraw it underneath the button and replace the one that is spinning with a
+  // fresh one, which reads as the click having been dropped.
+  if (!trashing) tokens(s.tokens);
+  if (!forgetting) networks(s.networks);
+  if (!binning) shots(s.shots);
+  // Fewer than the page has seen is a board that has been reset since.
+  if (s.calls < drawn) {
+    drawn = 0;
+    log = [];
+  }
+  if (s.calls !== drawn) {
+    await requests();
+  }
+  // Not while it is being dragged, or the poll would drag it back every five
+  // seconds under the finger holding it.
+  if (document.activeElement !== $('every')) {
+    $('every').value = s.every;
+    showEvery();
+  }
+});
+
+let forgetting = false;
+let trashing = false;
+let binning = false;
+
+function tokens(list) {
+  $('tokenState').textContent = list.length ? list.length + ' stored' : 'None set';
+  // Which one is read is swiped between on the glass, so the list only says.
+  $('tokenList').innerHTML = list.map((t, i) => `<li class="flex items-center justify-between
+    gap-3 px-5 py-3">
+    <span class="min-w-0 truncate font-mono text-xs ${t.picked ? 'text-white' : 'text-white/60'}"
+      >${esc(t.hint)}</span>
+    <button data-token=${i} class="inline-flex shrink-0 items-center gap-1.5 rounded-md
+      border border-white/15 px-2.5 py-1 text-xs text-white/60 hover:border-rose-500/50
+      hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50">Remove</button>
+  </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None set.</li>';
+}
+
+function networks(list) {
+  $('netCount').textContent = list.length + (list.length === 1 ? ' known' : ' known');
+  $('netList').innerHTML = list.map((n) => `<li class="flex items-center justify-between gap-3 px-5 py-3">
+    <div class="min-w-0">
+      <p class="truncate text-sm ${n.connected ? 'text-white' : 'text-white/80'}">${esc(n.ssid)}</p>
+      ${n.connected ? `<p class="mt-0.5 text-xs text-white/45">${esc(n.address)} · ${n.rssi} dBm</p>` : ''}
+    </div>
+    <div class="flex shrink-0 items-center gap-2">
+      ${n.connected ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-teal-500/10
+        px-2 py-0.5 text-[10px] font-medium text-teal-400"><span
+        class="h-1.5 w-1.5 rounded-full bg-teal-400"></span>Connected</span>` : ''}
+      <button data-ssid="${esc(n.ssid)}" class="inline-flex items-center gap-1.5 rounded-md
+        border border-white/15 px-2.5 py-1 text-xs text-white/60
+        hover:border-rose-500/50 hover:text-rose-400 disabled:cursor-not-allowed
+        disabled:opacity-50">Remove</button>
+    </div>
+  </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None known.</li>';
+}
+
+function shots(list) {
+  $('shotCount').textContent = list.length ? list.length + ' kept' : 'None yet';
+  // The name is the link. It goes to its own path rather than to a query, so
+  // the tab it opens is called what the file is called and saving it out of the
+  // browser keeps that name.
+  $('shotList').innerHTML = list.map((s) => `<li class="flex items-center justify-between gap-3
+    px-5 py-3">
+    <a href="/shots/${esc(s.name)}" target=_blank rel="noopener noreferrer"
+       class="min-w-0 truncate font-mono text-xs text-white/80 hover:text-white hover:underline"
+      >${esc(s.name)}</a>
+    <div class="flex shrink-0 items-center gap-3">
+      <span class="text-xs tabular-nums text-white/45">${bytes(s.size)}</span>
+      <button data-shot="${esc(s.name)}" class="inline-flex items-center gap-1.5 rounded-md
+        border border-white/15 px-2.5 py-1 text-xs text-white/60 hover:border-rose-500/50
+        hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50">Remove</button>
+    </div>
+  </li>`).join('') || '<li class="px-5 py-4 text-sm text-white/45">None yet. Hold the button on ' +
+    'the board for three seconds.</li>';
+}
+
+// How many calls the rows on the page run up to, and the rows. A thousand of
+// them is a hundred kilobytes of JSON, and the board was sending all of it again
+// every time it made one call - so the page keeps what it has and asks only for
+// what it has not seen, which is a row.
+let drawn = 0;
+let log = [];
+
+async function requests() {
+  let fresh;
+  try {
+    fresh = await (await call('/requests?since=' + drawn)).json();
+  } catch (e) {
+    return;
+  }
+  // The count the board answered with rather than the one that prompted the
+  // asking: it may have made another call in between, and that row is in here.
+  drawn = fresh.calls;
+  log = fresh.rows.concat(log).slice(0, 1000);
+  const list = log;
+  // Held across the redraw, or reading back through the log would throw
+  // somebody to the top every time the board made a call.
+  const box = $('rows').closest('div');
+  const wasAt = box.scrollTop;
+  $('quiet').classList.toggle('hidden', list.length > 0);
+  // Only the ones that came back with something. A call that failed has no size
+  // to speak of and averaging its nought in says the replies are smaller than
+  // any of them was.
+  const done = list.filter((c) => c.code === 200);
+  $('totals').classList.toggle('hidden', done.length === 0);
+  if (done.length) {
+    const avg = (of) => done.reduce((sum, c) => sum + of(c), 0) / done.length;
+    $('avgLabel').textContent =
+      'Average of ' + done.length + (done.length === 1 ? ' response' : ' responses');
+    $('avgMs').textContent = Math.round(avg((c) => c.ms)) + ' ms';
+    $('avgSize').textContent = bytes(Math.round(avg((c) => c.size)));
+  }
+  $('rows').innerHTML = list.map((c) => `<tr>
+    <td class="whitespace-nowrap py-2 pl-5 pr-3 tabular-nums text-white/45">${clock(c.at)}</td>
+    <td class="truncate px-3 py-2"><a href="${esc(c.url)}" target=_blank
+        rel="noopener noreferrer" title="${esc(c.url)}"
+        class="text-white/60 hover:underline">${esc(c.url)}</a></td>
+    <td class="whitespace-nowrap px-3 py-2 text-right ${
+      c.code === 200 ? 'tabular-nums text-teal-400' : 'text-rose-400'}"
+        title="${c.code > 0 ? 'HTTP ' + c.code : 'client error ' + c.code}">${
+      c.code > 0 ? c.code : 'failed'}</td>
+    <td class="whitespace-nowrap px-3 py-2 text-right tabular-nums text-white/45">${c.ms} ms</td>
+    <td class="whitespace-nowrap py-2 pl-3 pr-5 text-right tabular-nums
+        text-white/45">${bytes(c.size)}</td>
+  </tr>`).join('');
+  box.scrollTop = wasAt;
+}
+
+function showEvery() {
+  $('everyLabel').textContent = $('every').value + ' min';
+}
+
+$('every').addEventListener('input', showEvery);
+
+// On change rather than input: the step snaps it, and one write per drag beats
+// one per position of it.
+$('every').addEventListener('change', async () => {
+  try {
+    await post('/every', {minutes: $('every').value});
+  } catch (err) {
+    say($('netMsg'), 'Interval not saved: ' + err.message, false);
+  }
+});
+
+$('tokenForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  unfocus(e.target);
+  const btn = $('tokenAdd');
+  busy(btn, true);
+  $('tokenMsg').classList.add('hidden');
+  try {
+    await post('/tokens', {token: $('token').value});
+    say($('tokenMsg'), 'Added. The board is using it now.', true);
+    $('token').value = '';
+  } catch (err) {
+    say($('tokenMsg'), 'Not added: ' + err.message, false);
+  } finally {
+    busy(btn, false);
+    // Now rather than in five seconds' time: adding one sets the poller off, and
+    // what that turns up belongs on the page.
+    refresh();
+  }
+});
+
+$('tokenList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-token]');
+  if (!btn) return;
+  // A token cannot be read back off the board, so there is no getting this one
+  // again without going to claude.ai for a fresh one.
+  if (!confirm('Are you sure you want to remove this token? It cannot be shown again.')) return;
+  btn.disabled = true;
+  btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
+  trashing = true;
+  try {
+    await post('/tokens/trash', {index: btn.dataset.token});
+    $('tokenMsg').classList.add('hidden');
+  } catch (err) {
+    say($('tokenMsg'), 'Not removed: ' + err.message, false);
+  } finally {
+    trashing = false;
+  }
+  // Awaited, so the button spins until the row it sits in has actually gone
+  // rather than until the board said it would.
+  await refresh();
+});
+
+$('netForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  unfocus(e.target);
+  const btn = $('netAdd');
+  busy(btn, true);
+  $('netMsg').classList.add('hidden');
+  try {
+    await post('/networks', {ssid: $('ssid').value, password: $('pass').value});
+    say($('netMsg'), 'Added. The board will try it when it next looks.', true);
+    $('ssid').value = $('pass').value = '';
+  } catch (err) {
+    say($('netMsg'), 'Not added: ' + err.message, false);
+  } finally {
+    busy(btn, false);
+    refresh();
+  }
+});
+
+$('netList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-ssid]');
+  if (!btn) return;
+  const ssid = btn.dataset.ssid;
+  // Removing the one the board is on takes this page down with it, and the
+  // password goes rather than being hidden - both are worth a second's thought.
+  const sure = 'Are you sure you want to remove the Wi-Fi network "' + ssid +
+      '"? You will need its password to add it back.';
+  if (!confirm(sure)) return;
+  btn.disabled = true;
+  btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
+  forgetting = true;
+  try {
+    await post('/forget', {ssid: ssid});
+    $('netMsg').classList.add('hidden');
+  } catch (err) {
+    say($('netMsg'), 'Not removed: ' + err.message, false);
+  } finally {
+    forgetting = false;
+  }
+  // Awaited, so the button spins until the row it sits in has actually gone
+  // rather than until the board said it would. A refusal redraws it as it was.
+  await refresh();
+});
+
+$('shotList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-shot]');
+  if (!btn) return;
+  // The frame it was taken of is long gone, so this is the only copy of it.
+  if (!confirm('Are you sure you want to remove ' + btn.dataset.shot + '?')) return;
+  btn.disabled = true;
+  btn.innerHTML = spin('h-3 w-3') + '<span>Removing</span>';
+  binning = true;
+  try {
+    await post('/shots/trash', {name: btn.dataset.shot});
+  } catch (err) {
+    // Nothing to say here that the list does not say better. A removal only
+    // fails because the board no longer has that one, and what it does have is
+    // what gets drawn below.
+  } finally {
+    binning = false;
+  }
+  // Awaited, so the button spins until the row it sits in has actually gone
+  // rather than until the board said it would.
+  await refresh();
+});
+
+// Asked again five seconds after the last answer rather than every five
+// seconds: on a slow radio an answer can take that long by itself, and a clock
+// that does not wait for it only adds to what the board is behind on. None of
+// this changes because the page did it - another tab, the board joining a
+// different network, or the poller going round again a minute from now.
+(function poll() {
+  refresh().then(() => setTimeout(poll, 5000));
+})();
+</script>
