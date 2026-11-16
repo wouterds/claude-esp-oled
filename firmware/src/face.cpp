@@ -223,9 +223,10 @@ struct Mouth {
 // In the order the enum declares them, because that is what indexes this.
 constexpr Mouth MOUTHS[] = {
     {15.0f, 7.0f, 7.0f, 7.0f},     // neutral, a flat stripe
-    {16.0f, 11.0f, 4.0f, 11.0f},   // happy, squared on top and domed underneath
+    {20.0f, 12.0f, 4.0f, 12.0f},   // happy, squared on top and domed underneath
     {16.0f, 18.0f, 16.0f, 16.0f},  // surprised, an o
-    {18.0f, 7.0f, 7.0f, 7.0f},     // angry, flat and wider than neutral
+    {18.0f, 8.0f, 8.0f, 2.5f},     // angry, domed on top and squared underneath:
+                                   // happy's own mouth the other way up
     {10.0f, 7.5f, 7.5f, 7.5f},     // dead, short and thick
     {12.0f, 6.5f, 6.5f, 6.5f},     // tired, a small even blob - a sag here
                                    // reads as a frown, and a frown is cross
