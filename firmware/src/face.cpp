@@ -222,14 +222,6 @@ constexpr Mouth MOUTHS[] = {
                                    // reads as a frown, and a frown is cross
 };
 
-// The blob is bent rather than cut. Taking a circle out of it leaves the ends
-// of the crescent in points, which is the one thing a mouth made of a rounded
-// blob should not have - bending keeps every side as round as it started.
-ALWAYS float mouthShape(Mood mood, float x, float y) {
-  const Mouth &m = MOUTHS[(uint8_t)mood];
-  return sdRoundBoxTB(x, y, m.hx, m.hy, m.rTop, m.rBottom);
-}
-
 // How far one eye reaches from its own centre, per expression, before the glow.
 // The box walked below is this rather than the widest of all of them, which on a
 // face that is usually neutral is a good fifth of the pixels never looked at.
@@ -325,11 +317,20 @@ ALWAYS Blob eyeBlob(Mood mood, float squeeze) {
 // What a row of one of those blobs already knows. Every term here comes off the
 // row's own y and the frame's squeeze, so a row works it out once rather than
 // once for each of the seventy-odd pixels along it.
+//
+// `solid` and `ink` are how far either side of the middle the row is flat white
+// and how far it has anything on it at all, negative where it has neither. Most
+// of an eye is its own middle: every pixel there comes out the same white, and
+// taking a distance to find that out was better than half of what a frame cost.
+// Solid stops a whole pixel inside the edge, where the coverage has long since
+// reached one, so what is filled is exactly what would have been worked out.
 struct BlobRow {
   float base;  // r - hx, so a pixel's own leg is |lx| + this
   float qy;
   float ay;
   float r;
+  float solid;
+  float ink;
 };
 
 ALWAYS BlobRow blobRow(const Blob &b, float ly) {
@@ -345,6 +346,13 @@ ALWAYS BlobRow blobRow(const Blob &b, float ly) {
   row.qy = qy;
   row.ay = qy > 0.0f ? qy : 0.0f;
   row.r = r;
+  // Beside the straight part of the side the edge is simply hx away; in a
+  // corner it is wherever the corner's circle crosses this row.
+  float in = r - 1.0f;
+  float out = r + GLOW_RADIUS;
+  row.solid = qy > in ? -1.0f : (qy <= 0.0f ? b.hx - 1.0f : sqrtf(in * in - qy * qy) - row.base);
+  row.ink = qy >= out ? -1.0f
+                      : (qy <= 0.0f ? b.hx + GLOW_RADIUS : sqrtf(out * out - qy * qy) - row.base);
   return row;
 }
 
@@ -410,13 +418,64 @@ ALWAYS void lay(uint16_t *row, int16_t x, float d) {
       boardColour((uint16_t)(((level & 0xF8) << 8) | ((level & 0xFC) << 3) | (level >> 3)));
 }
 
-ALWAYS float mouthShapeMixed(Mood mood, Mood before, float x, float y, float mix) {
-  float d = mouthShape(mood, x, y);
-  if (mix < 1.0f) {
-    float was = mouthShape(before, x, y);
-    d = was + (d - was) * mix;
+// The pixels of a row that need their distance taken: the edge and the glow.
+// Mid-change both shapes are wanted and the distances are mixed - which is what
+// makes it a morph rather than one shape fading into another.
+ALWAYS void blobEdge(uint16_t *row, int16_t from, int16_t to, float cx, const BlobRow &now,
+                     const BlobRow &gone, float mix) {
+  for (int16_t x = to; x >= from; x--) {
+    float lx = (float)x + 0.5f - cx;
+    float d = blobAt(now, lx);
+    if (mix < 1.0f) {
+      float was = blobAt(gone, lx);
+      d = was + (d - was) * mix;
+    }
+    lay(row, x, d);
   }
-  return d;
+}
+
+// One blob, or one on its way to being another, over the box it was given. A
+// row settles its own half of the distance once and the pixels along it only do
+// theirs - and only the ones near an edge do even that.
+void drawBlob(uint16_t *fb, const Blob &blob, const Blob &was, float mix, float cx, float cy,
+              int16_t x0, int16_t x1, int16_t y0, int16_t y1) {
+  // A pixel's middle is half a pixel in from its own number.
+  const float mid = cx - 0.5f;
+  for (int16_t y = y0; y <= y1; y++) {
+    float ly = (float)y + 0.5f - cy;
+    BlobRow now = blobRow(blob, ly);
+    BlobRow gone = now;
+    float solid = now.solid;
+    float ink = now.ink;
+    if (mix < 1.0f) {
+      // A mix of two distances is between them, so it is solid where both are
+      // and inked where either is.
+      gone = blobRow(was, ly);
+      if (gone.solid < solid) solid = gone.solid;
+      if (gone.ink > ink) ink = gone.ink;
+    }
+    if (ink < 0.0f) {
+      continue;
+    }
+    int16_t a = (int16_t)ceilf(mid - ink);
+    int16_t b = (int16_t)floorf(mid + ink);
+    if (a < x0) a = x0;
+    if (b > x1) b = x1;
+    uint16_t *row = boardRow(fb, y);
+    int16_t s0 = (int16_t)ceilf(mid - solid);
+    int16_t s1 = (int16_t)floorf(mid + solid);
+    if (s0 < a) s0 = a;
+    if (s1 > b) s1 = b;
+    if (solid < 0.0f || s1 < s0) {
+      blobEdge(row, a, b, cx, now, gone, mix);
+      continue;
+    }
+    blobEdge(row, (int16_t)(s1 + 1), b, cx, now, gone, mix);
+    // White is the same bytes either way round, and turned, the span is still
+    // contiguous.
+    memset(row + boardX(s1), 0xFF, (size_t)(s1 - s0 + 1) * 2);
+    blobEdge(row, a, (int16_t)(s0 - 1), cx, now, gone, mix);
+  }
 }
 
 // Interpolating the distances rather than the coverage is what makes this a
@@ -442,6 +501,11 @@ void clearBox(uint16_t *fb, float fx0, float fy0, float fx1, float fy1) {
   for (int16_t y = y0; y <= y1; y++) {
     memset(boardRow(fb, y) + boardX(x1), 0, (size_t)(x1 - x0 + 1) * 2);
   }
+}
+
+ALWAYS Blob mouthBlob(Mood mood) {
+  const Mouth &m = MOUTHS[(uint8_t)mood];
+  return {true, m.hx, m.hy, m.rTop, m.rBottom, 0.0f};
 }
 
 void pickTarget() {
@@ -843,29 +907,13 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom,
     if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
     if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
 
+    if (byRow) {
+      drawBlob(fb, blob, blobWas, mix, eyeX[i], eyeY, x0, x1, y0, y1);
+      continue;
+    }
     for (int16_t y = y0; y <= y1; y++) {
       float ly = (float)y + 0.5f - eyeY;
       uint16_t *row = boardRow(fb, y);
-      // The box is the shape's own now, so there is nothing left on the row or
-      // in the span that a test here would throw away.
-      if (byRow) {
-        BlobRow now = blobRow(blob, ly);
-        if (mix >= 1.0f) {
-          for (int16_t x = x1; x >= x0; x--) {
-            lay(row, x, blobAt(now, (float)x + 0.5f - eyeX[i]));
-          }
-        } else {
-          // Mid-change, so both are wanted and the distances are mixed - which
-          // is what makes it a morph rather than one shape fading into another.
-          BlobRow gone = blobRow(blobWas, ly);
-          for (int16_t x = x1; x >= x0; x--) {
-            float lx = (float)x + 0.5f - eyeX[i];
-            float was = blobAt(gone, lx);
-            lay(row, x, was + (blobAt(now, lx) - was) * mix);
-          }
-        }
-        continue;
-      }
       for (int16_t x = x1; x >= x0; x--) {
         float lx = (float)x + 0.5f - eyeX[i];
         lay(row, x, eyeShapeMixed(mood, before, lx, ly, side, squeeze, mix));
@@ -882,16 +930,7 @@ void faceDraw(uint16_t *fb, int16_t *rowFrom, int16_t *rowTo, int16_t *colFrom,
     if (y0 < 0) y0 = 0;
     if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1;
     if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
-
-    for (int16_t y = y0; y <= y1; y++) {
-      float ly = (float)y + 0.5f - mouthY;
-      uint16_t *row = boardRow(fb, y);
-      // The box is the mouth's own now, so nothing here would be thrown away.
-      for (int16_t x = x1; x >= x0; x--) {
-        float lx = (float)x + 0.5f - centreX;
-        lay(row, x, mouthShapeMixed(mood, before, lx, ly, mix));
-      }
-    }
+    drawBlob(fb, mouthBlob(mood), mouthBlob(before), mix, centreX, mouthY, x0, x1, y0, y1);
   }
 
   // Screen rows run the other way to framebuffer rows, so the band is flipped
