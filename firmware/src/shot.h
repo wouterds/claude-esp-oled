@@ -18,7 +18,8 @@
 
 // How many are kept. Taking the eleventh is what removes the first.
 constexpr uint8_t SHOTS_MAX = 10;
-// "shot-000000.png" and the nul after it.
+// A number and ".png", with the nul after it: ten figures is as long as the
+// number gets.
 constexpr size_t SHOT_NAME_MAX = 16;
 
 // Mounts the flash and reads what is already on it. Everything below answers as

@@ -15,18 +15,16 @@
 
 namespace {
 
-constexpr char DIR[] = "/shots";
-constexpr char PREFIX[] = "shot-";
-// "/shots/" and the longest name that goes after it.
+// A file is its number and nothing else: the folder already says what it is.
+// Nothing here ever reuses one - the next is the highest already on the flash
+// plus one - so both the order the page is drawn in and the choice of which
+// file to evict come out of the names.
+constexpr char DIR[] = "/screenshots";
+// The folder and the longest name that goes in it.
 constexpr size_t PATH_MAX_LEN = sizeof(DIR) + SHOT_NAME_MAX;
-
-// Six figures, not four. Nothing here ever reuses a number - the next one is
-// the highest already on the flash plus one - so both the order the page is
-// drawn in and the choice of which file to evict come out of the names, and
-// they only stay right while the counter has not been round. Six figures is a
-// million presses of a button that wants three seconds each; four would have
-// been eleven hours of holding it.
-constexpr uint32_t NUMBER_MAX = 1000000;
+// Where an earlier build kept them, and what it called them.
+constexpr char DIR_WAS[] = "/shots";
+constexpr char NAMED_WAS[] = "shot-%lu.png";
 
 // zlib's own default rather than the maximum. The encoder cuts its window to
 // 4KB on parts this size, which is much the larger of the two levers, and nine
@@ -49,25 +47,25 @@ void pathOf(const char *name, char *out, size_t size) { snprintf(out, size, "%s/
 // The number out of a name this wrote, or -1 for anything else that turns up in
 // the directory - which is the only thing that makes it something to leave
 // alone rather than something to evict.
-long numberOf(const char *name) {
-  size_t prefix = strlen(PREFIX);
-  if (strncmp(name, PREFIX, prefix) != 0) {
+int64_t numberOf(const char *name) {
+  // A digit first, or strtoul takes a sign and the space in front of one.
+  if (*name < '0' || *name > '9') {
     return -1;
   }
-  const char *digits = name + prefix;
   char *end = nullptr;
-  long n = strtol(digits, &end, 10);
-  if (end == digits || n < 0 || strcmp(end, ".png") != 0) {
+  unsigned long n = strtoul(name, &end, 10);
+  if (strcmp(end, ".png") != 0) {
     return -1;
   }
-  return n;
+  return (int64_t)n;
 }
 
 // Puts a name in its place, newest first, and gives back whatever fell off the
 // end - the file that has to go, or an empty string while there is still room.
 void insert(const char *name, char *dropped, size_t size) {
+  // By the number rather than by the letters: nine sorts after ten as a string.
   uint8_t at = 0;
-  while (at < count && strcmp(names[at], name) > 0) {
+  while (at < count && numberOf(names[at]) > numberOf(name)) {
     at++;
   }
   // Older than everything kept and there is no room for it: this one is the one
@@ -109,7 +107,7 @@ void scan() {
     // name() off a directory walk is the last element already, path() is the
     // whole thing - and the whole thing would not fit what is kept here.
     const char *name = f.name();
-    long n = numberOf(name);
+    int64_t n = numberOf(name);
     if (n < 0) {
       continue;
     }
@@ -130,6 +128,35 @@ void scan() {
     LittleFS.remove(path);
     Serial.printf("shot: %s was past the last %u and is gone\n", strays[i], SHOTS_MAX);
   }
+}
+
+// Whatever an earlier build left behind is carried over under its number, and
+// the folder it was in goes. Collected and then moved, for the same reason the
+// walk above unlinks afterwards.
+void adopt() {
+  File dir = LittleFS.open(DIR_WAS);
+  if (!dir || !dir.isDirectory()) {
+    return;
+  }
+  unsigned long found[SHOTS_MAX + 1];
+  uint8_t n = 0;
+  for (File f = dir.openNextFile(); f && n < SHOTS_MAX + 1; f = dir.openNextFile()) {
+    if (sscanf(f.name(), NAMED_WAS, &found[n]) == 1) {
+      n++;
+    }
+  }
+  dir.close();
+
+  char from[PATH_MAX_LEN];
+  char to[PATH_MAX_LEN];
+  for (uint8_t i = 0; i < n; i++) {
+    snprintf(from, sizeof(from), "%s/shot-%06lu.png", DIR_WAS, found[i]);
+    snprintf(to, sizeof(to), "%s/%lu.png", DIR, found[i]);
+    LittleFS.rename(from, to);
+  }
+  // Only goes if it is empty, which is all that is wanted of it.
+  LittleFS.rmdir(DIR_WAS);
+  Serial.printf("shot: %u carried over from %s\n", n, DIR_WAS);
 }
 
 // Where a name asked for by a request turns into one this put there, and the
@@ -214,6 +241,7 @@ void shotBegin() {
     return;
   }
   mounted = true;
+  adopt();
   scan();
   Serial.printf("shot: %u of %u kept, %u bytes free\n", count, SHOTS_MAX,
                 (unsigned)(LittleFS.totalBytes() - LittleFS.usedBytes()));
@@ -255,7 +283,7 @@ bool shotTake() {
 
   shotHold();
   char name[SHOT_NAME_MAX];
-  snprintf(name, sizeof(name), "%s%06lu.png", PREFIX, (unsigned long)(next % NUMBER_MAX));
+  snprintf(name, sizeof(name), "%lu.png", (unsigned long)next);
   char path[PATH_MAX_LEN];
   pathOf(name, path, sizeof(path));
 
